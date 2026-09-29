@@ -544,6 +544,11 @@
             <input type="text" id="sunmgr-name"
                    data-i18n-placeholder="sunmgr.pair.namePlaceholder" placeholder="TV del salón, iPad…">
           </div>
+          <!-- Solo visible si varios Moonlight esperan PIN a la vez (Sunshine 2026.9+) -->
+          <div class="form-row" id="sunmgr-pairing-row" style="display:none">
+            <label for="sunmgr-pairing" data-i18n="sunmgr.pair.device">Dispositivo</label>
+            <select id="sunmgr-pairing"></select>
+          </div>
         </div>
         <div class="dep-actions">
           <button type="submit" class="btn btn-primary btn-sm" id="sunmgr-pair-submit" data-i18n="sunmgr.pair.submit">Emparejar</button>

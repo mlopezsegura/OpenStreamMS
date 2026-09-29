@@ -698,6 +698,7 @@ function openSunMgrModal(id) {
   document.getElementById('sunmgr-title').textContent = t('sunmgr.title', { name: s.name });
   document.getElementById('sunmgr-pair-form').reset();
   document.getElementById('sunmgr-pair-result').style.display = 'none';
+  sunmgrSetPendingPairings(null);
   document.getElementById('sunmgr-clients-list').innerHTML = `<span class="sunmgr-empty">${esc(t('sunmgr.loading'))}</span>`;
   show('sunmgr-modal');
   sunmgrLoadClients();
@@ -708,6 +709,23 @@ function closeSunMgrModal() {
   sunmgrSessionId = null;
 }
 
+// Sunshine 2026.9+ dirige el PIN a una solicitud pendiente concreta. Con una sola el
+// backend la elige solo; con varias devuelve la lista y aquí se muestra el selector.
+function sunmgrSetPendingPairings(pairings) {
+  const row = document.getElementById('sunmgr-pairing-row');
+  const sel = document.getElementById('sunmgr-pairing');
+  if (!pairings || pairings.length < 2) {
+    row.style.display = 'none';
+    sel.innerHTML = '';
+    return;
+  }
+  sel.innerHTML = pairings.map(p => {
+    const label = [p.name || t('sunmgr.pair.unknownDevice'), p.address].filter(Boolean).join(' — ');
+    return `<option value="${esc(p.id)}">${esc(label)}</option>`;
+  }).join('');
+  row.style.display = '';
+}
+
 async function sunmgrPair(e) {
   e.preventDefault();
   if (!sunmgrSessionId) return;
@@ -716,18 +734,23 @@ async function sunmgrPair(e) {
   const name   = document.getElementById('sunmgr-name').value.trim() || 'Moonlight';
   const btn    = document.getElementById('sunmgr-pair-submit');
   const result = document.getElementById('sunmgr-pair-result');
+  const pairingRow = document.getElementById('sunmgr-pairing-row');
+  const pairingId  = pairingRow.style.display === 'none'
+    ? null : document.getElementById('sunmgr-pairing').value || null;
 
   btn.disabled = true;
   result.style.display = 'none';
+  result.style.borderColor = '';   // el aviso ambar de un intento previo no debe quedarse
 
   try {
-    const res = await api('POST', `/api/sessions/${sunmgrSessionId}/pair`, { pin, name });
+    const res = await api('POST', `/api/sessions/${sunmgrSessionId}/pair`, { pin, name, pairingId });
     if (!res) return;
     if (res.ok) {
       result.className = 'auth-alert success';
       result.textContent = t('sunmgr.pair.success');
       result.style.display = '';
       document.getElementById('sunmgr-pin').value = '';
+      sunmgrSetPendingPairings(null);
       await sunmgrLoadClients();
       return;
     }
@@ -747,6 +770,15 @@ async function sunmgrPair(e) {
     } else if (code === 'session_not_running') {
       result.className = 'auth-alert error';
       result.textContent = t('sunmgr.err.session_not_running');
+    } else if (code === 'no_pending_pairing') {
+      sunmgrSetPendingPairings(null);
+      result.className = 'auth-alert error';
+      result.textContent = t('sunmgr.err.no_pending_pairing');
+    } else if (code === 'multiple_pending') {
+      sunmgrSetPendingPairings(body.pairings);
+      result.className = 'auth-alert';
+      result.style.borderColor = 'rgba(245,158,11,.5)';
+      result.textContent = t('sunmgr.err.multiple_pending');
     } else if (code === 'proxy_error') {
       result.className = 'auth-alert error';
       result.textContent = t('sunmgr.err.proxy_error', { detail: body?.message || '' });

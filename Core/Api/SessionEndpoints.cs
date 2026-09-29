@@ -203,8 +203,16 @@ public record PairRequest(
     /// <summary>PIN de 4 dígitos mostrado por el cliente Moonlight al intentar conectar.</summary>
     string Pin,
     /// <summary>Nombre descriptivo para el cliente (Moonlight PC, iPad, etc.). Opcional.</summary>
-    string Name = "Moonlight"
+    string Name = "Moonlight",
+    /// <summary>
+    /// Solicitud pendiente a la que va el PIN (Sunshine 2026.9+). Opcional: si solo hay
+    /// una se usa esa; si hay varias la API responde <c>multiple_pending</c> con la lista.
+    /// </summary>
+    string? PairingId = null
 );
+
+/// <summary>Solicitud de emparejamiento pendiente en Sunshine (Moonlight esperando PIN).</summary>
+public record PendingPairing(string Id, string? Name, string? Address);
 
 /// <summary>Cliente Moonlight pareado con una sesión.</summary>
 public record SunshineClient(string Uuid, string Name);
@@ -216,11 +224,15 @@ public record SunshineClient(string Uuid, string Name);
 /// <item><c>invalid_pin</c> — el PIN introducido no coincide o ya expiró.</item>
 /// <item><c>credentials_rotated</c> — el panel devolvió 401; hemos borrado las credenciales internas, hay que reiniciar la sesión.</item>
 /// <item><c>session_not_running</c> — la sesión no está activa.</item>
+/// <item><c>no_pending_pairing</c> — ningún Moonlight está esperando PIN (Sunshine 2026.9+).</item>
+/// <item><c>multiple_pending</c> — varios Moonlight esperan PIN; elegir uno de <c>Pairings</c>.</item>
 /// <item><c>proxy_error</c> — error genérico hablando con Sunshine.</item>
 /// </list>
 /// </param>
 /// <param name="Message">Descripción legible opcional.</param>
-public record SunshineError(string Code, string? Message = null);
+/// <param name="Pairings">Solicitudes pendientes, solo con <c>multiple_pending</c>.</param>
+public record SunshineError(string Code, string? Message = null,
+                            IReadOnlyList<PendingPairing>? Pairings = null);
 
 // ── ENDPOINTS ─────────────────────────────────────────────────────────────────
 
@@ -520,8 +532,51 @@ public static class SessionEndpoints
         if (string.IsNullOrWhiteSpace(req.Pin) || req.Pin.Length < 4)
             return Results.Json(new SunshineError("invalid_pin"), statusCode: 400);
 
-        var (status, body) = await proxy.SendJsonAsync(session, HttpMethod.Post, "/api/pin",
-            new { pin = req.Pin, name = string.IsNullOrWhiteSpace(req.Name) ? "Moonlight" : req.Name });
+        var name = string.IsNullOrWhiteSpace(req.Name) ? "Moonlight" : req.Name;
+
+        // Sunshine 2026.9+: el PIN va dirigido a una solicitud pendiente concreta
+        // (GET /api/pin → {pairings:[{id,name,address}]}) y POST exige pairing_id; sin él
+        // responde 400. Las versiones anteriores no tienen GET /api/pin → flujo antiguo.
+        var (listStatus, listBody) = await proxy.SendJsonAsync(session, HttpMethod.Get, "/api/pin");
+        if (HandleAuthFailure(listStatus, session, svc) is { } rotatedList)
+            return Results.Json(rotatedList, statusCode: 409);
+
+        object payload;
+        if (listStatus is >= 200 and < 300 &&
+            listBody?.TryGetProperty("pairings", out var arr) == true &&
+            arr.ValueKind == System.Text.Json.JsonValueKind.Array)
+        {
+            // El id se reenvía con su tipo JSON original (número o texto según versión).
+            var rawIds  = new Dictionary<string, System.Text.Json.JsonElement>();
+            var pending = arr.EnumerateArray()
+                .Where(p => p.TryGetProperty("id", out var i) && rawIds.TryAdd(i.ToString(), i.Clone()))
+                .Select(p => new PendingPairing(
+                    p.GetProperty("id").ToString(),
+                    p.TryGetProperty("name", out var n) && n.ValueKind == System.Text.Json.JsonValueKind.String ? n.GetString() : null,
+                    p.TryGetProperty("address", out var a) && a.ValueKind == System.Text.Json.JsonValueKind.String ? a.GetString() : null))
+                .ToList();
+
+            string? pairingId = req.PairingId;
+            if (pairingId is not null && pending.All(p => p.Id != pairingId))
+                pairingId = null; // caducó o ya se completó: se vuelve a elegir
+
+            if (pairingId is null)
+            {
+                if (pending.Count == 0)
+                    return Results.Json(new SunshineError("no_pending_pairing"), statusCode: 400);
+                if (pending.Count > 1)
+                    return Results.Json(new SunshineError("multiple_pending", Pairings: pending), statusCode: 409);
+                pairingId = pending[0].Id;
+            }
+
+            payload = new { pairing_id = rawIds[pairingId], pin = req.Pin, name };
+        }
+        else
+        {
+            payload = new { pin = req.Pin, name };
+        }
+
+        var (status, body) = await proxy.SendJsonAsync(session, HttpMethod.Post, "/api/pin", payload);
 
         if (HandleAuthFailure(status, session, svc) is { } rotated)
             return Results.Json(rotated, statusCode: 409);
@@ -539,7 +594,12 @@ public static class SessionEndpoints
         if (status is >= 200 and < 300)
             return Results.Json(new SunshineError("invalid_pin"), statusCode: 400);
 
-        return Results.Json(new SunshineError("proxy_error", $"HTTP {status}"), statusCode: 502);
+        // Sunshine suele explicar el 4xx en {"error": "..."}: se muestra tal cual.
+        var detail = body?.TryGetProperty("error", out var err) == true &&
+                     err.ValueKind == System.Text.Json.JsonValueKind.String
+            ? $"HTTP {status}: {err.GetString()}"
+            : $"HTTP {status}";
+        return Results.Json(new SunshineError("proxy_error", detail), statusCode: 502);
     }
 
     static async Task<IResult> ListClients(
