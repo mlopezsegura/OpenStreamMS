@@ -151,19 +151,8 @@ internal sealed class TrayApp : ApplicationContext
 
     // ── icon ─────────────────────────────────────────────────────────────────────
 
-    private static Icon CreateIcon()
-    {
-        using var bmp = new Bitmap(16, 16);
-        using (var g = Graphics.FromImage(bmp))
-        {
-            g.Clear(Color.Transparent);
-            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            using var bg = new SolidBrush(Color.FromArgb(30, 144, 255));
-            g.FillEllipse(bg, 0, 0, 15, 15);
-            g.FillPolygon(Brushes.White, new[] { new Point(5, 3), new Point(5, 12), new Point(13, 7) });
-        }
-        return Icon.FromHandle(bmp.GetHicon());
-    }
+    private static Icon CreateIcon() =>
+        OpenStreamMS.Core.Helpers.AppIcon.CreateIcon(SystemInformation.SmallIconSize);
 
     // ── cleanup ───────────────────────────────────────────────────────────────────
 

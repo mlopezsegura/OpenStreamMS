@@ -39,8 +39,9 @@
     <Folder Include="ExternalDeps\" />
   </ItemGroup>
 
-  <!-- Genera app.ico antes de compilar si no existe -->
-  <Target Name="EnsureAppIcon" BeforeTargets="Build" Condition="!Exists('$(MSBuildProjectDirectory)\app.ico')">
+  <!-- Genera app.ico antes de compilar si no existe. BeforeBuild y no Build: "Build"
+       corre tras CoreCompile, que ya necesita el icono (un clon limpio no compilaba). -->
+  <Target Name="EnsureAppIcon" BeforeTargets="BeforeBuild" Condition="!Exists('$(MSBuildProjectDirectory)\app.ico')">
     <Exec Command="powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\generate-icon.ps1&quot; -Out &quot;$(MSBuildProjectDirectory)\app.ico&quot;" />
   </Target>
 

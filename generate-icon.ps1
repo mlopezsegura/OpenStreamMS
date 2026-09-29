@@ -11,30 +11,29 @@ function New-IcoBytes([int[]]$Sizes) {
 
         $g.Clear([System.Drawing.Color]::Transparent)
 
-        # Purple circle background
+        # Cuadrado redondeado morado + triangulo play blanco. Misma geometria que
+        # Core/Helpers/AppIcon.cs y wwwroot/favicon.svg (lienzo 32, radio 7).
+        $g.PixelOffsetMode = [System.Drawing.Drawing2D.PixelOffsetMode]::HighQuality
+        $k = $s / 32.0
+        $d = [float](14 * $k)
+        $path = [System.Drawing.Drawing2D.GraphicsPath]::new()
+        $path.AddArc(0, 0, $d, $d, 180, 90)
+        $path.AddArc([float]($s - $d), 0, $d, $d, 270, 90)
+        $path.AddArc([float]($s - $d), [float]($s - $d), $d, $d, 0, 90)
+        $path.AddArc(0, [float]($s - $d), $d, $d, 90, 90)
+        $path.CloseFigure()
         $bg = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::FromArgb(124,58,237))
-        $g.FillEllipse($bg, 0, 0, $s-1, $s-1)
+        $g.FillPath($bg, $path)
 
-        # Camera body (white rectangle)
-        $pw  = [float][Math]::Max(1, $s / 16.0)
-        $pen = [System.Drawing.Pen]::new([System.Drawing.Color]::White, $pw)
-        $pen.LineJoin = [System.Drawing.Drawing2D.LineJoin]::Round
-        $bx = [int]($s * 0.10); $bw = [int]($s * 0.48)
-        $bh = [int]($s * 0.34); $by = [int](($s - $bh) / 2.0)
-        $g.DrawRectangle($pen, $bx, $by, $bw, $bh)
-
-        # Play triangle (lens / viewfinder)
-        $tx = $bx + $bw + [int]($s * 0.04)
-        $th = [float]($bh * 0.80); $ty = [float](($s - $th) / 2.0)
         $pts = [System.Drawing.PointF[]]@(
-            [System.Drawing.PointF]::new($tx,                        $ty),
-            [System.Drawing.PointF]::new($tx + [float]($s * 0.19),  $ty + $th / 2.0),
-            [System.Drawing.PointF]::new($tx,                        $ty + $th)
+            [System.Drawing.PointF]::new([float](12 * $k), [float]( 9 * $k)),
+            [System.Drawing.PointF]::new([float](23 * $k), [float](16 * $k)),
+            [System.Drawing.PointF]::new([float](12 * $k), [float](23 * $k))
         )
         $wb = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::White)
         $g.FillPolygon($wb, $pts)
 
-        $g.Dispose(); $bg.Dispose(); $pen.Dispose(); $wb.Dispose()
+        $g.Dispose(); $bg.Dispose(); $path.Dispose(); $wb.Dispose()
 
         $ms = [System.IO.MemoryStream]::new()
         $bmp.Save($ms, [System.Drawing.Imaging.ImageFormat]::Png)

@@ -599,74 +599,8 @@ internal sealed class SetupWizard : Form
         k.SetValue("NoRepair", 1, RegistryValueKind.DWord);
     }
 
-    static void GenerateAppIcon(string destPath)
-    {
-        static byte[] RenderPng(int size)
-        {
-            using var bmp = new System.Drawing.Bitmap(size, size,
-                System.Drawing.Imaging.PixelFormat.Format32bppArgb);
-            using var g = System.Drawing.Graphics.FromImage(bmp);
-            g.SmoothingMode     = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-            g.Clear(System.Drawing.Color.Transparent);
-
-            // Purple circle
-            using var bg = new System.Drawing.SolidBrush(System.Drawing.Color.FromArgb(124, 58, 237));
-            g.FillEllipse(bg, 0, 0, size - 1, size - 1);
-
-            // Camera body rectangle
-            float pw  = Math.Max(1f, size / 16f);
-            using var pen = new System.Drawing.Pen(System.Drawing.Color.White, pw);
-            pen.LineJoin = System.Drawing.Drawing2D.LineJoin.Round;
-            int bx = (int)(size * 0.10f), bw2 = (int)(size * 0.48f);
-            int bh = (int)(size * 0.34f), by  = (size - bh) / 2;
-            g.DrawRectangle(pen, bx, by, bw2, bh);
-
-            // Play arrow (viewfinder/lens)
-            float tx = bx + bw2 + size * 0.04f;
-            float th = bh * 0.80f, ty = (size - th) / 2f;
-            var pts = new System.Drawing.PointF[]
-            {
-                new(tx,                   ty),
-                new(tx + size * 0.19f,    ty + th / 2f),
-                new(tx,                   ty + th),
-            };
-            using var wb = new System.Drawing.SolidBrush(System.Drawing.Color.White);
-            g.FillPolygon(wb, pts);
-
-            using var ms = new MemoryStream();
-            bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
-            return ms.ToArray();
-        }
-
-        int[] sizes  = [16, 24, 32, 48, 256];
-        var   images = sizes.Select(RenderPng).ToArray();
-
-        int headerSize = 6 + 16 * sizes.Length;
-        var offsets    = new int[sizes.Length];
-        offsets[0]     = headerSize;
-        for (int i = 1; i < sizes.Length; i++)
-            offsets[i] = offsets[i - 1] + images[i - 1].Length;
-
-        using var fs = File.Create(destPath);
-        using var bw = new BinaryWriter(fs);
-
-        // ICONDIR header
-        bw.Write((ushort)0); bw.Write((ushort)1); bw.Write((ushort)sizes.Length);
-
-        // ICONDIRENTRY for each size
-        for (int i = 0; i < sizes.Length; i++)
-        {
-            byte dim = sizes[i] >= 256 ? (byte)0 : (byte)sizes[i];
-            bw.Write(dim); bw.Write(dim);
-            bw.Write((byte)0); bw.Write((byte)0);
-            bw.Write((ushort)1); bw.Write((ushort)32);
-            bw.Write((uint)images[i].Length);
-            bw.Write((uint)offsets[i]);
-        }
-
-        foreach (var img in images) bw.Write(img);
-    }
+    static void GenerateAppIcon(string destPath) =>
+        OpenStreamMS.Core.Helpers.AppIcon.WriteIco(destPath);
 
     static string? GetInstallDir()
     {

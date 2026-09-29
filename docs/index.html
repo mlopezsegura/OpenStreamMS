@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenStreamMS</title>
+<meta name="description" content="Windows service that runs multiple isolated Sunshine game-streaming sessions for Moonlight, each in its own RDP session, managed from a web dashboard.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%237c3aed'/><path d='M12 9l11 7-11 7z' fill='white'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0d0d1a;
+  --surface: #13131f;
+  --card: #1a1a2e;
+  --border: #2d2d50;
+  --accent: #7c3aed;
+  --accent-2: #a78bfa;
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --ok: #34d399;
+  --radius: 14px;
+  --shadow: 0 10px 40px rgba(0,0,0,.35);
+  --glow: rgba(124,58,237,.35);
+}
+:root[data-theme="light"] {
+  --bg: #f7f7fb;
+  --surface: #ffffff;
+  --card: #ffffff;
+  --border: #e3e3ef;
+  --accent: #6d28d9;
+  --accent-2: #7c3aed;
+  --text: #1e1b2e;
+  --muted: #5b5b72;
+  --ok: #059669;
+  --shadow: 0 10px 30px rgba(30,27,46,.08);
+  --glow: rgba(109,40,217,.18);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #f7f7fb; --surface: #ffffff; --card: #ffffff; --border: #e3e3ef;
+    --accent: #6d28d9; --accent-2: #7c3aed; --text: #1e1b2e; --muted: #5b5b72;
+    --ok: #059669; --shadow: 0 10px 30px rgba(30,27,46,.08); --glow: rgba(109,40,217,.18);
+  }
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 16px/1.6 Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased; overflow-x: hidden;
+}
+a { color: var(--accent-2); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code, pre { font-family: "JetBrains Mono", ui-monospace, Consolas, monospace; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 16px; }
+
+/* Language switch: only the active language is shown */
+html[lang="en"] [lang="es"], html[lang="es"] [lang="en"] { display: none !important; }
+
+/* Nav */
+nav.top {
+  position: sticky; top: 0; z-index: 10;
+  background: color-mix(in srgb, var(--bg) 85%, transparent);
+  backdrop-filter: blur(10px); border-bottom: 1px solid var(--border);
+}
+nav.top .wrap { display: flex; align-items: center; gap: 20px; height: 60px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 800; color: var(--text); font-size: 18px; }
+.brand:hover { text-decoration: none; }
+.logo { width: 28px; height: 28px; border-radius: 8px; background: var(--accent); display: grid; place-items: center; }
+.links { display: flex; gap: 20px; margin-left: auto; font-size: 14px; }
+.links a { color: var(--muted); }
+.links a:hover { color: var(--text); text-decoration: none; }
+.tools { display: flex; gap: 6px; }
+.chip {
+  border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  border-radius: 8px; padding: 5px 10px; font: 600 12px Inter, sans-serif; cursor: pointer;
+}
+.chip:hover { border-color: var(--accent); }
+@media (max-width: 760px) { .links { display: none; } .tools { margin-left: auto; } }
+
+/* Hero */
+.hero { padding: 88px 0 64px; position: relative; }
+.hero::before {
+  content: ""; position: absolute; inset: -120px 0 auto; height: 520px; z-index: -1;
+  background: radial-gradient(600px 300px at 50% 30%, var(--glow), transparent 70%);
+}
+.badge {
+  display: inline-flex; gap: 8px; align-items: center; font-size: 13px; color: var(--muted);
+  border: 1px solid var(--border); border-radius: 999px; padding: 5px 12px; background: var(--surface);
+}
+.badge .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
+h1 { font-size: clamp(36px, 6vw, 60px); line-height: 1.08; letter-spacing: -.03em; margin: 20px 0 18px; font-weight: 800; }
+h1 .grad { background: linear-gradient(90deg, var(--accent-2), #60a5fa); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.lead { font-size: clamp(17px, 2.2vw, 20px); color: var(--muted); max-width: 720px; margin: 0 0 32px; }
+.cta { display: flex; gap: 12px; flex-wrap: wrap; }
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 10px;
+  font-weight: 600; font-size: 15px; border: 1px solid var(--border); color: var(--text); background: var(--surface);
+}
+.btn:hover { text-decoration: none; border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { filter: brightness(1.1); }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 56px; }
+.stat { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
+.stat b { display: block; font-size: 24px; letter-spacing: -.02em; }
+.stat span { color: var(--muted); font-size: 13px; }
+@media (max-width: 760px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+
+/* Sections */
+section { padding: 72px 0; }
+section.alt { background: var(--surface); border-block: 1px solid var(--border); }
+.eyebrow { color: var(--accent-2); font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; }
+h2 { font-size: clamp(28px, 4vw, 38px); letter-spacing: -.02em; margin: 8px 0 12px; line-height: 1.15; }
+.sub { color: var(--muted); max-width: 680px; margin: 0 0 40px; }
+
+/* Architecture flow */
+.flow { display: grid; grid-template-columns: 1fr auto 1.6fr; gap: 16px; align-items: center; }
+.node { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow); }
+.node h4 { margin: 0 0 4px; font-size: 15px; }
+.node p { margin: 0; color: var(--muted); font-size: 13px; }
+.arrow { color: var(--accent-2); font-size: 26px; text-align: center; }
+.host { border: 1px dashed var(--accent); border-radius: calc(var(--radius) + 4px); padding: 16px; }
+.host > .label { font-size: 12px; font-weight: 700; color: var(--accent-2); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 12px; }
+.svc { margin-bottom: 12px; border-color: var(--accent); }
+.sessions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.session { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px; font-size: 13px; }
+.session b { display: block; font-size: 13px; margin-bottom: 6px; }
+.session div { color: var(--muted); font-size: 12px; line-height: 1.7; }
+.clients { display: grid; gap: 10px; }
+@media (max-width: 860px) {
+  .flow { grid-template-columns: 1fr; }
+  .arrow { transform: rotate(90deg); }
+  .sessions { grid-template-columns: 1fr; }
+}
+
+/* Feature grid */
+.cat { margin: 44px 0 16px; display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 18px; }
+.cat:first-of-type { margin-top: 0; }
+.cat::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+@media (max-width: 960px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 620px) { .grid { grid-template-columns: 1fr; } }
+.feat {
+  background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px;
+  transition: border-color .15s, transform .15s;
+}
+.feat:hover { border-color: var(--accent); transform: translateY(-2px); }
+.ico {
+  width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; margin-bottom: 14px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent-2);
+}
+.ico svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.feat h3 { margin: 0 0 6px; font-size: 16px; }
+.feat p { margin: 0; color: var(--muted); font-size: 14px; }
+.feat code { font-size: 12px; background: var(--bg); border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px; }
+
+/* Two-column blocks */
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: start; }
+@media (max-width: 860px) { .two { grid-template-columns: 1fr; } }
+ul.check { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+ul.check li { padding-left: 28px; position: relative; }
+ul.check li::before {
+  content: ""; position: absolute; left: 0; top: 5px; width: 16px; height: 16px; border-radius: 50%;
+  background: color-mix(in srgb, var(--ok) 20%, transparent);
+  box-shadow: inset 0 0 0 5px color-mix(in srgb, var(--ok) 20%, transparent), inset 0 0 0 8px var(--ok);
+}
+pre {
+  background: #0a0a14; color: #e2e8f0; border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 18px 20px; overflow-x: auto; font-size: 13.5px; line-height: 1.7; margin: 0;
+}
+pre .c { color: #6b7280; }
+pre .k { color: #a78bfa; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
+td code { font-size: 12.5px; }
+.m { font: 700 11px "JetBrains Mono", monospace; padding: 2px 6px; border-radius: 5px; background: var(--bg); border: 1px solid var(--border); }
+.m.get { color: #34d399; } .m.post { color: #60a5fa; } .m.patch { color: #fbbf24; } .m.del { color: #f87171; } .m.put { color: #c084fc; }
+.tablewrap { overflow-x: auto; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 6px 10px; }
+
+/* Steps */
+.steps { counter-reset: s; display: grid; gap: 14px; }
+.step { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px 16px 58px; position: relative; }
+.step::before {
+  counter-increment: s; content: counter(s); position: absolute; left: 16px; top: 16px;
+  width: 28px; height: 28px; border-radius: 8px; background: var(--accent); color: #fff; font-weight: 700; display: grid; place-items: center; font-size: 14px;
+}
+.step h4 { margin: 0 0 2px; font-size: 15px; }
+.step p { margin: 0; color: var(--muted); font-size: 14px; }
+
+footer { padding: 40px 0 56px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--border); }
+footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space-between; }
+</style>
+</head>
+<body>
+
+<nav class="top">
+  <div class="wrap">
+    <a class="brand" href="#">
+      <span class="logo"><svg width="14" height="14" viewBox="0 0 14 14"><path d="M3 1.5l9 5.5-9 5.5z" fill="#fff"/></svg></span>
+      OpenStreamMS
+    </a>
+    <div class="links">
+      <a href="#how"><span lang="en">How it works</span><span lang="es">Cómo funciona</span></a>
+      <a href="#features"><span lang="en">Features</span><span lang="es">Características</span></a>
+      <a href="#api">API</a>
+      <a href="#install"><span lang="en">Install</span><span lang="es">Instalación</span></a>
+      <a href="https://github.com/mlopezsegura/OpenStreamMS">GitHub</a>
+    </div>
+    <div class="tools">
+      <button class="chip" id="langBtn" type="button" aria-label="Switch language">ES</button>
+      <button class="chip" id="themeBtn" type="button" aria-label="Toggle theme">◐</button>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="badge"><span class="dot"></span>
+      <span lang="en">Open source · MIT · Windows 10/11</span>
+      <span lang="es">Código abierto · MIT · Windows 10/11</span>
+    </span>
+    <h1>
+      <span lang="en">Many players.<br><span class="grad">One Windows PC.</span></span>
+      <span lang="es">Varios jugadores.<br><span class="grad">Un solo PC con Windows.</span></span>
+    </h1>
+    <p class="lead">
+      <span lang="en">OpenStreamMS is a Windows service that runs several independent <strong>Sunshine</strong> game-streaming sessions at once — each one inside its own isolated RDP session, with its own user, desktop, audio and Moonlight clients — all managed from a web dashboard.</span>
+      <span lang="es">OpenStreamMS es un servicio de Windows que ejecuta varias sesiones de streaming de juegos con <strong>Sunshine</strong> a la vez, cada una dentro de su propia sesión RDP aislada, con su usuario, escritorio, audio y clientes Moonlight, y todo se gestiona desde un panel web.</span>
+    </p>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/mlopezsegura/OpenStreamMS/releases">
+        <span lang="en">Download installer</span><span lang="es">Descargar instalador</span>
+      </a>
+      <a class="btn" href="https://github.com/mlopezsegura/OpenStreamMS">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        <span lang="en">View on GitHub</span><span lang="es">Ver en GitHub</span>
+      </a>
+    </div>
+    <div class="stats">
+      <div class="stat"><b>4K · 60 fps</b><span lang="en">tuned RDP pipeline</span><span lang="es">pipeline RDP optimizado</span></div>
+      <div class="stat"><b>N</b><span lang="en">parallel sessions</span><span lang="es">sesiones en paralelo</span></div>
+      <div class="stat"><b>5 s</b><span lang="en">health-check loop</span><span lang="es">ciclo de vigilancia</span></div>
+      <div class="stat"><b>4</b><span lang="en">UI languages</span><span lang="es">idiomas en el panel</span></div>
+    </div>
+  </div>
+</header>
+
+<!-- ───────────────────────── HOW IT WORKS ───────────────────────── -->
+<section id="how" class="alt">
+  <div class="wrap">
+    <div class="eyebrow"><span lang="en">How it works</span><span lang="es">Cómo funciona</span></div>
+    <h2><span lang="en">A dedicated streaming host per session</span><span lang="es">Un host de streaming dedicado por sesión</span></h2>
+    <p class="sub">
+      <span lang="en">The service (running as SYSTEM) opens a loopback RDP session for each stream, launches a private Sunshine instance inside it on its own ports, and keeps everything alive. Your local desktop is never touched.</span>
+      <span lang="es">El servicio (que corre como SYSTEM) abre una sesión RDP local por cada stream, lanza dentro una instancia privada de Sunshine con sus propios puertos y lo mantiene todo en marcha. Tu escritorio local no se toca.</span>
+    </p>
+
+    <div class="flow">
+      <div class="clients">
+        <div class="node"><h4>Moonlight · TV</h4><p><span lang="en">Living-room client</span><span lang="es">Cliente del salón</span></p></div>
+        <div class="node"><h4>Moonlight · Laptop</h4><p><span lang="en">Second player</span><span lang="es">Segundo jugador</span></p></div>
+        <div class="node"><h4><span lang="en">Browser</span><span lang="es">Navegador</span></h4><p><span lang="en">Dashboard &amp; REST API</span><span lang="es">Panel y API REST</span></p></div>
+      </div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="host">
+        <div class="label"><span lang="en">Your Windows PC</span><span lang="es">Tu PC con Windows</span></div>
+        <div class="node svc">
+          <h4>OpenStreamMS service</h4>
+          <p><span lang="en">Web dashboard · REST API · session monitor · Sunshine proxy</span><span lang="es">Panel web · API REST · monitor de sesiones · proxy a Sunshine</span></p>
+        </div>
+        <div class="sessions">
+          <div class="session"><b><span lang="en">Session 1</span><span lang="es">Sesión 1</span></b>
+            <div>RDP loopback<br>Sunshine :47989<br><span lang="en">user</span><span lang="es">usuario</span> osms-a1…</div></div>
+          <div class="session"><b><span lang="en">Session 2</span><span lang="es">Sesión 2</span></b>
+            <div>RDP loopback<br>Sunshine :48089<br><span lang="en">user</span><span lang="es">usuario</span> osms-b2…</div></div>
+          <div class="session"><b><span lang="en">Local desktop</span><span lang="es">Escritorio local</span></b>
+            <div><span lang="en">Console session<br>untouched</span><span lang="es">Sesión de consola<br>intacta</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ───────────────────────── FEATURES ───────────────────────── -->
+<section id="features">
+  <div class="wrap">
+    <div class="eyebrow"><span lang="en">Features</span><span lang="es">Características</span></div>
+    <h2><span lang="en">Everything a multi-seat streaming box needs</span><span lang="es">Todo lo que necesita un PC de streaming multipuesto</span></h2>
+    <p class="sub"><span lang="en">From session isolation to hardware encoding checks, OpenStreamMS automates the fiddly parts of running Sunshine headless.</span><span lang="es">Desde el aislamiento de sesiones hasta la comprobación del encoder por hardware, OpenStreamMS automatiza lo más engorroso de usar Sunshine sin pantalla.</span></p>
+
+    <!-- Sessions & isolation -->
+    <div class="cat"><span lang="en">Sessions &amp; isolation</span><span lang="es">Sesiones y aislamiento</span></div>
+    <div class="grid">
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M8 21h8M12 18v3"/></svg></div>
+        <h3><span lang="en">Multiple isolated sessions</span><span lang="es">Varias sesiones aisladas</span></h3>
+        <p><span lang="en">Each stream gets its own RDP session and its own Sunshine instance, with separate ports, config, logs and paired devices.</span><span lang="es">Cada stream tiene su propia sesión RDP y su propia instancia de Sunshine, con puertos, configuración, logs y dispositivos emparejados independientes.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></div>
+        <h3><span lang="en">Native per-session users</span><span lang="es">Usuarios nativos por sesión</span></h3>
+        <p><span lang="en">Optionally runs a session under an auto-managed local user (<code>osms-…</code>): its own profile, HKCU, desktop and audio. Steam or Chrome can run twice without lock conflicts. No drivers, no third-party tools.</span><span lang="es">Opcionalmente ejecuta la sesión con un usuario local gestionado automáticamente (<code>osms-…</code>): perfil, HKCU, escritorio y audio propios. Steam o Chrome pueden abrirse dos veces sin conflictos de bloqueo. Sin drivers ni herramientas externas.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/><circle cx="7" cy="6" r="1"/></svg></div>
+        <h3><span lang="en">Ephemeral mode</span><span lang="es">Modo efímero</span></h3>
+        <p><span lang="en">Isolated users can be ephemeral: the profile and its registry hive are wiped when the session stops, so every start is a clean slate.</span><span lang="es">Los usuarios aislados pueden ser efímeros: el perfil y su registro se borran al parar la sesión, así que cada arranque empieza de cero.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4z"/><path d="M3 12l9 4 9-4M3 17l9 4 9-4"/></svg></div>
+        <h3><span lang="en">Independent stream profile</span><span lang="es">Perfil de stream independiente</span></h3>
+        <p><span lang="en">Same Windows user, separate profile root: <code>USERPROFILE</code>, <code>APPDATA</code>, <code>LOCALAPPDATA</code>, temp and XDG paths are redirected for Explorer, Sunshine and every app launched from Moonlight.</span><span lang="es">Mismo usuario de Windows con una raíz de perfil aparte: <code>USERPROFILE</code>, <code>APPDATA</code>, <code>LOCALAPPDATA</code>, temporales y rutas XDG se redirigen para Explorer, Sunshine y cada app lanzada desde Moonlight.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 9h6v6H9z"/></svg></div>
+        <h3><span lang="en">Sandboxie-Plus integration</span><span lang="es">Integración con Sandboxie-Plus</span></h3>
+        <p><span lang="en">Detects, installs and keeps Sandboxie-Plus boxes in sync for sessions that prefer copy-on-write sandboxing.</span><span lang="es">Detecta, instala y sincroniza las cajas de Sandboxie-Plus para las sesiones que prefieran aislamiento copy-on-write.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M11 5L6 9H2v6h4l5 4z"/><path d="M22 9l-6 6M16 9l6 6"/></svg></div>
+        <h3><span lang="en">Silent host, full stream audio</span><span lang="es">Host en silencio, audio completo en el stream</span></h3>
+        <p><span lang="en">The RDP client’s audio is muted on the host through WASAPI, while Sunshine still captures it for Moonlight. No game sound leaking into the room.</span><span lang="es">El audio del cliente RDP se silencia en el host mediante WASAPI, mientras Sunshine lo sigue capturando para Moonlight. El sonido del juego no se oye en la habitación.</span></p>
+      </div>
+    </div>
+
+    <!-- Streaming quality -->
+    <div class="cat"><span lang="en">Streaming performance</span><span lang="es">Rendimiento del streaming</span></div>
+    <div class="grid">
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M13 2L3 14h8l-1 8 10-12h-8z"/></svg></div>
+        <h3><span lang="en">4K60 RDP tuning</span><span lang="es">RDP optimizado para 4K60</span></h3>
+        <p><span lang="en">Applies frame-rate, GPU-capture and display-refresh policies before each session so the remote desktop composes at the full target rate. Resolution, fps and colour depth are set per session.</span><span lang="es">Aplica políticas de fps, captura por GPU y frecuencia de pantalla antes de cada sesión para que el escritorio remoto se componga a la tasa completa. Resolución, fps y profundidad de color se configuran por sesión.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9zM9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></svg></div>
+        <h3><span lang="en">Hardware encoder guard</span><span lang="es">Control del encoder por hardware</span></h3>
+        <p><span lang="en">After launch it reads Sunshine’s encoder probe (NVENC, AMF, Quick Sync). If Sunshine fell back to software encoding, it relaunches once to recover the GPU encoder.</span><span lang="es">Tras el arranque lee la detección de encoders de Sunshine (NVENC, AMF, Quick Sync). Si Sunshine ha caído a codificación por software, lo relanza una vez para recuperar el encoder de la GPU.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M4 17l6-6-6-6M12 19h8"/></svg></div>
+        <h3><span lang="en">mstsc or FreeRDP</span><span lang="es">mstsc o FreeRDP</span></h3>
+        <p><span lang="en">Uses the Windows RDP client with H.264 hardware decoding when available, or the bundled FreeRDP client in headless mode — selectable in the config.</span><span lang="es">Usa el cliente RDP de Windows con decodificación H.264 por hardware si está disponible, o el cliente FreeRDP incluido en modo oculto; se elige en la configuración.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="6"/><path d="M7 12h3M8.5 10.5v3M16 11h.01M18 13h.01"/></svg></div>
+        <h3><span lang="en">Virtual gamepads</span><span lang="es">Mandos virtuales</span></h3>
+        <p><span lang="en">Installs and manages the ViGEmBus driver from the dashboard so Moonlight controllers appear as native Xbox/DualShock pads inside each session.</span><span lang="es">Instala y gestiona el driver ViGEmBus desde el panel para que los mandos de Moonlight aparezcan como mandos Xbox/DualShock nativos en cada sesión.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M12 17v4M8 21h8M7 8h.01M7 12h10"/></svg></div>
+        <h3><span lang="en">Virtual display support</span><span lang="es">Soporte de pantalla virtual</span></h3>
+        <p><span lang="en">Optional VDD mode keeps a virtual display alive for Sunshine even when the RDP client disconnects. Capture method, encoder and output display are configurable per session.</span><span lang="es">El modo VDD opcional mantiene una pantalla virtual activa para Sunshine aunque se desconecte el cliente RDP. Método de captura, encoder y pantalla de salida se configuran por sesión.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 11-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg></div>
+        <h3><span lang="en">Auto-recovery</span><span lang="es">Recuperación automática</span></h3>
+        <p><span lang="en">A 5-second monitor restarts Sunshine if it crashes (reading the cause from the Windows event log) and relaunches every enabled session when the service or PC starts.</span><span lang="es">Un monitor cada 5 segundos reinicia Sunshine si falla (leyendo la causa en el registro de eventos de Windows) y relanza todas las sesiones habilitadas cuando arranca el servicio o el PC.</span></p>
+      </div>
+    </div>
+
+    <!-- Management -->
+    <div class="cat"><span lang="en">Management</span><span lang="es">Gestión</span></div>
+    <div class="grid">
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg></div>
+        <h3><span lang="en">Web dashboard</span><span lang="es">Panel web</span></h3>
+        <p><span lang="en">Create, start, stop, restart and delete sessions, edit their settings and follow live logs from any browser. Available in English, Spanish, French and Portuguese.</span><span lang="es">Crea, inicia, detiene, reinicia y borra sesiones, edita su configuración y sigue los logs en directo desde cualquier navegador. En inglés, español, francés y portugués.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7"/></svg></div>
+        <h3><span lang="en">Moonlight pairing</span><span lang="es">Emparejamiento con Moonlight</span></h3>
+        <p><span lang="en">Enter the Moonlight PIN in the dashboard, list paired clients and unpair them. Pairings survive restarts and Sunshine updates.</span><span lang="es">Introduce el PIN de Moonlight en el panel, consulta los clientes emparejados y desemparéjalos. Los emparejamientos se conservan tras reinicios y actualizaciones de Sunshine.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg></div>
+        <h3><span lang="en">Sunshine stays private</span><span lang="es">Sunshine queda privado</span></h3>
+        <p><span lang="en">Each Sunshine admin panel is reached only through an authenticated reverse proxy with per-session internal credentials (optionally rotated on start). It is never exposed to the network.</span><span lang="es">Al panel de administración de cada Sunshine solo se llega a través de un proxy inverso autenticado con credenciales internas por sesión (opcionalmente rotadas en cada arranque). Nunca se expone a la red.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 11-12.8 0"/></svg></div>
+        <h3><span lang="en">Remote power controls</span><span lang="es">Control de energía remoto</span></h3>
+        <p><span lang="en">Shut down, restart or cancel a pending shutdown of the host PC straight from the dashboard — handy from the couch.</span><span lang="es">Apaga, reinicia o cancela un apagado pendiente del PC directamente desde el panel, muy práctico desde el sofá.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg></div>
+        <h3><span lang="en">Concurrent RDP helpers</span><span lang="es">Ayudas para RDP concurrente</span></h3>
+        <p><span lang="en">Native Remote Desktop is enabled automatically. For several simultaneous sessions on client editions of Windows, TermWrap (or RDP Wrapper as fallback) can be installed, updated and removed from the UI.</span><span lang="es">Escritorio Remoto nativo se habilita automáticamente. Para varias sesiones simultáneas en ediciones cliente de Windows, TermWrap (o RDP Wrapper como alternativa) se puede instalar, actualizar y quitar desde el panel.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg></div>
+        <h3><span lang="en">Your Sunshine settings are kept</span><span lang="es">Se respetan tus ajustes de Sunshine</span></h3>
+        <p><span lang="en">Only the keys OpenStreamMS needs (ports, paths, certificates) are managed. Anything you change in Sunshine’s own panel is preserved across restarts and upgrades.</span><span lang="es">Solo se gestionan las claves que necesita OpenStreamMS (puertos, rutas, certificados). Lo que cambies en el panel de Sunshine se conserva entre reinicios y actualizaciones.</span></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ───────────────────────── API & OPS ───────────────────────── -->
+<section id="api" class="alt">
+  <div class="wrap">
+    <div class="eyebrow"><span lang="en">Automation</span><span lang="es">Automatización</span></div>
+    <h2><span lang="en">REST API, tray icon and CLI</span><span lang="es">API REST, icono de bandeja y CLI</span></h2>
+    <p class="sub"><span lang="en">Everything the dashboard does is available over a documented REST API, with interactive OpenAPI docs at <code>/scalar/v1</code>.</span><span lang="es">Todo lo que hace el panel está disponible en una API REST documentada, con documentación OpenAPI interactiva en <code>/scalar/v1</code>.</span></p>
+
+    <div class="two">
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th><span lang="en">Method</span><span lang="es">Método</span></th><th><span lang="en">Path</span><span lang="es">Ruta</span></th><th><span lang="en">Action</span><span lang="es">Acción</span></th></tr></thead>
+          <tbody>
+            <tr><td><span class="m get">GET</span></td><td><code>/api/sessions</code></td><td><span lang="en">List sessions</span><span lang="es">Listar sesiones</span></td></tr>
+            <tr><td><span class="m post">POST</span></td><td><code>/api/sessions</code></td><td><span lang="en">Create session</span><span lang="es">Crear sesión</span></td></tr>
+            <tr><td><span class="m post">POST</span></td><td><code>/{id}/start · stop · restart</code></td><td><span lang="en">Lifecycle</span><span lang="es">Ciclo de vida</span></td></tr>
+            <tr><td><span class="m patch">PATCH</span></td><td><code>/{id}/config · enabled</code></td><td><span lang="en">Settings, auto-start</span><span lang="es">Ajustes, autoarranque</span></td></tr>
+            <tr><td><span class="m post">POST</span></td><td><code>/{id}/pair</code></td><td><span lang="en">Pair Moonlight PIN</span><span lang="es">Emparejar PIN de Moonlight</span></td></tr>
+            <tr><td><span class="m get">GET</span></td><td><code>/{id}/clients</code></td><td><span lang="en">Paired clients</span><span lang="es">Clientes emparejados</span></td></tr>
+            <tr><td><span class="m get">GET</span></td><td><code>/{id}/logs</code></td><td><span lang="en">Session logs</span><span lang="es">Logs de la sesión</span></td></tr>
+            <tr><td><span class="m del">DELETE</span></td><td><code>/{id}</code></td><td><span lang="en">Delete session</span><span lang="es">Borrar sesión</span></td></tr>
+            <tr><td><span class="m post">POST</span></td><td><code>/api/power/shutdown · restart</code></td><td><span lang="en">Host power</span><span lang="es">Energía del host</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+<pre><span class="c"># Service &amp; tools</span>
+<span class="k">OpenStreamMS.exe</span> --install     <span class="c"># register the Windows service</span>
+<span class="k">OpenStreamMS.exe</span> --uninstall   <span class="c"># stop and remove it</span>
+<span class="k">OpenStreamMS.exe</span> --tray        <span class="c"># notification-area icon</span>
+<span class="k">OpenStreamMS.exe</span> --run         <span class="c"># run (called by the SCM)</span>
+
+<span class="c"># Create and start a session</span>
+<span class="k">curl</span> -u admin:*** -X POST http://localhost:5000/api/sessions \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Living room","username":"player1",
+       "password":"***","rdpWidth":3840,
+       "rdpHeight":2160,"rdpFrameRate":60}'</pre>
+        <ul class="check" style="margin-top:20px">
+          <li><span lang="en">Tray icon: double-click opens the dashboard, right-click starts/stops sessions.</span><span lang="es">Icono de bandeja: doble clic abre el panel y clic derecho inicia o detiene sesiones.</span></li>
+          <li><span lang="en">Cookie and HTTP Basic authentication with HMAC-signed tokens.</span><span lang="es">Autenticación por cookie y HTTP Basic con tokens firmados con HMAC.</span></li>
+          <li><span lang="en">Global and per-session logs with size-based rotation.</span><span lang="es">Logs globales y por sesión con rotación por tamaño.</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ───────────────────────── INSTALL ───────────────────────── -->
+<section id="install">
+  <div class="wrap">
+    <div class="eyebrow"><span lang="en">Get started</span><span lang="es">Empezar</span></div>
+    <h2><span lang="en">Up and running in minutes</span><span lang="es">Funcionando en minutos</span></h2>
+    <div class="two">
+      <div class="steps">
+        <div class="step">
+          <h4><span lang="en">Run the installer</span><span lang="es">Ejecuta el instalador</span></h4>
+          <p><span lang="en">Download <code>OpenStreamMS-Setup.exe</code> from Releases and run it as administrator. Sunshine and FreeRDP are bundled.</span><span lang="es">Descarga <code>OpenStreamMS-Setup.exe</code> desde Releases y ejecútalo como administrador. Incluye Sunshine y FreeRDP.</span></p>
+        </div>
+        <div class="step">
+          <h4><span lang="en">Create your admin account</span><span lang="es">Crea tu cuenta de administrador</span></h4>
+          <p><span lang="en">Open <code>http://localhost:5000</code>. The first visit asks for dashboard credentials.</span><span lang="es">Abre <code>http://localhost:5000</code>. La primera visita pide las credenciales del panel.</span></p>
+        </div>
+        <div class="step">
+          <h4><span lang="en">Add a session</span><span lang="es">Añade una sesión</span></h4>
+          <p><span lang="en">Choose the Windows user (or an isolated one), resolution and frame rate, then press Start.</span><span lang="es">Elige el usuario de Windows (o uno aislado), la resolución y los fps, y pulsa Iniciar.</span></p>
+        </div>
+        <div class="step">
+          <h4><span lang="en">Pair Moonlight and play</span><span lang="es">Empareja Moonlight y juega</span></h4>
+          <p><span lang="en">Add the PC in Moonlight, type the PIN in the dashboard and start streaming.</span><span lang="es">Añade el PC en Moonlight, escribe el PIN en el panel y empieza a jugar.</span></p>
+        </div>
+      </div>
+      <div>
+        <h3 style="margin-top:0"><span lang="en">Requirements</span><span lang="es">Requisitos</span></h3>
+        <ul class="check">
+          <li>Windows 10 / 11 x64</li>
+          <li><span lang="en">A GPU with a hardware video encoder (NVIDIA NVENC, AMD AMF or Intel Quick Sync)</span><span lang="es">Una GPU con encoder de vídeo por hardware (NVIDIA NVENC, AMD AMF o Intel Quick Sync)</span></li>
+          <li><span lang="en">Administrator rights to install the service</span><span lang="es">Permisos de administrador para instalar el servicio</span></li>
+          <li><span lang="en">Moonlight on each client device</span><span lang="es">Moonlight en cada dispositivo cliente</span></li>
+          <li><span lang="en">Optional: TermWrap for more than one simultaneous session on Windows Home/Pro</span><span lang="es">Opcional: TermWrap para más de una sesión simultánea en Windows Home/Pro</span></li>
+        </ul>
+        <h3 style="margin-top:28px"><span lang="en">Build from source</span><span lang="es">Compilar desde el código</span></h3>
+<pre><span class="k">git</span> clone https://github.com/mlopezsegura/OpenStreamMS
+<span class="k">cd</span> OpenStreamMS
+<span class="k">dotnet</span> publish -c Release -r win-x64 --self-contained -o publish
+publish\OpenStreamMS.exe --install</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div>
+      <strong style="color:var(--text)">OpenStreamMS</strong> ·
+      <span lang="en">MIT License</span><span lang="es">Licencia MIT</span> ·
+      <a href="https://github.com/mlopezsegura/OpenStreamMS/blob/master/THIRD_PARTY_NOTICES.md"><span lang="en">Third-party notices</span><span lang="es">Avisos de terceros</span></a>
+    </div>
+    <div>
+      <span lang="en">Built on</span><span lang="es">Construido sobre</span>
+      <a href="https://github.com/LizardByte/Sunshine">Sunshine</a>,
+      <a href="https://moonlight-stream.org">Moonlight</a> &amp;
+      <a href="https://github.com/FreeRDP/FreeRDP">FreeRDP</a>.
+      <span lang="en">Not affiliated with them.</span><span lang="es">Sin afiliación con ellos.</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  function get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+
+  // Language: saved choice, else browser language (Spanish or English)
+  var lang = get('osms-lang') || ((navigator.language || 'en').toLowerCase().indexOf('es') === 0 ? 'es' : 'en');
+  var langBtn = document.getElementById('langBtn');
+  function applyLang(l) { root.lang = l; langBtn.textContent = l === 'en' ? 'ES' : 'EN'; }
+  applyLang(lang);
+  langBtn.addEventListener('click', function () {
+    lang = lang === 'en' ? 'es' : 'en'; applyLang(lang); set('osms-lang', lang);
+  });
+
+  // Theme: saved choice, else system preference
+  var theme = get('osms-theme');
+  if (theme) root.dataset.theme = theme;
+  document.getElementById('themeBtn').addEventListener('click', function () {
+    var dark = root.dataset.theme ? root.dataset.theme === 'dark'
+                                  : !matchMedia('(prefers-color-scheme: light)').matches;
+    root.dataset.theme = dark ? 'light' : 'dark'; set('osms-theme', root.dataset.theme);
+  });
+})();
+</script>
+</body>
+</html>
