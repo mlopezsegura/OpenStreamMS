@@ -8,6 +8,7 @@ Windows service that automates the setup of a game streaming environment using [
 Manages the full lifecycle of isolated RDP streaming sessions — creation, monitoring, auto-restart, and teardown — from a web dashboard or REST API.
 
 ---
+<img width="1101" height="195" alt="image" src="https://github.com/user-attachments/assets/d749b03f-c2a4-482b-aca6-04525fb0391c" />
 
 ## Features
 
