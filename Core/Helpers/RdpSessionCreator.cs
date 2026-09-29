@@ -453,15 +453,15 @@ namespace OpenStreamMS.Core.Helpers
         /// misma unidad en todas las rutas) en Policies, Terminal Services y WinStations,
         /// incluida la key per-connection RDP-Tcp que termsrv lee al aceptar cada conexion.
         /// <para>
-        /// DWMFRAMEINTERVAL es un tope: redondear 16.67 → 17 ms limitaba a 58.8 fps y
-        /// Sunshine veia la pantalla a 58 Hz (un frame repetido cada ~0.5 s = microsaltos).
-        /// floor-1 deja margen por encima del objetivo (60 → 15, el valor que documenta
-        /// Microsoft para 60 fps).
+        /// La pantalla virtual de la sesion RDP toma su frecuencia de DWMFRAMEINTERVAL
+        /// (ms enteros): 17 → Sunshine ve 58 Hz, 15 → 66 Hz (medido). Con 15 Sunshine
+        /// descartaba ~1 de cada 10 frames para bajar a los 60 fps de Moonlight y el
+        /// stream daba tirones claramente peores; se mantiene el redondeo (60 → 17).
         /// </para>
         /// </summary>
         static void ApplyFrameRatePolicy(int frameRate)
         {
-            var frameIntervalMs = Math.Max(1, (int)Math.Floor(1000.0 / frameRate) - 1);
+            var frameIntervalMs = Math.Max(1, (int)Math.Round(1000.0 / frameRate));
 
             var entries = new (string Path, string Name, int Value, RegistryValueKind Kind)[]
             {
