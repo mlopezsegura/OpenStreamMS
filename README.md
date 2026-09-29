@@ -1,3 +1,6 @@
+<img width="1100" height="306" alt="image" src="https://github.com/user-attachments/assets/41a93d90-00d3-4eb4-ba67-767be534ae00" />
+
+
 # OpenStreamMS
 
 Windows service that automates the setup of a game streaming environment using [Sunshine](https://github.com/ClassicOldSong/Sunshine/) (Moonlight/GameStream host).
