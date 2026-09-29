@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="es" data-i18n-doc-title="doc.indexTitle">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenStreamMS</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/i18n.js"></script>
+</head>
+<body>
+<div id="app">
+
+  <!-- Navbar -->
+  <nav class="nav">
+    <div class="nav-brand">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+      </svg>
+      <span class="nav-brand-text">OpenStreamMS</span>
+    </div>
+    <div class="nav-actions">
+      <button id="rdp-pill" class="status-pill" onclick="openRdpModal()" type="button">
+        <span class="status-pill-dot"></span>
+        <span class="status-pill-label" data-i18n="rdp.pill">Multi-RDP</span>
+        <span class="status-pill-state" id="rdp-pill-state">—</span>
+      </button>
+      <button id="vigem-pill" class="status-pill" onclick="openViGEmModal()" type="button">
+        <span class="status-pill-dot"></span>
+        <span class="status-pill-label" data-i18n="vigem.pill">ViGEmBus</span>
+        <span class="status-pill-state" id="vigem-pill-state">—</span>
+      </button>
+      <button id="sandboxie-pill" class="status-pill" onclick="openSandboxieModal()" type="button">
+        <span class="status-pill-dot"></span>
+        <span class="status-pill-label" data-i18n="sandboxie.pill">Sandboxie</span>
+        <span class="status-pill-state" id="sandboxie-pill-state">—</span>
+      </button>
+      <select id="lang-select" class="lang-select" data-i18n-title="nav.langLabel" title="Idioma"></select>
+      <a href="/scalar/v1" target="_blank" class="btn btn-ghost btn-sm nav-extra" data-i18n="nav.apiDocs">API docs</a>
+      <button class="btn btn-ghost btn-sm nav-extra" onclick="show('about-modal')" data-i18n="nav.about">Acerca de</button>
+      <button class="btn btn-ghost btn-sm nav-extra" onclick="openPowerModal()" data-i18n-title="power.btn" title="Apagar / Reiniciar">
+        <span data-i18n="power.btn">⏻ Energía</span>
+      </button>
+      <form method="POST" action="/logout" style="margin:0">
+        <button type="submit" class="btn btn-ghost btn-sm nav-logout" data-i18n-title="nav.logout" title="Cerrar sesión">
+          <svg class="nav-logout-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          <span class="nav-logout-label" data-i18n="nav.logout">Cerrar sesión</span>
+        </button>
+      </form>
+    </div>
+  </nav>
+
+  <!-- Main content -->
+  <main>
+    <div class="toolbar">
+      <span class="toolbar-title"><span data-i18n="toolbar.sessions">Sesiones</span> — <strong id="session-count">0</strong></span>
+      <button class="btn btn-primary btn-sm" onclick="openNewModal()" data-i18n="toolbar.newSession">+ Nueva sesión</button>
+    </div>
+    <div class="sessions-grid" id="sessions-grid">
+      <div class="empty-state"><p data-i18n="empty.loading">Cargando…</p></div>
+    </div>
+  </main>
+</div>
+
+<!-- ─── Modal: nueva sesión ─────────────────────────────────────────────── -->
+<div class="modal-backdrop hidden" id="new-modal" onclick="handleBackdropClick(event,'new-modal')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 data-i18n="new.title">Nueva sesión</h3>
+      <button class="modal-close" onclick="closeNewModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="new-error" class="auth-alert error" style="display:none"></div>
+      <form id="new-form" onsubmit="submitNew(event)">
+        <div class="form-row">
+          <label data-i18n="new.nameLabel">Nombre *</label>
+          <input type="text" name="Name" required data-i18n-placeholder="new.namePlaceholder" placeholder="Ej: Sala de juegos">
+        </div>
+        <div class="form-grid">
+          <div class="form-row">
+            <label data-i18n="new.userLabel">Usuario Windows *</label>
+            <input type="text" name="Username" required data-i18n-placeholder="new.userPlaceholder" placeholder="streamuser" oninput="resetCredTest()">
+          </div>
+          <div class="form-row">
+            <label data-i18n="new.domainLabel">Dominio</label>
+            <input type="text" name="Domain" value="." placeholder="." oninput="resetCredTest()">
+          </div>
+        </div>
+        <div class="form-row">
+          <label data-i18n="new.passwordLabel">Contraseña *</label>
+          <input type="password" name="Password" required oninput="resetCredTest()">
+          <div id="cred-test-result" class="cred-test" style="display:none">
+            <span id="cred-test-icon"></span>
+            <span id="cred-test-msg"></span>
+          </div>
+          <div style="margin-top:.6rem">
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-test-creds" onclick="testCredentials()">
+              <span id="btn-test-spinner" class="spinner" style="display:none"></span>
+              <span data-i18n="new.testCreds">Probar credenciales</span>
+            </button>
+          </div>
+        </div>
+        <div class="form-row">
+          <label data-i18n="new.exeLabel">Ruta a sunshine.exe</label>
+          <input type="text" name="SunshineExePath" data-i18n-placeholder="new.exePlaceholder" placeholder="(usar configuración global)">
+          <div class="hint" data-i18n="new.exeHint">Déjalo vacío para usar la ruta definida en service.config.json.</div>
+        </div>
+        <div class="form-row">
+          <label data-i18n="new.resolutionLabel">Resolución</label>
+          <select id="new-res-preset" onchange="onResPreset('new')">
+            <option value="1280x720">1280×720 – HD</option>
+            <option value="1366x768">1366×768</option>
+            <option value="1600x900">1600×900</option>
+            <option value="1920x1080" selected>1920×1080 – Full HD</option>
+            <option value="2560x1080">2560×1080 – UltraWide FHD</option>
+            <option value="2560x1440">2560×1440 – QHD / 2K</option>
+            <option value="3440x1440">3440×1440 – UltraWide QHD</option>
+            <option value="3840x2160">3840×2160 – 4K UHD</option>
+            <option value="custom" data-i18n="new.customOption">Personalizada…</option>
+          </select>
+        </div>
+        <div class="form-grid" id="new-res-custom" style="display:none">
+          <div class="form-row">
+            <label data-i18n="new.widthLabel">Ancho (px)</label>
+            <input type="number" id="new-res-w" value="1920" min="640" max="7680">
+          </div>
+          <div class="form-row">
+            <label data-i18n="new.heightLabel">Alto (px)</label>
+            <input type="number" id="new-res-h" value="1080" min="480" max="4320">
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="form-row">
+            <label data-i18n="new.frameRateLabel">Framerate RDP</label>
+            <input type="number" name="RdpFrameRate" value="60" min="1" max="240" step="1">
+            <div class="hint" data-i18n="new.frameRateHint">Objetivo de FPS para la sesión RDP. 60 recomendado para streaming.</div>
+          </div>
+          <div class="form-row">
+            <label data-i18n="new.colorDepthLabel">Bits de color RDP</label>
+            <select name="RdpColorDepth">
+              <option value="16">16 bpp</option>
+              <option value="24">24 bpp</option>
+              <option value="32" selected>32 bpp</option>
+            </select>
+            <div class="hint" data-i18n="new.colorDepthHint">Profundidad de color enviada al cliente RDP.</div>
+          </div>
+        </div>
+        <div class="form-row">
+          <label data-i18n="new.portLabel">Puerto de stream (Moonlight)</label>
+          <input type="number" name="SunshineStreamPort" id="new-stream-port" value="47989" min="1024" max="65514" required
+                 oninput="updateDerivedWebPort('new')">
+          <div class="hint">
+            <span data-i18n="new.portHint">Puerto base de Moonlight. Cámbialo si tienes varias instancias.</span>
+            <span class="port-derived" id="new-port-derived"></span>
+          </div>
+        </div>
+        <div class="form-check">
+          <input type="checkbox" id="chk-bg"  name="RdpBackground" checked>
+          <label for="chk-bg" data-i18n="new.bgLabel">Lanzar mstsc en segundo plano (recomendado en producción)</label>
+        </div>
+        <div class="form-check">
+          <input type="checkbox" id="chk-vdd" name="VddEnabled">
+          <label for="chk-vdd" data-i18n="new.vddLabel">Activar pantalla virtual (VDD) en Sunshine</label>
+        </div>
+        <div class="form-check">
+          <input type="checkbox" id="chk-stream-profile" name="UseStreamProfile">
+          <label for="chk-stream-profile" data-i18n-html="new.profileLabel_html"><strong>Perfil de stream independiente</strong> — permite abrir las mismas apps (Steam, Chrome…) en la sesión local y en la de stream a la vez</label>
+        </div>
+        <div class="form-check">
+          <input type="checkbox" id="chk-enabled" name="Enabled">
+          <label for="chk-enabled" data-i18n-html="new.enabledLabel_html"><strong>Sesión habilitada</strong> — relanzar automáticamente al reiniciar el servicio</label>
+        </div>
+
+        <details class="form-advanced">
+          <summary data-i18n="new.advTitle">Opciones avanzadas de Sunshine</summary>
+          <div class="form-row">
+            <label data-i18n="new.advNameLabel">Nombre publicado (sunshine_name)</label>
+            <input type="text" name="SunshineName" data-i18n-placeholder="new.advNamePlaceholder" placeholder="(usar nombre de la sesión)">
+            <div class="hint" data-i18n="new.advNameHint">Nombre que Moonlight muestra al descubrir el host. Útil para distinguir varias sesiones.</div>
+          </div>
+          <div class="form-grid">
+            <div class="form-row">
+              <label data-i18n="new.captureLabel">Captura</label>
+              <select name="Capture">
+                <option value="" data-i18n="new.captureAuto">Auto-detección</option>
+                <option value="wgc" data-i18n="new.capture_wgc">wgc (recomendado en RDP)</option>
+                <option value="ddx" data-i18n="new.capture_ddx">ddx</option>
+                <option value="nvfbc" data-i18n="new.capture_nvfbc">nvfbc</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label data-i18n="new.encoderLabel">Encoder</label>
+              <select name="Encoder">
+                <option value="" data-i18n="new.encoderAuto">Auto-detección</option>
+                <option value="nvenc" data-i18n="new.encoder_nvenc">nvenc (NVIDIA)</option>
+                <option value="quicksync" data-i18n="new.encoder_quicksync">quicksync (Intel)</option>
+                <option value="amdvce" data-i18n="new.encoder_amdvce">amdvce (AMD)</option>
+                <option value="software" data-i18n="new.encoder_software">software</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <label data-i18n="new.outputLabel">Monitor a capturar (output_name)</label>
+            <input type="text" name="OutputName" data-i18n-placeholder="new.outputPlaceholder" placeholder="(principal)">
+            <div class="hint" data-i18n="new.outputHint">Nombre de dispositivo (p.ej. \\.\DISPLAY1). Útil cuando hay varios monitores o VDD.</div>
+          </div>
+          <div class="form-row">
+            <label data-i18n="new.originLabel">Acceso al panel web (origin_web_ui_allowed)</label>
+            <select name="OriginWebUiAllowed">
+              <option value="" data-i18n="new.originDefault">Defecto (lan)</option>
+              <option value="pc" data-i18n="new.origin_pc">pc — solo localhost</option>
+              <option value="lan" data-i18n="new.origin_lan">lan — red local</option>
+              <option value="wan" data-i18n="new.origin_wan">wan — cualquier origen</option>
+            </select>
+            <div class="hint" data-i18n="new.originHint">"pc" puede bloquear el acceso desde otra sesión Windows del mismo equipo aunque la IP sea 127.0.0.1.</div>
+          </div>
+          <div class="form-grid">
+            <div class="form-row">
+              <label data-i18n="new.panelUserLabel">Usuario panel Sunshine</label>
+              <input type="text" name="SunshineAuthUser" autocomplete="off" data-i18n-placeholder="new.panelUserPlaceholder" placeholder="(generar automáticamente)">
+            </div>
+            <div class="form-row">
+              <label data-i18n="new.panelPassLabel">Contraseña panel Sunshine</label>
+              <input type="text" name="SunshineAuthPass" autocomplete="off" data-i18n-placeholder="new.panelPassPlaceholder" placeholder="(generar automáticamente)">
+            </div>
+          </div>
+          <div class="hint" data-i18n="new.panelHint">Credenciales fijas para iniciar sesión en el panel web de Sunshine. Si dejas los campos vacíos, OpenStreamMS las genera la primera vez.</div>
+          <div class="form-check">
+            <input type="checkbox" id="chk-rotate-sunshine-creds" name="RotateSunshineCredentials">
+            <label for="chk-rotate-sunshine-creds" data-i18n-html="new.rotateCredsLabel_html"><strong>Rotar credenciales Sunshine</strong> — generar credenciales nuevas al arrancar la sesión y reparar desincronizaciones del proxy</label>
+          </div>
+        </details>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeNewModal()" data-i18n="new.cancel">Cancelar</button>
+      <button class="btn btn-primary" id="btn-create" disabled
+              onclick="document.getElementById('new-form').requestSubmit()" data-i18n="new.create">Crear sesión</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Modal: editar sesión ────────────────────────────────────────────── -->
+<div class="modal-backdrop hidden" id="edit-modal" onclick="handleBackdropClick(event,'edit-modal')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 id="edit-title" data-i18n="edit.title">Editar sesión</h3>
+      <button class="modal-close" onclick="closeEditModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="edit-error" class="auth-alert error" style="display:none"></div>
+      <form id="edit-form" onsubmit="submitEdit(event)">
+        <input type="hidden" id="edit-id">
+        <div class="form-row">
+          <label data-i18n="new.nameLabel">Nombre *</label>
+          <input type="text" id="edit-name" required>
+        </div>
+        <div class="form-row">
+          <label data-i18n="new.exeLabel">Ruta a sunshine.exe</label>
+          <input type="text" id="edit-exe" data-i18n-placeholder="new.exePlaceholder" placeholder="(usar configuración global)">
+          <div class="hint" data-i18n="new.exeHint">Déjalo vacío para usar la ruta definida en service.config.json.</div>
+        </div>
+        <div class="form-row">
+          <label data-i18n="new.resolutionLabel">Resolución</label>
+          <select id="edit-res-preset" onchange="onResPreset('edit')">
+            <option value="1280x720">1280×720 – HD</option>
+            <option value="1366x768">1366×768</option>
+            <option value="1600x900">1600×900</option>
+            <option value="1920x1080">1920×1080 – Full HD</option>
+            <option value="2560x1080">2560×1080 – UltraWide FHD</option>
+            <option value="2560x1440">2560×1440 – QHD / 2K</option>
+            <option value="3440x1440">3440×1440 – UltraWide QHD</option>
+            <option value="3840x2160">3840×2160 – 4K UHD</option>
+            <option value="custom" data-i18n="new.customOption">Personalizada…</option>
+          </select>
+        </div>
+        <div class="form-grid" id="edit-res-custom" style="display:none">
+          <div class="form-row">
+            <label data-i18n="new.widthLabel">Ancho (px)</label>
+            <input type="number" id="edit-res-w" value="1920" min="640" max="7680">
+          </div>
+          <div class="form-row">
+            <label data-i18n="new.heightLabel">Alto (px)</label>
+            <input type="number" id="edit-res-h" value="1080" min="480" max="4320">
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="form-row">
+            <label data-i18n="new.frameRateLabel">Framerate RDP</label>
+            <input type="number" id="edit-rdp-fps" value="60" min="1" max="240" step="1">
+            <div class="hint" data-i18n="new.frameRateHint">Objetivo de FPS para la sesión RDP. 60 recomendado para streaming.</div>
+          </div>
+          <div class="form-row">
+            <label data-i18n="new.colorDepthLabel">Bits de color RDP</label>
+            <select id="edit-rdp-bpp">
+              <option value="16">16 bpp</option>
+              <option value="24">24 bpp</option>
+              <option value="32">32 bpp</option>
+            </select>
+            <div class="hint" data-i18n="new.colorDepthHint">Profundidad de color enviada al cliente RDP.</div>
+          </div>
+        </div>
+        <div class="form-row">
+          <label data-i18n="new.portLabel">Puerto de stream (Moonlight)</label>
+          <input type="number" id="edit-port" min="1024" max="65514" required
+                 oninput="updateDerivedWebPort('edit')">
+          <div class="hint">
+            <span data-i18n="new.portHint">Puerto base de Moonlight. Cámbialo si tienes varias instancias.</span>
+            <span class="port-derived" id="edit-port-derived"></span>
+          </div>
+        </div>
+        <div class="form-check">
+          <input type="checkbox" id="edit-bg">
+          <label for="edit-bg" data-i18n="new.bgLabel">Lanzar mstsc en segundo plano (recomendado en producción)</label>
+        </div>
+        <div class="form-check">
+          <input type="checkbox" id="edit-vdd">
+          <label for="edit-vdd" data-i18n="new.vddLabel">Activar pantalla virtual (VDD) en Sunshine</label>
+        </div>
+        <div class="form-check">
+          <input type="checkbox" id="edit-profile">
+          <label for="edit-profile" data-i18n-html="new.profileLabel_html"><strong>Perfil de stream independiente</strong></label>
+        </div>
+
+        <details class="form-advanced">
+          <summary data-i18n="new.advTitle">Opciones avanzadas de Sunshine</summary>
+          <div class="form-row">
+            <label data-i18n="new.advNameLabel">Nombre publicado (sunshine_name)</label>
+            <input type="text" id="edit-sunshine-name" data-i18n-placeholder="new.advNamePlaceholder" placeholder="(usar nombre de la sesión)">
+            <div class="hint" data-i18n="new.advNameHint">Nombre que Moonlight muestra al descubrir el host.</div>
+          </div>
+          <div class="form-grid">
+            <div class="form-row">
+              <label data-i18n="new.captureLabel">Captura</label>
+              <select id="edit-capture">
+                <option value="" data-i18n="new.captureAuto">Auto-detección</option>
+                <option value="wgc" data-i18n="new.capture_wgc">wgc (recomendado en RDP)</option>
+                <option value="ddx" data-i18n="new.capture_ddx">ddx</option>
+                <option value="nvfbc" data-i18n="new.capture_nvfbc">nvfbc</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label data-i18n="new.encoderLabel">Encoder</label>
+              <select id="edit-encoder">
+                <option value="" data-i18n="new.encoderAuto">Auto-detección</option>
+                <option value="nvenc" data-i18n="new.encoder_nvenc">nvenc (NVIDIA)</option>
+                <option value="quicksync" data-i18n="new.encoder_quicksync">quicksync (Intel)</option>
+                <option value="amdvce" data-i18n="new.encoder_amdvce">amdvce (AMD)</option>
+                <option value="software" data-i18n="new.encoder_software">software</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-row">
+            <label data-i18n="new.outputLabel">Monitor a capturar (output_name)</label>
+            <input type="text" id="edit-output-name" data-i18n-placeholder="new.outputPlaceholder" placeholder="(principal)">
+            <div class="hint" data-i18n="new.outputHint">Nombre de dispositivo (p.ej. \\.\DISPLAY1).</div>
+          </div>
+          <div class="form-row">
+            <label data-i18n="new.originLabel">Acceso al panel web (origin_web_ui_allowed)</label>
+            <select id="edit-origin">
+              <option value="" data-i18n="new.originDefault">Defecto (lan)</option>
+              <option value="pc" data-i18n="new.origin_pc">pc — solo localhost</option>
+              <option value="lan" data-i18n="new.origin_lan">lan — red local</option>
+              <option value="wan" data-i18n="new.origin_wan">wan — cualquier origen</option>
+            </select>
+            <div class="hint" data-i18n="new.originHint">"pc" puede bloquear el acceso desde otra sesión Windows del mismo equipo aunque la IP sea 127.0.0.1.</div>
+          </div>
+          <div class="form-grid">
+            <div class="form-row">
+              <label data-i18n="new.panelUserLabel">Usuario panel Sunshine</label>
+              <input type="text" id="edit-panel-user" autocomplete="off">
+            </div>
+            <div class="form-row">
+              <label data-i18n="new.panelPassLabel">Contraseña panel Sunshine</label>
+              <input type="text" id="edit-panel-pass" autocomplete="off">
+            </div>
+          </div>
+          <div class="hint" data-i18n="new.panelHint">Credenciales fijas para iniciar sesión en el panel web de Sunshine. Si dejas los campos vacíos, OpenStreamMS las genera la primera vez.</div>
+          <div class="form-check">
+            <input type="checkbox" id="edit-rotate-creds">
+            <label for="edit-rotate-creds" data-i18n-html="new.rotateCredsLabel_html"><strong>Rotar credenciales Sunshine</strong> — generar credenciales nuevas al arrancar la sesión y reparar desincronizaciones del proxy</label>
+          </div>
+        </details>
+      </form>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeEditModal()" data-i18n="edit.cancel">Cancelar</button>
+      <button class="btn btn-primary" onclick="document.getElementById('edit-form').requestSubmit()" data-i18n="edit.save">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Modal: log de sesión ────────────────────────────────────────────── -->
+<div class="modal-backdrop hidden" id="log-modal" onclick="handleBackdropClick(event,'log-modal')">
+  <div class="modal modal-lg" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 id="log-title" data-i18n="log.title">Log</h3>
+      <button class="modal-close" onclick="closeLogModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="log-toolbar">
+        <span id="log-status" data-i18n="log.updating">Actualizando…</span>
+        <div style="display:flex;gap:.5rem;align-items:center">
+          <label class="toggle" data-i18n-title="log.autoscroll_title" title="Auto-scroll al final">
+            <input type="checkbox" id="scroll-toggle" checked onchange="autoScroll=this.checked">
+            <span class="toggle-track"></span>
+            <span data-i18n="log.autoscroll">Auto-scroll</span>
+          </label>
+          <button class="btn btn-ghost btn-sm" onclick="fetchLogs()" data-i18n="log.refresh">↻ Refrescar</button>
+        </div>
+      </div>
+      <div class="log-box" id="log-box"><span class="log-empty" data-i18n="log.empty">Sin entradas de log todavía.</span></div>
+    </div>
+    <div class="modal-footer">
+      <select id="log-lines" class="btn btn-ghost btn-sm" onchange="fetchLogs()" style="cursor:pointer">
+        <option value="100"  data-i18n="log.last_100">Últimas 100 líneas</option>
+        <option value="200"  data-i18n="log.last_200" selected>Últimas 200 líneas</option>
+        <option value="500"  data-i18n="log.last_500">Últimas 500 líneas</option>
+        <option value="1000" data-i18n="log.last_1000">Últimas 1000 líneas</option>
+      </select>
+      <button class="btn btn-ghost" onclick="closeLogModal()" data-i18n="log.close">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Modal: acerca de ─────────────────────────────────────────────────── -->
+<div class="modal-backdrop hidden" id="about-modal" onclick="if(event.target.id==='about-modal')hide('about-modal')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 data-i18n="about.title">Acerca de</h3>
+      <button class="modal-close" onclick="hide('about-modal')">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="about-hero">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+        </svg>
+        <div>
+          <div class="about-title">OpenStreamMS</div>
+          <div class="about-subtitle" data-i18n="about.subtitle">Game Streaming Service para Windows</div>
+        </div>
+      </div>
+
+      <p class="about-desc" data-i18n-html="about.description_html">
+        Servicio Windows que crea y gestiona sesiones RDP aisladas para streaming de juegos
+        con <strong>Sunshine</strong> y <strong>Moonlight</strong>. Permite tener múltiples
+        sesiones de streaming independientes, cada una con su propio perfil y ciclo de vida,
+        todo controlado desde una interfaz web o API REST.
+      </p>
+
+      <div class="about-features">
+        <div class="about-feature">
+          <span class="about-feature-icon">⚡</span>
+          <div>
+            <div class="about-feature-title" data-i18n="about.feat1.title">Sesiones RDP aisladas</div>
+            <div class="about-feature-desc" data-i18n="about.feat1.desc">Cada sesión corre bajo su propio usuario Windows con Sunshine independiente</div>
+          </div>
+        </div>
+        <div class="about-feature">
+          <span class="about-feature-icon">🔀</span>
+          <div>
+            <div class="about-feature-title" data-i18n="about.feat2.title">Perfil de stream independiente</div>
+            <div class="about-feature-desc" data-i18n="about.feat2.desc">Abre Steam, Chrome o cualquier app simultáneamente en local y en stream sin conflictos</div>
+          </div>
+        </div>
+        <div class="about-feature">
+          <span class="about-feature-icon">🔔</span>
+          <div>
+            <div class="about-feature-title" data-i18n="about.feat3.title">Icono en la bandeja</div>
+            <div class="about-feature-desc" data-i18n="about.feat3.desc">Control rápido de sesiones desde la barra de notificaciones de Windows</div>
+          </div>
+        </div>
+        <div class="about-feature">
+          <span class="about-feature-icon">🔁</span>
+          <div>
+            <div class="about-feature-title" data-i18n="about.feat4.title">Auto-arranque y monitorización</div>
+            <div class="about-feature-desc" data-i18n="about.feat4.desc">Las sesiones habilitadas se relanzan automáticamente y se monitorizan cada 5 s</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="about-credits">
+        <div class="about-credits-title" data-i18n="about.credits">Proyectos utilizados</div>
+        <div class="about-credits-list">
+          <a href="https://github.com/FreeRDP/FreeRDP" target="_blank" rel="noopener" class="about-credit">
+            <span class="about-credit-name">FreeRDP</span>
+            <span class="about-credit-desc" data-i18n="about.credit.freerdp">Cliente RDP para crear la sesión de stream</span>
+          </a>
+          <a href="https://github.com/LizardByte/Sunshine" target="_blank" rel="noopener" class="about-credit">
+            <span class="about-credit-name">Sunshine</span>
+            <span class="about-credit-desc" data-i18n="about.credit.sunshine">Servidor de streaming compatible con Moonlight</span>
+          </a>
+          <a href="https://github.com/nefarius/ViGEmBus" target="_blank" rel="noopener" class="about-credit">
+            <span class="about-credit-name">ViGEmBus</span>
+            <span class="about-credit-desc" data-i18n="about.credit.vigem">Driver de gamepad virtual para el mando remoto</span>
+          </a>
+          <a href="https://github.com/llccd/TermWrap" target="_blank" rel="noopener" class="about-credit">
+            <span class="about-credit-name">TermWrap</span>
+            <span class="about-credit-desc" data-i18n="about.credit.termwrap">Wrapper de TermService que habilita múltiples sesiones RDP en SKUs cliente; auto-detecta offsets de termsrv.dll y sobrevive Windows Updates. Reemplaza a RDPWrap (mantenido como fallback).</span>
+          </a>
+          <a href="https://github.com/asmtron/rdpwrap" target="_blank" rel="noopener" class="about-credit">
+            <span class="about-credit-name">RDPWrap (asmtron)</span>
+            <span class="about-credit-desc" data-i18n="about.credit.rdpwrap">Fallback histórico para habilitar múltiples sesiones RDP. Requiere actualizar rdpwrap.ini tras cada Windows Update.</span>
+          </a>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer about-modal-footer">
+      <span class="about-license" data-i18n="about.license">MIT License · Open Source</span>
+      <div style="display:flex;gap:.6rem">
+        <a href="https://github.com/mlopezsegura/OpenStreamMS" target="_blank" rel="noopener"
+           class="btn btn-primary btn-sm">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
+          </svg>
+          <span data-i18n="about.github">Ver en GitHub</span>
+        </a>
+        <button class="btn btn-ghost btn-sm" onclick="hide('about-modal')" data-i18n="about.close">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Modal: gestión Sunshine ─────────────────────────────────────────── -->
+<div class="modal-backdrop hidden" id="sunmgr-modal" onclick="handleBackdropClick(event,'sunmgr-modal')">
+  <div class="modal modal-lg" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 id="sunmgr-title">Sunshine</h3>
+      <button class="modal-close" onclick="closeSunMgrModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <!-- ── Emparejar ── -->
+      <h4 class="dep-log-label" data-i18n="sunmgr.pair.section">Emparejar</h4>
+      <p class="dep-desc" data-i18n="sunmgr.pair.hint"></p>
+      <form id="sunmgr-pair-form" onsubmit="sunmgrPair(event)">
+        <div class="form-grid">
+          <div class="form-row">
+            <label data-i18n="sunmgr.pair.pin">PIN</label>
+            <input type="text" id="sunmgr-pin" required minlength="4" maxlength="8" inputmode="numeric"
+                   data-i18n-placeholder="sunmgr.pair.pinPlaceholder" placeholder="4 dígitos">
+          </div>
+          <div class="form-row">
+            <label data-i18n="sunmgr.pair.name">Nombre del cliente</label>
+            <input type="text" id="sunmgr-name"
+                   data-i18n-placeholder="sunmgr.pair.namePlaceholder" placeholder="TV del salón, iPad…">
+          </div>
+        </div>
+        <div class="dep-actions">
+          <button type="submit" class="btn btn-primary btn-sm" id="sunmgr-pair-submit" data-i18n="sunmgr.pair.submit">Emparejar</button>
+        </div>
+        <div id="sunmgr-pair-result" class="auth-alert" style="display:none"></div>
+      </form>
+
+      <!-- ── Clientes emparejados ── -->
+      <h4 class="dep-log-label" data-i18n="sunmgr.clients.section">Clientes emparejados</h4>
+      <div id="sunmgr-clients-list" class="dep-status"><span class="log-empty" data-i18n="sunmgr.loading">Cargando…</span></div>
+      <div class="dep-actions">
+        <button class="btn btn-ghost btn-sm" onclick="sunmgrLoadClients()" data-i18n="rdp.btn.refresh">↻ Refrescar</button>
+        <button class="btn btn-danger btn-sm" id="sunmgr-unpair-all-btn" onclick="sunmgrUnpairAll()" data-i18n="sunmgr.clients.unpairAll">Desvincular todos</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeSunMgrModal()" data-i18n="sunmgr.close">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Modal: RDP Wrapper ──────────────────────────────────────────────── -->
+<div class="modal-backdrop hidden" id="rdp-modal" onclick="handleBackdropClick(event,'rdp-modal')">
+  <div class="modal modal-lg" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 data-i18n="rdp.title">RDP multi-sesión (RDP Wrapper)</h3>
+      <button class="modal-close" onclick="closeRdpModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <p class="dep-desc" data-i18n="rdp.description"></p>
+
+      <table class="dep-status">
+        <tr>
+          <td data-i18n="rdp.row.status">Estado</td>
+          <td><span id="rdp-status-badge" class="badge badge-created"><span class="badge-dot"></span>—</span></td>
+        </tr>
+        <tr><td data-i18n="rdp.row.installDir">Directorio</td><td id="rdp-install-dir">—</td></tr>
+        <tr><td data-i18n="rdp.row.bundle">Bundle</td>      <td id="rdp-bundle">—</td></tr>
+        <tr><td data-i18n="rdp.row.termsrv">termsrv.dll</td><td id="rdp-termsrv">—</td></tr>
+        <tr><td data-i18n="rdp.row.serviceDll">ServiceDll</td><td id="rdp-service-dll">—</td></tr>
+      </table>
+
+      <div class="dep-actions">
+        <button class="btn btn-primary btn-sm" id="rdp-btn-install" onclick="rdpInstall()" data-i18n="rdp.btn.install">Instalar</button>
+        <button class="btn btn-ghost btn-sm" id="rdp-btn-update"  onclick="rdpUpdate()"  data-i18n="rdp.btn.update">Actualizar</button>
+        <button class="btn btn-danger btn-sm" id="rdp-btn-uninstall" onclick="rdpUninstall()" data-i18n="rdp.btn.uninstall">Desinstalar</button>
+        <button class="btn btn-ghost btn-sm" onclick="rdpRefresh()" data-i18n="rdp.btn.refresh">↻ Refrescar</button>
+      </div>
+
+      <div class="dep-log-label" data-i18n="rdp.log.title">Log</div>
+      <div class="log-box" id="rdp-log-box"><span class="log-empty" data-i18n="rdp.log.empty">Aún no hay log.</span></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeRdpModal()" data-i18n="rdp.btn.close">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Modal: ViGEmBus ─────────────────────────────────────────────────── -->
+<div class="modal-backdrop hidden" id="vigem-modal" onclick="handleBackdropClick(event,'vigem-modal')">
+  <div class="modal modal-lg" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 data-i18n="vigem.title">ViGEmBus (mando virtual)</h3>
+      <button class="modal-close" onclick="closeViGEmModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <p class="dep-desc" data-i18n="vigem.description"></p>
+
+      <div id="vigem-reboot-banner" class="auth-alert error" style="display:none" data-i18n="vigem.rebootRequired">
+        Se requiere reiniciar Windows para completar la operación.
+      </div>
+
+      <table class="dep-status">
+        <tr>
+          <td data-i18n="vigem.row.status">Estado</td>
+          <td><span id="vigem-status-badge" class="badge badge-created"><span class="badge-dot"></span>—</span></td>
+        </tr>
+        <tr><td data-i18n="vigem.row.version">Versión</td>        <td id="vigem-version">—</td></tr>
+        <tr><td data-i18n="vigem.row.service">Servicio</td>       <td id="vigem-service">—</td></tr>
+        <tr><td data-i18n="vigem.row.driver">Driver</td>          <td id="vigem-driver">—</td></tr>
+      </table>
+
+      <div class="dep-actions">
+        <button class="btn btn-primary btn-sm" id="vigem-btn-install"   onclick="vigemInstall()"   data-i18n="vigem.btn.install">Instalar</button>
+        <button class="btn btn-danger btn-sm"  id="vigem-btn-uninstall" onclick="vigemUninstall()" data-i18n="vigem.btn.uninstall">Desinstalar</button>
+        <button class="btn btn-ghost btn-sm"                            onclick="vigemRefresh()"   data-i18n="vigem.btn.refresh">↻ Refrescar</button>
+      </div>
+
+      <div class="dep-log-label" data-i18n="vigem.log.title">Log</div>
+      <div class="log-box" id="vigem-log-box"><span class="log-empty" data-i18n="vigem.log.empty">Aún no hay log.</span></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeViGEmModal()" data-i18n="vigem.btn.close">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Modal: Sandboxie ────────────────────────────────────────────────── -->
+<div class="modal-backdrop hidden" id="sandboxie-modal" onclick="handleBackdropClick(event,'sandboxie-modal')">
+  <div class="modal modal-lg" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 data-i18n="sandboxie.title">Sandboxie (Steam aislado)</h3>
+      <button class="modal-close" onclick="closeSandboxieModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <p class="dep-desc" data-i18n="sandboxie.description"></p>
+
+      <div id="sandboxie-reboot-banner" class="auth-alert error" style="display:none" data-i18n="sandboxie.rebootRequired">
+        Se requiere reiniciar Windows para completar la operación.
+      </div>
+
+      <table class="dep-status">
+        <tr>
+          <td data-i18n="sandboxie.row.status">Estado</td>
+          <td><span id="sandboxie-status-badge" class="badge badge-created"><span class="badge-dot"></span>—</span></td>
+        </tr>
+        <tr><td data-i18n="sandboxie.row.version">Versión</td>    <td id="sandboxie-version">—</td></tr>
+        <tr><td data-i18n="sandboxie.row.service">Servicio</td>   <td id="sandboxie-service">—</td></tr>
+        <tr><td data-i18n="sandboxie.row.startExe">Start.exe</td> <td id="sandboxie-startexe">—</td></tr>
+        <tr><td data-i18n="sandboxie.row.box">Box</td>            <td id="sandboxie-box">—</td></tr>
+      </table>
+
+      <div class="dep-actions">
+        <button class="btn btn-primary btn-sm" id="sandboxie-btn-install"   onclick="sandboxieInstall()"   data-i18n="sandboxie.btn.install">Instalar</button>
+        <button class="btn btn-danger btn-sm"  id="sandboxie-btn-uninstall" onclick="sandboxieUninstall()" data-i18n="sandboxie.btn.uninstall">Desinstalar</button>
+        <button class="btn btn-ghost btn-sm"                                onclick="sandboxieRefresh()"   data-i18n="sandboxie.btn.refresh">↻ Refrescar</button>
+      </div>
+
+      <div class="dep-toggle">
+        <label class="switch">
+          <input type="checkbox" id="sandboxie-steam-toggle" onchange="sandboxieToggleSteamEntry(this.checked)">
+          <span class="switch-slider"></span>
+        </label>
+        <span class="dep-toggle-label" data-i18n="sandboxie.toggleSteam">Añadir entrada "Steam Big Picture (Sandboxed)" al apps.json de Sunshine</span>
+      </div>
+
+      <div class="dep-log-label" data-i18n="sandboxie.log.title">Log</div>
+      <div class="log-box" id="sandboxie-log-box"><span class="log-empty" data-i18n="sandboxie.log.empty">Aún no hay log.</span></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeSandboxieModal()" data-i18n="sandboxie.btn.close">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Modal: Energía (apagar/reiniciar) ──────────────────────────────── -->
+<div class="modal-backdrop hidden" id="power-modal" onclick="handleBackdropClick(event,'power-modal')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 data-i18n="power.title">Apagar / Reiniciar</h3>
+      <button class="modal-close" onclick="closePowerModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <p class="dep-desc" data-i18n="power.description">
+        Programa un apagado o reinicio del equipo. Las sesiones de Sunshine y RDP se cortarán.
+      </p>
+
+      <div class="form-row">
+        <label data-i18n="power.delayLabel">Retraso (segundos)</label>
+        <input type="number" id="power-delay" min="0" max="3600" value="10">
+        <div class="hint" data-i18n="power.delayHint">0 = inmediato. Máx 3600 (1 hora).</div>
+      </div>
+
+      <div id="power-pending" class="auth-alert" style="display:none">
+        <span data-i18n="power.pendingPrefix">Última acción:</span>
+        <strong id="power-pending-text"></strong>
+      </div>
+
+      <div class="dep-actions">
+        <button class="btn btn-danger btn-sm"  onclick="powerAction('shutdown')" data-i18n="power.btn.shutdown">⏻ Apagar</button>
+        <button class="btn btn-primary btn-sm" onclick="powerAction('restart')"  data-i18n="power.btn.restart">↻ Reiniciar</button>
+        <button class="btn btn-ghost btn-sm"   onclick="powerAction('cancel')"   data-i18n="power.btn.cancel">✕ Cancelar pendiente</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closePowerModal()" data-i18n="power.btn.close">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Toast ────────────────────────────────────────────────────────────── -->
+<div id="toast" class="hidden"></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="es" data-i18n-doc-title="doc.loginTitle">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenStreamMS</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/i18n.js"></script>
+</head>
+<body class="auth-page">
+  <div class="auth-lang">
+    <select id="lang-select" class="lang-select"></select>
+  </div>
+
+  <div class="auth-box">
+    <div class="auth-logo">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+      </svg>
+      <span>OpenStreamMS</span>
+    </div>
+
+    <h1 data-i18n="login.welcome">Bienvenido</h1>
+    <p data-i18n="login.subtitle">Introduce tus credenciales para acceder al panel de control.</p>
+
+    <div id="alert-error"  class="auth-alert error"   style="display:none" data-i18n="login.error">Usuario o contraseña incorrectos.</div>
+    <div id="alert-setup"  class="auth-alert success" style="display:none" data-i18n="login.setupOk">Configuración completada. Ya puedes iniciar sesión.</div>
+    <div id="alert-logout" class="auth-alert success" style="display:none" data-i18n="login.logoutOk">Sesión cerrada correctamente.</div>
+
+    <form method="POST" action="/login">
+      <label for="username" data-i18n="login.user">Usuario</label>
+      <input type="text" id="username" name="username" autocomplete="username" autofocus required>
+
+      <label for="password" data-i18n="login.password">Contraseña</label>
+      <input type="password" id="password" name="password" autocomplete="current-password" required>
+
+      <button type="submit" class="btn btn-primary" data-i18n="login.submit">Iniciar sesión</button>
+    </form>
+  </div>
+
+  <script>
+    const p = new URLSearchParams(location.search);
+    if (p.get('error'))  document.getElementById('alert-error').style.display  = '';
+    if (p.get('setup'))  document.getElementById('alert-setup').style.display  = '';
+    if (p.get('logout')) document.getElementById('alert-logout').style.display = '';
+  </script>
+</body>
+</html>

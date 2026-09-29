@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "OpenStreamMS": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:64309;http://localhost:64310"
+    }
+  }
+}

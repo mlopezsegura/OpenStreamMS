@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="es" data-i18n-doc-title="doc.setupTitle">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenStreamMS</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/i18n.js"></script>
+</head>
+<body class="auth-page">
+  <div class="auth-lang">
+    <select id="lang-select" class="lang-select"></select>
+  </div>
+
+  <div class="auth-box">
+    <div class="auth-logo">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+      </svg>
+      <span>OpenStreamMS</span>
+    </div>
+
+    <h1 data-i18n="setup.title">Configuración inicial</h1>
+    <p data-i18n="setup.subtitle">Primera ejecución. Crea un usuario administrador para acceder al panel de control y a la API.</p>
+
+    <div id="alert-error" class="auth-alert error" style="display:none" data-i18n="setup.error">El usuario y la contraseña son obligatorios.</div>
+
+    <form method="POST" action="/setup" onsubmit="return validate()">
+      <label for="username" data-i18n="setup.user">Usuario administrador</label>
+      <input type="text" id="username" name="username" autocomplete="username" autofocus required>
+
+      <label for="password" data-i18n="setup.password">Contraseña</label>
+      <input type="password" id="password" name="password" autocomplete="new-password" required>
+
+      <label for="password2" data-i18n="setup.password2">Confirmar contraseña</label>
+      <input type="password" id="password2" autocomplete="new-password" required>
+
+      <div id="match-error" style="display:none;color:var(--red);font-size:.82rem;margin-bottom:1rem" data-i18n="setup.mismatch">
+        Las contraseñas no coinciden.
+      </div>
+
+      <button type="submit" class="btn btn-primary" data-i18n="setup.submit">Crear cuenta y continuar</button>
+    </form>
+  </div>
+
+  <script>
+    const p = new URLSearchParams(location.search);
+    if (p.get('error')) document.getElementById('alert-error').style.display = '';
+
+    function validate() {
+      const pw  = document.getElementById('password').value;
+      const pw2 = document.getElementById('password2').value;
+      const err = document.getElementById('match-error');
+      if (pw !== pw2) { err.style.display = ''; return false; }
+      err.style.display = 'none';
+      return true;
+    }
+  </script>
+</body>
+</html>

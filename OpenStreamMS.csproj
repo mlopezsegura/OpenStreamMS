@@ -1,0 +1,68 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.0" />
+    <PackageReference Include="Scalar.AspNetCore" Version="2.14.8" />
+    <PackageReference Include="System.ServiceProcess.ServiceController" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="service.config.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <Content Include="app.ico" Condition="Exists('$(MSBuildProjectDirectory)\app.ico')">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="LICENSE;THIRD_PARTY_NOTICES.md">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Core\wwwroot\app.js" />
+    <Content Include="Core\wwwroot\i18n.js" />
+    <Content Include="Core\wwwroot\index.html" />
+    <Content Include="Core\wwwroot\login.html" />
+    <Content Include="Core\wwwroot\setup.html" />
+    <Content Include="Core\wwwroot\style.css" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="ExternalDeps\" />
+  </ItemGroup>
+
+  <!-- Genera app.ico antes de compilar si no existe -->
+  <Target Name="EnsureAppIcon" BeforeTargets="Build" Condition="!Exists('$(MSBuildProjectDirectory)\app.ico')">
+    <Exec Command="powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\generate-icon.ps1&quot; -Out &quot;$(MSBuildProjectDirectory)\app.ico&quot;" />
+  </Target>
+
+  <Target Name="CopyWwwroot" AfterTargets="Build">
+    <ItemGroup>
+      <WwwrootFiles Include="$(MSBuildProjectDirectory)\Core\wwwroot\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(WwwrootFiles)" DestinationFolder="$(OutputPath)wwwroot\%(RecursiveDir)" SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="CopyFreeRdpFolder" AfterTargets="Build">
+    <ItemGroup>
+      <FreeRdpFiles Include="$(MSBuildProjectDirectory)\FreeRDP\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(FreeRdpFiles)" DestinationFolder="$(OutputPath)FreeRDP\%(RecursiveDir)" SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="CopySunshineFolder" AfterTargets="Build">
+    <ItemGroup>
+      <SunshineFiles Include="$(MSBuildProjectDirectory)\Sunshine\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(SunshineFiles)" DestinationFolder="$(OutputPath)Sunshine\%(RecursiveDir)" SkipUnchangedFiles="true" OverwriteReadOnlyFiles="true" />
+  </Target>
+
+</Project>
