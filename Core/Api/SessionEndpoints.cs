@@ -64,7 +64,7 @@ public record CreateSessionRequest(
     /// <summary>Si true, rota las credenciales del panel Sunshine al arrancar la sesiÃ³n y ante desincronizaciones.</summary>
     bool RotateSunshineCredentials = false,
     /// <summary>
-    /// Aislamiento nativo (sin Sandboxie): la sesión corre bajo un usuario local dedicado
+    /// Aislamiento nativo: la sesión corre bajo un usuario local dedicado
     /// (osms-...) creado y gestionado por OpenStreamMS, con perfil y registro propios.
     /// Con esto activo, Username/Password/Domain se ignoran (pueden ir vacíos).
     /// </summary>
@@ -163,6 +163,10 @@ public record SessionResponse(
     string       SunshineAuthPass,
     /// <summary>Si true, las credenciales del panel se rotan automÃ¡ticamente.</summary>
     bool         RotateSunshineCredentials,
+    /// <summary>Si true, la sesión corre bajo un usuario local dedicado (osms-...).</summary>
+    bool         Isolated,
+    /// <summary>Solo con Isolated: el perfil del usuario dedicado se borra al detener.</summary>
+    bool         IsolatedEphemeral,
     SessionState State,
     uint         RdpSessionId,
     int          SunshinePid,
@@ -373,12 +377,13 @@ public static class SessionEndpoints
     {
         if (string.IsNullOrWhiteSpace(req.Name))
             return TypedResults.BadRequest("El campo 'Name' es obligatorio.");
-        if (string.IsNullOrWhiteSpace(req.Username))
+        // Con aislamiento nativo el usuario lo crea el servicio: no hacen falta credenciales.
+        if (!req.Isolated && string.IsNullOrWhiteSpace(req.Username))
             return TypedResults.BadRequest("El campo 'Username' es obligatorio.");
-        if (string.IsNullOrWhiteSpace(req.Password))
+        if (!req.Isolated && string.IsNullOrWhiteSpace(req.Password))
             return TypedResults.BadRequest("El campo 'Password' es obligatorio.");
 
-        var session = svc.Create(req.Name, req.Username, req.Domain, req.Password,
+        var session = svc.Create(req.Name, req.Username ?? "", req.Domain ?? ".", req.Password ?? "",
                                  req.SunshineExePath, req.RdpBackground, req.VddEnabled,
                                  req.RdpWidth, req.RdpHeight, req.RdpFrameRate, req.RdpColorDepth,
                                  req.Enabled,
@@ -386,7 +391,8 @@ public static class SessionEndpoints
                                  req.SunshineName, req.Capture, req.Encoder,
                                  req.OutputName, req.OriginWebUiAllowed,
                                  req.SunshineAuthUser, req.SunshineAuthPass,
-                                 req.RotateSunshineCredentials);
+                                 req.RotateSunshineCredentials,
+                                 req.Isolated, req.IsolatedEphemeral);
         return TypedResults.Created($"/api/sessions/{session.Id}", ToResponse(session));
     }
 
@@ -476,7 +482,8 @@ public static class SessionEndpoints
                                            req.SunshineName, req.Capture, req.Encoder,
                                            req.OutputName, req.OriginWebUiAllowed,
                                            req.SunshineAuthUser, req.SunshineAuthPass,
-                                           req.RotateSunshineCredentials);
+                                           req.RotateSunshineCredentials,
+                                           req.Isolated, req.IsolatedEphemeral);
             return TypedResults.Ok(ToResponse(session));
         }
         catch (KeyNotFoundException)
@@ -685,6 +692,7 @@ public static class SessionEndpoints
         s.Enabled, s.UseStreamProfile, s.SunshineStreamPort, s.SunshineWebPort,
         s.SunshineName, s.Capture, s.Encoder, s.OutputName, s.OriginWebUiAllowed,
         s.SunshineAuthUser, s.SunshineAuthPass, s.RotateSunshineCredentials,
+        s.Isolated, s.IsolatedEphemeral,
         s.State, s.RdpSessionId, s.SunshinePid,
         s.CreatedAt, s.StartedAt, s.StoppedAt, s.ErrorMessage);
 }

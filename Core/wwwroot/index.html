@@ -28,11 +28,6 @@
         <span class="status-pill-label" data-i18n="vigem.pill">ViGEmBus</span>
         <span class="status-pill-state" id="vigem-pill-state">—</span>
       </button>
-      <button id="sandboxie-pill" class="status-pill" onclick="openSandboxieModal()" type="button">
-        <span class="status-pill-dot"></span>
-        <span class="status-pill-label" data-i18n="sandboxie.pill">Sandboxie</span>
-        <span class="status-pill-state" id="sandboxie-pill-state">—</span>
-      </button>
       <select id="lang-select" class="lang-select" data-i18n-title="nav.langLabel" title="Idioma"></select>
       <a href="/scalar/v1" target="_blank" class="btn btn-ghost btn-sm nav-extra" data-i18n="nav.apiDocs">API docs</a>
       <button class="btn btn-ghost btn-sm nav-extra" onclick="show('about-modal')" data-i18n="nav.about">Acerca de</button>
@@ -78,6 +73,15 @@
           <label data-i18n="new.nameLabel">Nombre *</label>
           <input type="text" name="Name" required data-i18n-placeholder="new.namePlaceholder" placeholder="Ej: Sala de juegos">
         </div>
+        <div class="form-check">
+          <input type="checkbox" id="chk-isolated" name="Isolated" onchange="updateIsolatedUi('new')">
+          <label for="chk-isolated" data-i18n-html="new.isolatedLabel_html"><strong>Sesión aislada (usuario dedicado)</strong> — OpenStreamMS crea un usuario local propio para esta sesión, con su perfil y registro. Permite, por ejemplo, otra cuenta de Steam en paralelo</label>
+        </div>
+        <div class="form-check" id="new-ephemeral-row" style="display:none">
+          <input type="checkbox" id="chk-isolated-ephemeral" name="IsolatedEphemeral">
+          <label for="chk-isolated-ephemeral" data-i18n-html="new.ephemeralLabel_html"><strong>Perfil efímero</strong> — borrar el perfil del usuario dedicado al detener la sesión (cada arranque parte de cero)</label>
+        </div>
+        <div id="new-creds-block">
         <div class="form-grid">
           <div class="form-row">
             <label data-i18n="new.userLabel">Usuario Windows *</label>
@@ -101,6 +105,7 @@
               <span data-i18n="new.testCreds">Probar credenciales</span>
             </button>
           </div>
+        </div>
         </div>
         <div class="form-row">
           <label data-i18n="new.exeLabel">Ruta a sunshine.exe</label>
@@ -322,6 +327,14 @@
         <div class="form-check">
           <input type="checkbox" id="edit-profile">
           <label for="edit-profile" data-i18n-html="new.profileLabel_html"><strong>Perfil de stream independiente</strong></label>
+        </div>
+        <div class="form-check">
+          <input type="checkbox" id="edit-isolated" onchange="updateIsolatedUi('edit')">
+          <label for="edit-isolated" data-i18n-html="new.isolatedLabel_html"><strong>Sesión aislada (usuario dedicado)</strong></label>
+        </div>
+        <div class="form-check" id="edit-ephemeral-row" style="display:none">
+          <input type="checkbox" id="edit-isolated-ephemeral">
+          <label for="edit-isolated-ephemeral" data-i18n-html="new.ephemeralLabel_html"><strong>Perfil efímero</strong></label>
         </div>
 
         <details class="form-advanced">
@@ -642,54 +655,6 @@
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeViGEmModal()" data-i18n="vigem.btn.close">Cerrar</button>
-    </div>
-  </div>
-</div>
-
-<!-- ─── Modal: Sandboxie ────────────────────────────────────────────────── -->
-<div class="modal-backdrop hidden" id="sandboxie-modal" onclick="handleBackdropClick(event,'sandboxie-modal')">
-  <div class="modal modal-lg" onclick="event.stopPropagation()">
-    <div class="modal-header">
-      <h3 data-i18n="sandboxie.title">Sandboxie (Steam aislado)</h3>
-      <button class="modal-close" onclick="closeSandboxieModal()">×</button>
-    </div>
-    <div class="modal-body">
-      <p class="dep-desc" data-i18n="sandboxie.description"></p>
-
-      <div id="sandboxie-reboot-banner" class="auth-alert error" style="display:none" data-i18n="sandboxie.rebootRequired">
-        Se requiere reiniciar Windows para completar la operación.
-      </div>
-
-      <table class="dep-status">
-        <tr>
-          <td data-i18n="sandboxie.row.status">Estado</td>
-          <td><span id="sandboxie-status-badge" class="badge badge-created"><span class="badge-dot"></span>—</span></td>
-        </tr>
-        <tr><td data-i18n="sandboxie.row.version">Versión</td>    <td id="sandboxie-version">—</td></tr>
-        <tr><td data-i18n="sandboxie.row.service">Servicio</td>   <td id="sandboxie-service">—</td></tr>
-        <tr><td data-i18n="sandboxie.row.startExe">Start.exe</td> <td id="sandboxie-startexe">—</td></tr>
-        <tr><td data-i18n="sandboxie.row.box">Box</td>            <td id="sandboxie-box">—</td></tr>
-      </table>
-
-      <div class="dep-actions">
-        <button class="btn btn-primary btn-sm" id="sandboxie-btn-install"   onclick="sandboxieInstall()"   data-i18n="sandboxie.btn.install">Instalar</button>
-        <button class="btn btn-danger btn-sm"  id="sandboxie-btn-uninstall" onclick="sandboxieUninstall()" data-i18n="sandboxie.btn.uninstall">Desinstalar</button>
-        <button class="btn btn-ghost btn-sm"                                onclick="sandboxieRefresh()"   data-i18n="sandboxie.btn.refresh">↻ Refrescar</button>
-      </div>
-
-      <div class="dep-toggle">
-        <label class="switch">
-          <input type="checkbox" id="sandboxie-steam-toggle" onchange="sandboxieToggleSteamEntry(this.checked)">
-          <span class="switch-slider"></span>
-        </label>
-        <span class="dep-toggle-label" data-i18n="sandboxie.toggleSteam">Añadir entrada "Steam Big Picture (Sandboxed)" al apps.json de Sunshine</span>
-      </div>
-
-      <div class="dep-log-label" data-i18n="sandboxie.log.title">Log</div>
-      <div class="log-box" id="sandboxie-log-box"><span class="log-empty" data-i18n="sandboxie.log.empty">Aún no hay log.</span></div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeSandboxieModal()" data-i18n="sandboxie.btn.close">Cerrar</button>
     </div>
   </div>
 </div>

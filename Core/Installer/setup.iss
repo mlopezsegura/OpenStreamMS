@@ -43,7 +43,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "Crear acceso directo en el escritorio"; GroupDescription: "Iconos adicionales:"
-Name: "startservice"; Description: "Iniciar el servicio ahora tras la instalación"; GroupDescription: "Servicio:"; Flags: checked
+Name: "startservice"; Description: "Iniciar el servicio ahora tras la instalación"; GroupDescription: "Servicio:"
 
 [Files]
 ; Toda la salida de dotnet publish (runtime incluido)

@@ -2,12 +2,13 @@
 setlocal
 
 :: ── Configuración ────────────────────────────────────────────────────────────
-set PROJECT=..\OpenStreamMS.csproj
+set PROJECT=%~dp0..\..\OpenStreamMS.csproj
 set PUBLISH_DIR=%~dp0publish
 set DIST_DIR=%~dp0..\dist
 
 :: Ruta habitual de Inno Setup; ajusta si lo tienes en otro lugar
 set ISCC="C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+if not exist %ISCC% set ISCC="%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"
 
 :: ── Limpiar salida anterior ──────────────────────────────────────────────────
 echo [1/3] Limpiando publicacion anterior...

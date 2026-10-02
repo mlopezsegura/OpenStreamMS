@@ -1,7 +1,6 @@
 using OpenStreamMS.Core.Helpers;
 using OpenStreamMS.Services;
 using OpenStreamMS.Services.OpenStream;
-using OpenStreamMS.Services.Sandboxie;
 using OpenStreamMS.Services.Session;
 using OpenStreamMS.Services.Sunshine;
 using System.Collections.Concurrent;
@@ -19,7 +18,6 @@ namespace OpenStreamMS.Core.Api;
 public class StreamSessionService
 {
     private readonly ServiceConfig    _defaultConfig;
-    private readonly SandboxieManager _sandboxie;
     private readonly ConcurrentDictionary<Guid, StreamSession>   _sessions = new();
     private readonly ConcurrentDictionary<Guid, SunshineManager> _sunshine = new();
 
@@ -29,10 +27,9 @@ public class StreamSessionService
     private static readonly JsonSerializerOptions JsonOpts =
         new() { WriteIndented = true };
 
-    public StreamSessionService(ServiceConfig defaultConfig, SandboxieManager sandboxie)
+    public StreamSessionService(ServiceConfig defaultConfig)
     {
         _defaultConfig = defaultConfig;
-        _sandboxie     = sandboxie;
         LoadSessions();
     }
 
@@ -686,9 +683,8 @@ public class StreamSessionService
                 profileOverrides,
                 GetSunshineStatePersistPath(session.Id),
                 GetSunshineStateAliasPath(session),
-                _sandboxie.GetStartExePath(),
-                _defaultConfig.SandboxBoxName,
-                _defaultConfig.SandboxedSteamEnabled);
+                // Sesión aislada: Steam con nombre IPC propio para convivir con el del host
+                session.Isolated ? $"osms-{session.Id.ToString("N")[..8]}" : null);
         });
 
     /// <summary>

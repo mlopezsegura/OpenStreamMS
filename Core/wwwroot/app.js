@@ -14,11 +14,9 @@ document.addEventListener('DOMContentLoaded', () => {
   startRefresh();
   rdpRefresh();
   vigemRefresh();
-  sandboxieRefresh();
   setInterval(whenVisible(() => {
     rdpRefreshPillOnly();
     vigemRefreshPillOnly();
-    sandboxieRefreshPillOnly();
   }), 15000);
 });
 
@@ -33,10 +31,6 @@ window.addEventListener('langchange', () => {
   if (vigemLastStatus) {
     updateVigemPill(vigemLastStatus);
     renderVigemStatus(vigemLastStatus);
-  }
-  if (sandboxieLastStatus) {
-    updateSandboxiePill(sandboxieLastStatus);
-    renderSandboxieStatus(sandboxieLastStatus);
   }
   // Puerto derivado en ambos modales
   updateDerivedWebPort('new');
@@ -145,7 +139,7 @@ function renderCard(s) {
       <div class="card-header">
         <div>
           <div class="card-name">${esc(s.name)}</div>
-          <div class="card-user">${esc(s.username)}@${esc(s.domain)}</div>
+          <div class="card-user">${s.isolated ? esc(t('card.isolatedUser')) : `${esc(s.username)}@${esc(s.domain)}`}</div>
           <div class="card-meta">${s.rdpWidth}×${s.rdpHeight} · ${s.rdpFrameRate || 60} fps · ${s.rdpColorDepth || 32} bpp · ${esc(t('card.port'))} ${s.sunshineStreamPort}</div>
         </div>
         ${badge(s.state)}
@@ -275,6 +269,19 @@ function showCredTestResult(success, message) {
   msg.textContent       = message;
 }
 
+// Sesión aislada: el servicio crea el usuario, así que se ocultan las credenciales
+// (y su prueba obligatoria) y se muestra la opción de perfil efímero.
+function updateIsolatedUi(prefix) {
+  const isolated = document.getElementById(prefix === 'new' ? 'chk-isolated' : 'edit-isolated').checked;
+  document.getElementById(`${prefix}-ephemeral-row`).style.display = isolated ? '' : 'none';
+  if (prefix !== 'new') return;
+
+  const block = document.getElementById('new-creds-block');
+  block.style.display = isolated ? 'none' : '';
+  block.querySelectorAll('[name=Username],[name=Password]').forEach(el => { el.required = !isolated; });
+  document.getElementById('btn-create').disabled = !isolated && !credentialsTested;
+}
+
 // ── Modal: nueva sesión ────────────────────────────────────────────────────
 function openNewModal() {
   document.getElementById('new-form').reset();
@@ -284,6 +291,7 @@ function openNewModal() {
   document.getElementById('new-res-custom').style.display = 'none';
   updateDerivedWebPort('new');
   resetCredTest();
+  updateIsolatedUi('new');
   show('new-modal');
   stopRefresh();
 }
@@ -296,7 +304,8 @@ function closeNewModal() {
 async function submitNew(e) {
   e.preventDefault();
 
-  if (!credentialsTested) {
+  const isolated = document.getElementById('chk-isolated').checked;
+  if (!isolated && !credentialsTested) {
     const errEl = document.getElementById('new-error');
     errEl.textContent   = t('new.errorTestCreds');
     errEl.style.display = '';
@@ -328,7 +337,15 @@ async function submitNew(e) {
     sunshineAuthUser:   (fd.get('SunshineAuthUser')   || '').trim() || null,
     sunshineAuthPass:   (fd.get('SunshineAuthPass')   || '')        || null,
     rotateSunshineCredentials: !!fd.get('RotateSunshineCredentials'),
+    isolated,
+    isolatedEphemeral:  isolated && !!fd.get('IsolatedEphemeral'),
   };
+  if (isolated) {
+    // El servicio crea el usuario dedicado: las credenciales del formulario no se usan.
+    body.username = '';
+    body.domain   = '.';
+    body.password = '';
+  }
 
   const errEl = document.getElementById('new-error');
   errEl.style.display = 'none';
@@ -462,7 +479,6 @@ function handleBackdropClick(e, id) {
     else if (id === 'edit-modal')   closeEditModal();
     else if (id === 'rdp-modal')    closeRdpModal();
     else if (id === 'vigem-modal')  closeViGEmModal();
-    else if (id === 'sandboxie-modal') closeSandboxieModal();
     else if (id === 'sunmgr-modal') closeSunMgrModal();
     else if (id === 'power-modal')  closePowerModal();
   }
@@ -492,6 +508,9 @@ function openEditModal(id) {
   document.getElementById('edit-panel-user').value    = s.sunshineAuthUser || '';
   document.getElementById('edit-panel-pass').value    = s.sunshineAuthPass || '';
   document.getElementById('edit-rotate-creds').checked = !!s.rotateSunshineCredentials;
+  document.getElementById('edit-isolated').checked = !!s.isolated;
+  document.getElementById('edit-isolated-ephemeral').checked = !!s.isolatedEphemeral;
+  updateIsolatedUi('edit');
   document.getElementById('edit-error').style.display = 'none';
   setResPreset('edit', s.rdpWidth, s.rdpHeight);
 
@@ -528,6 +547,9 @@ async function submitEdit(e) {
     sunshineAuthUser:   document.getElementById('edit-panel-user').value.trim() || null,
     sunshineAuthPass:   document.getElementById('edit-panel-pass').value        || null,
     rotateSunshineCredentials: document.getElementById('edit-rotate-creds').checked,
+    isolated:           document.getElementById('edit-isolated').checked,
+    isolatedEphemeral:  document.getElementById('edit-isolated').checked &&
+                        document.getElementById('edit-isolated-ephemeral').checked,
   };
 
   const errEl = document.getElementById('edit-error');
@@ -949,133 +971,6 @@ function toast(msg, isError = false) {
   el.className   = isError ? 'error' : '';
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { el.classList.add('hidden'); }, 3500);
-}
-
-// ── Sandboxie ──────────────────────────────────────────────────────────────
-let sandboxieLogTimer  = null;
-let sandboxieLastStatus = null;
-let sandboxieLastConfig = null;
-
-async function sandboxieRefreshPillOnly() {
-  const res = await api('GET', '/api/sandboxie/status');
-  if (!res || !res.ok) return;
-  const st = await res.json();
-  sandboxieLastStatus = st;
-  updateSandboxiePill(st);
-}
-
-async function sandboxieFetchConfig() {
-  const res = await api('GET', '/api/sandboxie/config');
-  if (!res || !res.ok) return;
-  sandboxieLastConfig = await res.json();
-  const tgl = document.getElementById('sandboxie-steam-toggle');
-  if (tgl) tgl.checked = !!sandboxieLastConfig.sandboxedSteamEnabled;
-}
-
-async function sandboxieRefresh() {
-  await sandboxieRefreshPillOnly();
-  if (!document.getElementById('sandboxie-modal').classList.contains('hidden')) {
-    await sandboxieFetchConfig();
-    renderSandboxieStatus(sandboxieLastStatus);
-    await sandboxieFetchLog();
-  }
-}
-
-function updateSandboxiePill(st) {
-  const pill  = document.getElementById('sandboxie-pill');
-  const state = document.getElementById('sandboxie-pill-state');
-  if (!pill || !state) return;
-
-  pill.classList.remove('status-pill-ok','status-pill-missing','status-pill-broken','status-pill-working','status-pill-warn');
-
-  let cls, key;
-  if (st.busy)                { cls = 'status-pill-working'; key = 'rdp.state.working'; }
-  else if (st.rebootRequired) { cls = 'status-pill-warn';    key = 'rdp.state.working'; }
-  else if (st.installed)      { cls = 'status-pill-ok';      key = 'rdp.state.ok';      }
-  else                        { cls = 'status-pill-missing'; key = 'rdp.state.missing'; }
-
-  pill.classList.add(cls);
-  state.textContent = st.rebootRequired ? '⟳' : t(key);
-}
-
-function renderSandboxieStatus(st) {
-  if (!st) return;
-  const badge = document.getElementById('sandboxie-status-badge');
-  const cls   = st.busy ? 'badge-starting'
-              : st.installed ? 'badge-running'
-              : 'badge-error';
-  const key   = st.busy ? 'rdp.state.working'
-              : st.installed ? 'rdp.state.ok'
-              : 'rdp.state.missing';
-  badge.className = `badge ${cls}`;
-  badge.innerHTML = `<span class="badge-dot"></span>${esc(t(key))}`;
-
-  document.getElementById('sandboxie-version').textContent  = st.installedVersion || '—';
-  document.getElementById('sandboxie-service').textContent  = st.serviceState     || '—';
-  document.getElementById('sandboxie-startexe').textContent = st.startExePath     || '—';
-  document.getElementById('sandboxie-box').textContent      = st.boxName          || '—';
-
-  document.getElementById('sandboxie-reboot-banner').style.display = st.rebootRequired ? '' : 'none';
-
-  const busy = !!st.busy;
-  document.getElementById('sandboxie-btn-install').disabled   = busy;
-  document.getElementById('sandboxie-btn-uninstall').disabled = busy || !st.installed;
-}
-
-async function sandboxieFetchLog() {
-  const res = await api('GET', '/api/sandboxie/log');
-  if (!res || !res.ok) return;
-  const data = await res.json();
-  const box  = document.getElementById('sandboxie-log-box');
-  if (!data.lines || data.lines.length === 0) {
-    box.innerHTML = `<span class="log-empty">${esc(t('sandboxie.log.empty'))}</span>`;
-    return;
-  }
-  const wasAtBottom = box.scrollHeight - box.scrollTop <= box.clientHeight + 10;
-  box.textContent = data.lines.join('\n');
-  if (wasAtBottom) box.scrollTop = box.scrollHeight;
-}
-
-function openSandboxieModal() {
-  show('sandboxie-modal');
-  sandboxieRefresh();
-  clearInterval(sandboxieLogTimer);
-  sandboxieLogTimer = setInterval(whenVisible(sandboxieRefresh), 2000);
-}
-
-function closeSandboxieModal() {
-  hide('sandboxie-modal');
-  clearInterval(sandboxieLogTimer);
-  sandboxieLogTimer = null;
-}
-
-async function sandboxieInstall() {
-  if (!confirm(t('sandboxie.confirm.install'))) return;
-  const res = await api('POST', '/api/sandboxie/install');
-  if (!res) return;
-  if (!res.ok) { toast(await res.text(), true); return; }
-  sandboxieRefresh();
-}
-
-async function sandboxieUninstall() {
-  if (!confirm(t('sandboxie.confirm.uninstall'))) return;
-  const res = await api('POST', '/api/sandboxie/uninstall');
-  if (!res) return;
-  if (!res.ok) { toast(await res.text(), true); return; }
-  sandboxieRefresh();
-}
-
-async function sandboxieToggleSteamEntry(enabled) {
-  const res = await api('PUT', '/api/sandboxie/config', { sandboxedSteamEnabled: !!enabled });
-  if (!res || !res.ok) {
-    toast(res ? await res.text() : 'No se pudo actualizar la configuración.', true);
-    if (sandboxieLastConfig) {
-      document.getElementById('sandboxie-steam-toggle').checked = !!sandboxieLastConfig.sandboxedSteamEnabled;
-    }
-    return;
-  }
-  sandboxieLastConfig = await res.json();
-  toast(t('sandboxie.toggleSaved'));
 }
 
 // ── Power (apagar/reiniciar) ──────────────────────────────────────────────

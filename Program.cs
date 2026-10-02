@@ -3,7 +3,6 @@ using OpenStreamMS.Core.Api;
 using OpenStreamMS.Core.Helpers;
 using OpenStreamMS.Services;
 using OpenStreamMS.Services.OpenStream;
-using OpenStreamMS.Services.Sandboxie;
 using OpenStreamMS.Services.Session;
 using OpenStreamMS.Services.TrayApp;
 using OpenStreamMS.Services.VigEmBus;
@@ -72,8 +71,6 @@ static async Task RunService(string[] args)
     builder.Services.AddSingleton<RdpWrapperManager>();
     builder.Services.AddSingleton<TermWrapManager>();
     builder.Services.AddSingleton<ViGEmBusManager>();
-    builder.Services.AddSingleton<SandboxieManager>(_ =>
-        new SandboxieManager(boxName: config.SandboxBoxName));
     builder.Services.AddHostedService<OpenStreamService>();
 
     builder.Services.ConfigureHttpJsonOptions(options =>
@@ -204,9 +201,6 @@ static async Task RunService(string[] args)
 
     // ── ViGEmBus API ──────────────────────────────────────────────────────────
     app.MapViGEmBusApi();
-
-    // ── Sandboxie API ─────────────────────────────────────────────────────────
-    app.MapSandboxieApi();
 
     // ── Power API ─────────────────────────────────────────────────────────────
     app.MapPowerApi();

@@ -66,4 +66,17 @@
     <Copy SourceFiles="@(SunshineFiles)" DestinationFolder="$(OutputPath)Sunshine\%(RecursiveDir)" SkipUnchangedFiles="true" OverwriteReadOnlyFiles="true" />
   </Target>
 
+  <!-- Los Copy*Folder de arriba solo copian a $(OutputPath); dotnet publish (instalador)
+       necesita también wwwroot, FreeRDP y Sunshine en $(PublishDir). -->
+  <Target Name="PublishExtraFolders" AfterTargets="Publish">
+    <ItemGroup>
+      <PublishWwwrootFiles Include="$(MSBuildProjectDirectory)\Core\wwwroot\**\*" />
+      <PublishFreeRdpFiles Include="$(MSBuildProjectDirectory)\FreeRDP\**\*" />
+      <PublishSunshineFiles Include="$(MSBuildProjectDirectory)\Sunshine\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(PublishWwwrootFiles)" DestinationFolder="$(PublishDir)wwwroot\%(RecursiveDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(PublishFreeRdpFiles)" DestinationFolder="$(PublishDir)FreeRDP\%(RecursiveDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(PublishSunshineFiles)" DestinationFolder="$(PublishDir)Sunshine\%(RecursiveDir)" SkipUnchangedFiles="true" OverwriteReadOnlyFiles="true" />
+  </Target>
+
 </Project>

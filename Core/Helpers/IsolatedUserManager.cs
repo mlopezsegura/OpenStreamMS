@@ -12,9 +12,9 @@ namespace OpenStreamMS.Core.Helpers;
 /// marcada como aislada corre bajo un usuario local dedicado (<c>osms-xxxxxxxxxxxx</c>)
 /// que el servicio crea y gestiona automáticamente.
 ///
-/// QUÉ APORTA frente a Sandboxie:
+/// QUÉ APORTA:
 ///   - Perfil propio (C:\Users\osms-...) → filesystem aislado con ACLs NTFS reales,
-///     no virtualización copy-on-write.
+///     sin virtualización.
 ///   - HKCU propio → registro aislado de verdad.
 ///   - Sesión WTS, audio y desktop propios → el mismo aislamiento que dos usuarios
 ///     físicos distintos. Steam/Chrome/etc. corren en paralelo sin lock files.
