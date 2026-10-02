@@ -366,3 +366,4 @@ MigrationBackup/
 FodyWeavers.xsd
 # Ajustes locales de Claude Code (permisos, rutas y credenciales de esta maquina)
 .claude/settings.local.json
+Native/SteamHook/bin/
