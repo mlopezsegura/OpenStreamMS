@@ -72,6 +72,7 @@ static async Task RunService(string[] args)
     builder.Services.AddSingleton<TermWrapManager>();
     builder.Services.AddSingleton<ViGEmBusManager>();
     builder.Services.AddHostedService<OpenStreamService>();
+    builder.Services.AddHostedService<OpenStreamMS.Services.Gamepad.GamepadAccessGuard>();
 
     builder.Services.ConfigureHttpJsonOptions(options =>
         options.SerializerOptions.Converters.Add(
