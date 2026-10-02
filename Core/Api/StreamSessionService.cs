@@ -682,9 +682,7 @@ public class StreamSessionService
                 new SunshineConfigurator.SunshineCredentials(session.SunshineAuthUser, session.SunshineAuthPass),
                 profileOverrides,
                 GetSunshineStatePersistPath(session.Id),
-                GetSunshineStateAliasPath(session),
-                // Sesión aislada: Steam con nombre IPC propio para convivir con el del host
-                session.Isolated ? $"osms-{session.Id.ToString("N")[..8]}" : null);
+                GetSunshineStateAliasPath(session));
         });
 
     /// <summary>

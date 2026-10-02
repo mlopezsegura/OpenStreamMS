@@ -1,6 +1,7 @@
 using Microsoft.Win32;
 using OpenStreamMS.Services;
 using System.Runtime.InteropServices;
+using System.Security.AccessControl;
 using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Text;
@@ -152,6 +153,7 @@ internal static class IsolatedUserManager
         AddToLocalGroup(username, WellKnownSidType.BuiltinUsersSid);
         AddToLocalGroup(username, WellKnownSidType.BuiltinRemoteDesktopUsersSid);
         HideFromLoginScreen(username);
+        HideSteamProcessFromUser(username);
 
         return new IsolatedCredentials(username, password);
     }
@@ -226,6 +228,8 @@ internal static class IsolatedUserManager
         if (!TryDeleteProfile(sessionId, out var error) && error is not null)
             Logger.Warning($"[IsolatedUser] No se pudo eliminar el perfil de '{username}': {error}");
 
+        UnhideSteamProcessFromUser(username);   // antes de borrar la cuenta: hace falta su SID
+
         int rc = NetUserDel(null, username);
         if (rc == NERR_Success)
             Logger.Log($"[IsolatedUser] Usuario local '{username}' eliminado.");
@@ -276,6 +280,55 @@ internal static class IsolatedUserManager
             key?.DeleteValue(username, throwOnMissingValue: false);
         }
         catch { /* no crítico */ }
+    }
+
+    /// <summary>
+    /// Clave donde Steam publica el PID del cliente en marcha (<c>SteamPID</c>) para
+    /// toda la máquina. Cada steam.exe que arranca la lee y cierra al cliente que
+    /// encuentra, aunque esté en otra sesión de Windows y con otro usuario.
+    /// </summary>
+    const string SteamMachineKey = @"SOFTWARE\WOW6432Node\Valve\Steam";
+
+    const RegistryRights SteamDeniedRights = RegistryRights.QueryValues | RegistryRights.SetValue;
+
+    /// <summary>
+    /// Niega al usuario aislado leer y escribir los valores de <see cref="SteamMachineKey"/>.
+    /// Así su Steam no ve (ni cierra) el del host ni el de otras sesiones, y el suyo no
+    /// queda publicado para que otro lo cierre. Permite usar el nombre de IPC por
+    /// defecto: con <c>-master_ipc_name_override</c> Big Picture no recibe el mando.
+    /// Idempotente; no hace nada si Steam no está instalado.
+    /// </summary>
+    static void HideSteamProcessFromUser(string username) =>
+        EditSteamKeyAcl(username, (security, rule) =>
+        {
+            security.RemoveAccessRuleSpecific(rule);
+            security.AddAccessRule(rule);
+        });
+
+    static void UnhideSteamProcessFromUser(string username) =>
+        EditSteamKeyAcl(username, (security, rule) => security.RemoveAccessRuleSpecific(rule));
+
+    static void EditSteamKeyAcl(string username, Action<RegistrySecurity, RegistryAccessRule> edit)
+    {
+        try
+        {
+            using var key = Registry.LocalMachine.OpenSubKey(SteamMachineKey,
+                RegistryKeyPermissionCheck.ReadWriteSubTree,
+                RegistryRights.ReadPermissions | RegistryRights.ChangePermissions);
+            if (key is null) return;   // Steam no instalado
+
+            var sid  = (SecurityIdentifier)new NTAccount(username).Translate(typeof(SecurityIdentifier));
+            var rule = new RegistryAccessRule(sid, SteamDeniedRights,
+                InheritanceFlags.None, PropagationFlags.None, AccessControlType.Deny);
+
+            var security = key.GetAccessControl();
+            edit(security, rule);
+            key.SetAccessControl(security);
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"[IsolatedUser] No se pudo ajustar el acceso de '{username}' al registro de Steam: {ex.Message}");
+        }
     }
 
     /// <summary>

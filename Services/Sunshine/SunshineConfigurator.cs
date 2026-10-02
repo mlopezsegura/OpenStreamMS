@@ -103,59 +103,20 @@ namespace OpenStreamMS.Services.Sunshine
         private const string SteamOpenBigPicture = "steam://open/bigpicture";
 
         /// <summary>
-        /// Versión de <see cref="SafeSteamCloseUndo"/> para un Steam lanzado con
-        /// <c>-master_ipc_name_override</c>: la URL se pasa por steam.exe con el mismo
-        /// nombre IPC para que llegue a esa instancia y no al Steam principal.
+        /// Ajusta la entrada de Steam Big Picture en <c>apps.json</c>: URL estándar
+        /// (sin <c>-master_ipc_name_override</c>, con el que Big Picture deja de recibir
+        /// el mando) y undo no bloqueante. Que el Steam de una sesión aislada no cierre
+        /// al del host lo resuelve <see cref="Core.Helpers.IsolatedUserManager"/>
+        /// ocultándole el <c>SteamPID</c> de la máquina. Idempotente.
         /// </summary>
-        private static string SafeSteamCloseUndoIpc(string steamExe, string ipcName) =>
-            "powershell -NoProfile -NonInteractive -WindowStyle Hidden -Command \"if (Get-Process steam -ErrorAction SilentlyContinue | Where-Object SessionId -eq ([Diagnostics.Process]::GetCurrentProcess().SessionId)) { " +
-            $"Start-Process -FilePath '{steamExe}' -ArgumentList '-master_ipc_name_override','{ipcName}','steam://close/bigpicture' }}\"";
-
-        /// <summary>Ruta a steam.exe según el registro de la máquina (HKLM), o null si no está instalado.</summary>
-        public static string? FindSteamExe()
-        {
-            foreach (var key in new[] { @"SOFTWARE\WOW6432Node\Valve\Steam", @"SOFTWARE\Valve\Steam" })
-            {
-                using var k = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(key);
-                if (k?.GetValue("InstallPath") is string dir)
-                {
-                    string exe = Path.Combine(dir, "steam.exe");
-                    if (File.Exists(exe)) return exe;
-                }
-            }
-            string fallback = @"C:\Program Files (x86)\Steam\steam.exe";
-            return File.Exists(fallback) ? fallback : null;
-        }
-
-        /// <summary>
-        /// Ajusta la entrada de Steam Big Picture en <c>apps.json</c>.
-        /// Con <paramref name="steamIpcName"/> (sesiones aisladas) lanza steam.exe con
-        /// <c>-master_ipc_name_override</c>: Steam solo admite un cliente por instalación de
-        /// Windows aunque los usuarios sean distintos, y un segundo Steam cierra al primero
-        /// salvo que cada uno use su propio nombre IPC. Sin él, deja la URL estándar.
-        /// En ambos casos el undo es no bloqueante. Idempotente.
-        /// </summary>
-        public static void ConfigureSteamEntry(string sunshineExePath, string? steamIpcName)
+        public static void ConfigureSteamEntry(string sunshineExePath)
         {
             string appsFile = Path.Combine(Path.GetDirectoryName(sunshineExePath)!, "config", "apps.json");
             if (!File.Exists(appsFile))
                 return;
 
-            string? steamExe = steamIpcName is null ? null : FindSteamExe();
-            if (steamIpcName is not null && steamExe is null)
-                Logger.Warning("[SunshineCfg] No se encontró steam.exe; la entrada de Steam usará la URL estándar (sin IPC propio).");
-
-            string cmd, undo;
-            if (steamExe is not null)
-            {
-                cmd  = $"\"{steamExe}\" -master_ipc_name_override {steamIpcName} {SteamOpenBigPicture}";
-                undo = SafeSteamCloseUndoIpc(steamExe, steamIpcName!);
-            }
-            else
-            {
-                cmd  = SteamOpenBigPicture;
-                undo = SafeSteamCloseUndo;
-            }
+            const string cmd  = SteamOpenBigPicture;
+            const string undo = SafeSteamCloseUndo;
 
             JsonObject root = JsonNode.Parse(File.ReadAllText(appsFile))?.AsObject() ?? new JsonObject();
             if (root["apps"] is not JsonArray apps)
@@ -200,9 +161,7 @@ namespace OpenStreamMS.Services.Sunshine
             if (modified)
             {
                 File.WriteAllText(appsFile, root.ToJsonString(_writeOpts));
-                Logger.Log(steamExe is not null
-                    ? $"[SunshineCfg] Steam Big Picture configurado con IPC propio '{steamIpcName}': {appsFile}"
-                    : $"[SunshineCfg] Steam Big Picture configurado con URL estándar y undo no bloqueante: {appsFile}");
+                Logger.Log($"[SunshineCfg] Steam Big Picture configurado con URL estándar y undo no bloqueante: {appsFile}");
             }
         }
 

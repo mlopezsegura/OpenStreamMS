@@ -31,7 +31,6 @@ namespace OpenStreamMS.Services.Sunshine
         private readonly Dictionary<string, string>? _envOverrides;
         private readonly string? _statePersistPath;
         private readonly string? _stateAliasPath;
-        private readonly string? _steamIpcName;
         private FileSystemWatcher? _stateWatcher;
         private System.Threading.Timer? _statePollTimer;
         private DateTime _lastMirrorUtc = DateTime.MinValue;
@@ -46,8 +45,7 @@ namespace OpenStreamMS.Services.Sunshine
                                SunshineConfigurator.SunshineCredentials? credentials = null,
                                Dictionary<string, string>? envOverrides = null,
                                string? statePersistPath = null,
-                               string? stateAliasPath = null,
-                               string? steamIpcName = null)
+                               string? stateAliasPath = null)
         {
             _sunshineExe           = sunshineExePath;
             _vddEnabled            = vddEnabled;
@@ -56,7 +54,6 @@ namespace OpenStreamMS.Services.Sunshine
             _envOverrides          = envOverrides;
             _statePersistPath      = statePersistPath;
             _stateAliasPath        = stateAliasPath;
-            _steamIpcName          = steamIpcName;
         }
 
         private string ActiveStatePath =>
@@ -144,7 +141,7 @@ namespace OpenStreamMS.Services.Sunshine
 
                 try
                 {
-                    SunshineConfigurator.ConfigureSteamEntry(_sunshineExe, _steamIpcName);
+                    SunshineConfigurator.ConfigureSteamEntry(_sunshineExe);
                 }
                 catch (Exception ex)
                 {
