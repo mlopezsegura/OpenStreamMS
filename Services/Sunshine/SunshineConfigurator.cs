@@ -103,12 +103,9 @@ namespace OpenStreamMS.Services.Sunshine
         private const string SteamOpenBigPicture = "steam://open/bigpicture";
 
         /// <summary>
-        /// Ajusta la entrada de Steam Big Picture en <c>apps.json</c>: la abre a través de
-        /// <c>steam\osms-steam.exe</c> (si está instalado) y con undo no bloqueante. En una
-        /// sesión aislada ese lanzador inyecta osms-steamhook.dll en steam.exe para que su
-        /// detección de instancia única (evento Global\ y valores de HKLM) quede dentro de la
-        /// sesión: así no cierra ni recibe órdenes del Steam del host. Usa el IPC por defecto
-        /// (con <c>-master_ipc_name_override</c> Big Picture no recibe el mando). Idempotente.
+        /// Ajusta la entrada de Steam Big Picture en <c>apps.json</c>: URL estándar
+        /// (sin <c>-master_ipc_name_override</c>, con el que Big Picture deja de recibir
+        /// el mando) y undo no bloqueante. Idempotente.
         /// </summary>
         public static void ConfigureSteamEntry(string sunshineExePath)
         {
@@ -116,8 +113,7 @@ namespace OpenStreamMS.Services.Sunshine
             if (!File.Exists(appsFile))
                 return;
 
-            string launcher = Path.Combine(AppContext.BaseDirectory, "steam", "osms-steam.exe");
-            string cmd = File.Exists(launcher) ? $"\"{launcher}\" {SteamOpenBigPicture}" : SteamOpenBigPicture;
+            const string cmd  = SteamOpenBigPicture;
             const string undo = SafeSteamCloseUndo;
 
             JsonObject root = JsonNode.Parse(File.ReadAllText(appsFile))?.AsObject() ?? new JsonObject();

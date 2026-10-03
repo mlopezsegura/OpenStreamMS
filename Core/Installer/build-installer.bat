@@ -30,13 +30,6 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [2b/3] Compilando osms-steamhook (x86)...
-call "%~dp0..\..\Native\SteamHook\build.cmd" "%PUBLISH_DIR%\steam"
-if errorlevel 1 (
-    echo ERROR: no se pudo compilar Native\SteamHook.
-    exit /b 1
-)
-
 :: ── Compilar instalador ──────────────────────────────────────────────────────
 echo [3/3] Compilando instalador con Inno Setup...
 if not exist %ISCC% (
