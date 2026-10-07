@@ -30,6 +30,22 @@ if errorlevel 1 (
     exit /b 1
 )
 
+echo [2b/3] Compilando osms-steamhook (x64)...
+call "%~dp0..\..\Native\SteamHook\build.cmd" "%PUBLISH_DIR%\steam"
+if errorlevel 1 (
+    echo ERROR: no se pudo compilar Native\SteamHook.
+    exit /b 1
+)
+
+:: Instaladores firmados de ViGEmBus y HidHide (ultima release de GitHub): --install
+:: los ejecuta en silencio si faltan, sin depender de tener internet al instalar.
+echo [2c/3] Descargando drivers (ViGEmBus, HidHide)...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0download-drivers.ps1" -OutDir "%PUBLISH_DIR%\drivers"
+if errorlevel 1 (
+    echo ERROR: no se pudieron descargar los drivers.
+    exit /b 1
+)
+
 :: ── Compilar instalador ──────────────────────────────────────────────────────
 echo [3/3] Compilando instalador con Inno Setup...
 if not exist %ISCC% (

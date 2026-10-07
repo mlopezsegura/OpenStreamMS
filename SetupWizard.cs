@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Windows.Forms;
 using Microsoft.Win32;
+using OpenStreamMS.Services.Drivers;
 
 namespace OpenStreamMS;
 
@@ -55,7 +56,7 @@ internal sealed class SetupWizard : Form
     };
     private readonly CheckBox _chkCleanDeps = new()
     {
-        Text     = "Borrado completo: eliminar también RDP Wrapper y ViGEmBus",
+        Text     = "Borrado completo: eliminar también RDP Wrapper, ViGEmBus y HidHide",
         Checked  = false,
         AutoSize = true,
     };
@@ -404,8 +405,11 @@ internal sealed class SetupWizard : Form
                 Log(40, "Desinstalando RDP Wrapper…");
                 TryUninstallRdpWrapper();
 
-                Log(60, "Desinstalando ViGEmBus…");
-                TryUninstallViGEmBus();
+                Log(55, "Desinstalando ViGEmBus…");
+                new ViGEmBusManager().UninstallAsync().GetAwaiter().GetResult();
+
+                Log(65, "Desinstalando HidHide…");
+                new HidHideManager().UninstallAsync().GetAwaiter().GetResult();
             }
 
             Log(78, "Eliminando accesos directos…");
@@ -463,57 +467,6 @@ internal sealed class SetupWizard : Form
             catch { /* puede quedar algún archivo bloqueado */ }
         }
         catch { /* best effort */ }
-    }
-
-    /// <summary>
-    /// Busca la entrada de desinstalación de ViGEmBus en el registro y ejecuta
-    /// su <c>UninstallString</c> en modo silencioso (<c>/quiet /uninstall /norestart</c>).
-    /// </summary>
-    static void TryUninstallViGEmBus()
-    {
-        foreach (var root in new[]
-        {
-            @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall",
-            @"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall",
-        })
-        {
-            try
-            {
-                using var parent = Registry.LocalMachine.OpenSubKey(root);
-                if (parent is null) continue;
-                foreach (var subName in parent.GetSubKeyNames())
-                {
-                    using var sub = parent.OpenSubKey(subName);
-                    var display = sub?.GetValue("DisplayName") as string;
-                    if (display is null ||
-                        !display.Contains("ViGEmBus", StringComparison.OrdinalIgnoreCase)) continue;
-
-                    var cmd = sub?.GetValue("QuietUninstallString") as string
-                           ?? sub?.GetValue("UninstallString") as string;
-                    if (string.IsNullOrWhiteSpace(cmd)) continue;
-
-                    var (e, a) = SplitCmd(cmd.Trim());
-                    // Forzamos flags silenciosos si el comando registrado es interactivo
-                    foreach (var flag in new[] { "/quiet", "/uninstall", "/norestart" })
-                        if (!a.Contains(flag, StringComparison.OrdinalIgnoreCase))
-                            a = (a + " " + flag).Trim();
-                    Run(e, a);
-                    return;
-                }
-            }
-            catch { /* best effort */ }
-        }
-    }
-
-    static (string Exe, string Args) SplitCmd(string cmd)
-    {
-        if (cmd.StartsWith('"'))
-        {
-            var end = cmd.IndexOf('"', 1);
-            if (end > 0) return (cmd[1..end], cmd[(end + 1)..].TrimStart());
-        }
-        var sp = cmd.IndexOf(' ');
-        return sp > 0 ? (cmd[..sp], cmd[(sp + 1)..]) : (cmd, "");
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

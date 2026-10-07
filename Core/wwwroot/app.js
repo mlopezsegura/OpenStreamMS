@@ -13,10 +13,10 @@ let credentialsTested = false;   // true solo si el último test de credenciales
 document.addEventListener('DOMContentLoaded', () => {
   startRefresh();
   rdpRefresh();
-  vigemRefresh();
+  DRIVER_KEYS.forEach(driverRefresh);
   setInterval(whenVisible(() => {
     rdpRefreshPillOnly();
-    vigemRefreshPillOnly();
+    DRIVER_KEYS.forEach(driverRefreshPillOnly);
   }), 15000);
 });
 
@@ -28,9 +28,9 @@ window.addEventListener('langchange', () => {
     updateRdpPill(rdpLastStatus);
     renderRdpStatus(rdpLastStatus);
   }
-  if (vigemLastStatus) {
-    updateVigemPill(vigemLastStatus);
-    renderVigemStatus(vigemLastStatus);
+  for (const k of DRIVER_KEYS) {
+    const st = drivers[k].lastStatus;
+    if (st) { updateDriverPill(k, st); renderDriverStatus(k, st); }
   }
   // Puerto derivado en ambos modales
   updateDerivedWebPort('new');
@@ -478,7 +478,8 @@ function handleBackdropClick(e, id) {
     else if (id === 'log-modal')    closeLogModal();
     else if (id === 'edit-modal')   closeEditModal();
     else if (id === 'rdp-modal')    closeRdpModal();
-    else if (id === 'vigem-modal')  closeViGEmModal();
+    else if (id === 'vigem-modal')  closeDriverModal('vigem');
+    else if (id === 'hidhide-modal') closeDriverModal('hidhide');
     else if (id === 'sunmgr-modal') closeSunMgrModal();
     else if (id === 'power-modal')  closePowerModal();
   }
@@ -862,29 +863,34 @@ async function sunmgrUnpairAll() {
   await sunmgrLoadClients();
 }
 
-// ── ViGEmBus ───────────────────────────────────────────────────────────────
-let vigemLogTimer = null;
-let vigemLastStatus = null;
+// ── Drivers (ViGEmBus, HidHide) ────────────────────────────────────────────
+// Misma UI para los dos: pastilla en la barra + modal. Ids de los elementos
+// con prefijo <clave>- y textos i18n con prefijo <clave>.
+const drivers = {
+  vigem:   { api: '/api/vigembus', lastStatus: null, logTimer: null },
+  hidhide: { api: '/api/hidhide',  lastStatus: null, logTimer: null },
+};
+const DRIVER_KEYS = Object.keys(drivers);
 
-async function vigemRefreshPillOnly() {
-  const res = await api('GET', '/api/vigembus/status');
+async function driverRefreshPillOnly(k) {
+  const res = await api('GET', `${drivers[k].api}/status`);
   if (!res || !res.ok) return;
   const st = await res.json();
-  vigemLastStatus = st;
-  updateVigemPill(st);
+  drivers[k].lastStatus = st;
+  updateDriverPill(k, st);
 }
 
-async function vigemRefresh() {
-  await vigemRefreshPillOnly();
-  if (!document.getElementById('vigem-modal').classList.contains('hidden')) {
-    renderVigemStatus(vigemLastStatus);
-    await vigemFetchLog();
+async function driverRefresh(k) {
+  await driverRefreshPillOnly(k);
+  if (!document.getElementById(`${k}-modal`).classList.contains('hidden')) {
+    renderDriverStatus(k, drivers[k].lastStatus);
+    await driverFetchLog(k);
   }
 }
 
-function updateVigemPill(st) {
-  const pill  = document.getElementById('vigem-pill');
-  const state = document.getElementById('vigem-pill-state');
+function updateDriverPill(k, st) {
+  const pill  = document.getElementById(`${k}-pill`);
+  const state = document.getElementById(`${k}-pill-state`);
   if (!pill || !state) return;
 
   pill.classList.remove('status-pill-ok','status-pill-missing','status-pill-broken','status-pill-working','status-pill-warn');
@@ -899,9 +905,9 @@ function updateVigemPill(st) {
   state.textContent = st.rebootRequired ? '⟳' : t(key);
 }
 
-function renderVigemStatus(st) {
+function renderDriverStatus(k, st) {
   if (!st) return;
-  const badge = document.getElementById('vigem-status-badge');
+  const badge = document.getElementById(`${k}-status-badge`);
   const cls   = st.busy ? 'badge-starting'
               : st.installed ? 'badge-running'
               : 'badge-error';
@@ -911,22 +917,22 @@ function renderVigemStatus(st) {
   badge.className = `badge ${cls}`;
   badge.innerHTML = `<span class="badge-dot"></span>${esc(t(key))}`;
 
-  document.getElementById('vigem-version').textContent = st.installedVersion || '—';
-  document.getElementById('vigem-service').textContent = st.serviceState     || '—';
-  document.getElementById('vigem-driver').textContent  = st.driverImagePath  || '—';
+  document.getElementById(`${k}-version`).textContent = st.installedVersion || '—';
+  document.getElementById(`${k}-service`).textContent = st.serviceState     || '—';
+  document.getElementById(`${k}-driver`).textContent  = st.driverImagePath  || '—';
 
-  document.getElementById('vigem-reboot-banner').style.display = st.rebootRequired ? '' : 'none';
+  document.getElementById(`${k}-reboot-banner`).style.display = st.rebootRequired ? '' : 'none';
 
   const busy = !!st.busy;
-  document.getElementById('vigem-btn-install').disabled   = busy;
-  document.getElementById('vigem-btn-uninstall').disabled = busy || !st.installed;
+  document.getElementById(`${k}-btn-install`).disabled   = busy;
+  document.getElementById(`${k}-btn-uninstall`).disabled = busy || !st.installed;
 }
 
-async function vigemFetchLog() {
-  const res = await api('GET', '/api/vigembus/log');
+async function driverFetchLog(k) {
+  const res = await api('GET', `${drivers[k].api}/log`);
   if (!res || !res.ok) return;
   const data = await res.json();
-  const box  = document.getElementById('vigem-log-box');
+  const box  = document.getElementById(`${k}-log-box`);
   if (!data.lines || data.lines.length === 0) {
     box.innerHTML = `<span class="log-empty">${esc(t('vigem.log.empty'))}</span>`;
     return;
@@ -936,33 +942,33 @@ async function vigemFetchLog() {
   if (wasAtBottom) box.scrollTop = box.scrollHeight;
 }
 
-function openViGEmModal() {
-  show('vigem-modal');
-  vigemRefresh();
-  clearInterval(vigemLogTimer);
-  vigemLogTimer = setInterval(whenVisible(vigemRefresh), 2000);
+function openDriverModal(k) {
+  show(`${k}-modal`);
+  driverRefresh(k);
+  clearInterval(drivers[k].logTimer);
+  drivers[k].logTimer = setInterval(whenVisible(() => driverRefresh(k)), 2000);
 }
 
-function closeViGEmModal() {
-  hide('vigem-modal');
-  clearInterval(vigemLogTimer);
-  vigemLogTimer = null;
+function closeDriverModal(k) {
+  hide(`${k}-modal`);
+  clearInterval(drivers[k].logTimer);
+  drivers[k].logTimer = null;
 }
 
-async function vigemInstall() {
-  if (!confirm(t('vigem.confirm.install'))) return;
-  const res = await api('POST', '/api/vigembus/install');
+async function driverInstall(k) {
+  if (!confirm(t(`${k}.confirm.install`))) return;
+  const res = await api('POST', `${drivers[k].api}/install`);
   if (!res) return;
   if (!res.ok) { toast(await res.text(), true); return; }
-  vigemRefresh();
+  driverRefresh(k);
 }
 
-async function vigemUninstall() {
-  if (!confirm(t('vigem.confirm.uninstall'))) return;
-  const res = await api('POST', '/api/vigembus/uninstall');
+async function driverUninstall(k) {
+  if (!confirm(t(`${k}.confirm.uninstall`))) return;
+  const res = await api('POST', `${drivers[k].api}/uninstall`);
   if (!res) return;
   if (!res.ok) { toast(await res.text(), true); return; }
-  vigemRefresh();
+  driverRefresh(k);
 }
 
 function toast(msg, isError = false) {

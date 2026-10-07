@@ -148,6 +148,15 @@ namespace OpenStreamMS.Services.Sunshine
                     Logger.Warning($"[Sunshine] No se pudo configurar la entrada de Steam en apps.json: {ex.Message}");
                 }
 
+                try
+                {
+                    SunshineConfigurator.ConfigurePowerEntries(_sunshineExe);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warning($"[Sunshine] No se pudieron configurar las entradas Reboot/Power Off en apps.json: {ex.Message}");
+                }
+
                 _configured = true;
             }
 

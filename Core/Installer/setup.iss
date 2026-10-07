@@ -62,7 +62,7 @@ Name: "{commondesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Parameters:
 ; 1. Instalar el servicio Windows (y registrar el tray en inicio automático)
 Filename: "{app}\{#AppExeName}"; Parameters: "--install --silent"; \
   Flags: runhidden waituntilterminated; \
-  StatusMsg: "Registrando servicio de Windows..."
+  StatusMsg: "Registrando servicio de Windows e instalando drivers (ViGEmBus, HidHide)..."
 
 ; 2. Iniciar el servicio (solo si el usuario marcó la tarea)
 Filename: "net.exe"; Parameters: "start ""{#AppService}"""; \

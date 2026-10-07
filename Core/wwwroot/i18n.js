@@ -176,6 +176,7 @@ const MESSAGES = {
     'about.credit.freerdp':   'RDP client used to create the stream session',
     'about.credit.sunshine':  'Streaming server compatible with Moonlight',
     'about.credit.vigem':     'Virtual gamepad driver for the remote controller',
+    'about.credit.hidhide':   'Isolates each gamepad in its Windows session',
     'about.credit.termwrap':  'TermService wrapper enabling multi-session RDP on client SKUs; auto-detects termsrv.dll offsets and survives Windows Updates. Replaces RDPWrap (kept as fallback).',
     'about.credit.rdpwrap':   'Historic fallback to enable multi-session RDP. Requires refreshing rdpwrap.ini after each Windows Update.',
     'about.license':          'MIT License · Open Source',
@@ -258,6 +259,12 @@ const MESSAGES = {
     'vigem.rebootRequired':    '⚠ Reboot required to complete the operation.',
     'vigem.confirm.install':   'Install or upgrade ViGEmBus?\nThe latest release from nefarius/ViGEmBus will be downloaded and the signed driver installed silently. No running stream will be affected.',
     'vigem.confirm.uninstall': 'Uninstall ViGEmBus?\nMoonlight clients will stop being able to use their gamepad until the driver is reinstalled. A reboot may be required.',
+    // HidHide
+    'hidhide.pill':            'HidHide',
+    'hidhide.title':           'HidHide (gamepad isolation)',
+    'hidhide.description':     'HidHide hides each gamepad from the other Windows sessions: virtual pads are only visible in their stream session and physical pads only on the host. It is installed together with OpenStreamMS; the installer is run silently.',
+    'hidhide.confirm.install': 'Install or upgrade HidHide?\nThe signed driver will be installed silently. A reboot may be required.',
+    'hidhide.confirm.uninstall': 'Uninstall HidHide?\nGamepads will be visible (and usable) from every session again. A reboot may be required.',
 
 
     // Sunshine management (proxied through OpenStreamMS)
@@ -455,6 +462,7 @@ const MESSAGES = {
     'about.credit.freerdp':   'Cliente RDP para crear la sesión de stream',
     'about.credit.sunshine':  'Servidor de streaming compatible con Moonlight',
     'about.credit.vigem':     'Driver de gamepad virtual para el mando remoto',
+    'about.credit.hidhide':   'Aísla cada mando en su sesión de Windows',
     'about.credit.termwrap':  'Wrapper de TermService que habilita múltiples sesiones RDP en SKUs cliente; auto-detecta offsets de termsrv.dll y sobrevive Windows Updates. Reemplaza a RDPWrap (mantenido como fallback).',
     'about.credit.rdpwrap':   'Fallback histórico para habilitar múltiples sesiones RDP. Requiere actualizar rdpwrap.ini tras cada Windows Update.',
     'about.license':          'MIT License · Open Source',
@@ -534,6 +542,12 @@ const MESSAGES = {
     'vigem.rebootRequired':    '⚠ Es necesario reiniciar Windows para completar la operación.',
     'vigem.confirm.install':   '¿Instalar o actualizar ViGEmBus?\nSe descargará la última release de nefarius/ViGEmBus y se instalará el driver firmado en modo silencioso. Las sesiones de stream activas no se verán afectadas.',
     'vigem.confirm.uninstall': '¿Desinstalar ViGEmBus?\nLos clientes Moonlight dejarán de poder usar su mando hasta que se reinstale el driver. Puede requerir reiniciar.',
+    // HidHide
+    'hidhide.pill':            'HidHide',
+    'hidhide.title':           'HidHide (aislamiento de mandos)',
+    'hidhide.description':     'HidHide oculta cada mando a las demás sesiones de Windows: los mandos virtuales solo se ven en su sesión de stream y los físicos solo en el host. Se instala junto con OpenStreamMS; el instalador se ejecuta en modo silencioso.',
+    'hidhide.confirm.install': '¿Instalar o actualizar HidHide?\nSe instalará el driver firmado en modo silencioso. Puede requerir reiniciar.',
+    'hidhide.confirm.uninstall': '¿Desinstalar HidHide?\nLos mandos volverán a verse (y moverse) desde todas las sesiones. Puede requerir reiniciar.',
 
 
     // Sunshine management
@@ -726,6 +740,7 @@ const MESSAGES = {
     'about.credit.freerdp':   'Client RDP utilisé pour créer la session de stream',
     'about.credit.sunshine':  'Serveur de streaming compatible Moonlight',
     'about.credit.vigem':     'Pilote de manette virtuelle pour le contrôleur distant',
+    'about.credit.hidhide':   'Isole chaque manette dans sa session Windows',
     'about.license':          'Licence MIT · Open Source',
     'about.github':           'Voir sur GitHub',
     'about.close':            'Fermer',
@@ -803,6 +818,12 @@ const MESSAGES = {
     'vigem.rebootRequired':    '⚠ Un redémarrage de Windows est nécessaire pour terminer l\'opération.',
     'vigem.confirm.install':   'Installer ou mettre à jour ViGEmBus ?\nLa dernière version de nefarius/ViGEmBus sera téléchargée et le pilote signé installé silencieusement. Les streams en cours ne seront pas affectés.',
     'vigem.confirm.uninstall': 'Désinstaller ViGEmBus ?\nLes clients Moonlight ne pourront plus utiliser leur manette tant que le pilote n\'aura pas été réinstallé. Un redémarrage peut être requis.',
+    // HidHide
+    'hidhide.pill':            'HidHide',
+    'hidhide.title':           'HidHide (isolation des manettes)',
+    'hidhide.description':     'HidHide masque chaque manette aux autres sessions Windows : les manettes virtuelles ne sont visibles que dans leur session de stream et les manettes physiques uniquement sur l\'hôte. Il est installé avec OpenStreamMS ; l\'installateur s\'exécute en mode silencieux.',
+    'hidhide.confirm.install': 'Installer ou mettre à jour HidHide ?\nLe pilote signé sera installé en mode silencieux. Un redémarrage peut être nécessaire.',
+    'hidhide.confirm.uninstall': 'Désinstaller HidHide ?\nLes manettes seront de nouveau visibles (et utilisables) depuis toutes les sessions. Un redémarrage peut être nécessaire.',
 
 
     // Sunshine management
@@ -994,6 +1015,7 @@ const MESSAGES = {
     'about.credit.freerdp':   'Cliente RDP usado para criar a sessão de stream',
     'about.credit.sunshine':  'Servidor de streaming compatível com Moonlight',
     'about.credit.vigem':     'Driver de comando virtual para o controlador remoto',
+    'about.credit.hidhide':   'Isola cada comando na sua sessão do Windows',
     'about.license':          'Licença MIT · Código aberto',
     'about.github':           'Ver no GitHub',
     'about.close':            'Fechar',
@@ -1071,6 +1093,12 @@ const MESSAGES = {
     'vigem.rebootRequired':    '⚠ É necessário reiniciar o Windows para concluir a operação.',
     'vigem.confirm.install':   'Instalar ou atualizar o ViGEmBus?\nSerá descarregada a última versão de nefarius/ViGEmBus e o driver assinado instalado em modo silencioso. As sessões de stream ativas não serão afetadas.',
     'vigem.confirm.uninstall': 'Desinstalar o ViGEmBus?\nOs clientes Moonlight deixarão de poder usar o comando até que o driver seja reinstalado. Pode ser necessário reiniciar.',
+    // HidHide
+    'hidhide.pill':            'HidHide',
+    'hidhide.title':           'HidHide (isolamento de comandos)',
+    'hidhide.description':     'O HidHide oculta cada comando das outras sessões do Windows: os comandos virtuais só são visíveis na sua sessão de stream e os físicos só no host. É instalado junto com o OpenStreamMS; o instalador é executado em modo silencioso.',
+    'hidhide.confirm.install': 'Instalar ou atualizar o HidHide?\nO driver assinado será instalado em modo silencioso. Pode ser necessário reiniciar.',
+    'hidhide.confirm.uninstall': 'Desinstalar o HidHide?\nOs comandos voltarão a ser visíveis (e utilizáveis) em todas as sessões. Pode ser necessário reiniciar.',
 
 
     // Sunshine management

@@ -82,6 +82,14 @@ public class StreamSessionService
 
     public IEnumerable<StreamSession> GetAll() => _sessions.Values;
 
+    /// <summary>Sesiones en marcha con su sesión de Windows y la ruta del sunshine.log.</summary>
+    public IReadOnlyList<(Guid Id, string Name, uint RdpSessionId, string SunshineLog)> GetRunningSunshineSessions() =>
+        _sessions.Values
+            .Where(s => s.State == SessionState.Running && s.RdpSessionId > 0)
+            .Select(s => (s.Id, s.Name, s.RdpSessionId,
+                          Path.Combine(GetSunshineInstanceDir(s.Id), "config", "sunshine.log")))
+            .ToList();
+
     public StreamSession? Get(Guid id) => _sessions.GetValueOrDefault(id);
 
     public bool Delete(Guid id)

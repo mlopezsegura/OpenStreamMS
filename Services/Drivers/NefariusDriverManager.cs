@@ -2,12 +2,12 @@ using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Text.Json;
 
-namespace OpenStreamMS.Services.VigEmBus;
+namespace OpenStreamMS.Services.Drivers;
 
 /// <summary>
-/// Estado actual del driver ViGEmBus en la máquina.
+/// Estado actual de un driver en la máquina.
 /// </summary>
-public record ViGEmBusStatus(
+public record DriverStatus(
     /// <summary>true si el servicio está registrado y el driver es localizable.</summary>
     bool    Installed,
     /// <summary>Versión instalada (de la entrada de desinstalación de Windows). Null si no se detecta.</summary>
@@ -24,14 +24,13 @@ public record ViGEmBusStatus(
     string? LastAction);
 
 /// <summary>
-/// Gestiona la instalación de <see href="https://github.com/nefarius/ViGEmBus"/>
-/// (driver de mando virtual, dependencia de Sunshine/Moonlight) desde la UI:
-/// descarga la última release firmada por nefarius y ejecuta el bundle WiX
-/// en modo silencioso.
+/// Gestiona la instalación de un driver firmado de nefarius (ViGEmBus, HidHide):
+/// usa el instalador incluido con OpenStreamMS (<c>drivers\&lt;prefijo&gt;*.exe</c>, lo
+/// descarga build-installer.bat) o, si no está, descarga la última release de GitHub,
+/// y lo ejecuta en modo silencioso.
 /// </summary>
-public sealed class ViGEmBusManager
+public abstract class NefariusDriverManager
 {
-    private const string GithubRepo  = "nefarius/ViGEmBus";
     private const string UserAgent   = "OpenStreamMS";
     private const int    MaxLogLines = 500;
 
@@ -43,11 +42,24 @@ public sealed class ViGEmBusManager
     private          string? _lastAction;
     private          bool    _rebootRequired;
 
+    /// <summary>Nombre para logs y mensajes ("ViGEmBus").</summary>
+    public abstract string Name { get; }
+    /// <summary>Repositorio de GitHub con las releases ("nefarius/ViGEmBus").</summary>
+    protected abstract string GithubRepo { get; }
+    /// <summary>Nombre del servicio del driver.</summary>
+    protected abstract string ServiceName { get; }
+    /// <summary>Texto que contiene su DisplayName en Agregar o quitar programas.</summary>
+    protected abstract string DisplayNameMatch { get; }
+    /// <summary>Argumentos de instalación silenciosa del .exe de la release.</summary>
+    protected abstract string InstallArgs { get; }
+    /// <summary>Prefijo del instalador incluido en <c>drivers\</c> y del asset de la release.</summary>
+    protected abstract string InstallerPrefix { get; }
+
     // ── API pública ──────────────────────────────────────────────────────────
 
     public bool IsBusy => _busy;
 
-    public ViGEmBusStatus GetStatus()
+    public DriverStatus GetStatus()
     {
         var (imagePath, state) = ReadService();
         var (displayVersion, _) = ReadUninstallEntry();
@@ -58,7 +70,7 @@ public sealed class ViGEmBusManager
         var driverFileOk = imagePath is not null &&
                            File.Exists(ResolveDriverPath(imagePath));
 
-        return new ViGEmBusStatus(
+        return new DriverStatus(
             Installed:        imagePath is not null && driverFileOk,
             InstalledVersion: displayVersion,
             ServiceState:     state,
@@ -77,57 +89,68 @@ public sealed class ViGEmBusManager
     {
         await RunExclusiveAsync("install", async () =>
         {
-            AppendLog("Descargando última release de nefarius/ViGEmBus…");
-            var (assetUrl, assetName) = await FetchLatestInstallerUrlAsync(ct);
-            AppendLog($"Asset: {assetName}");
+            string installer;
+            bool   downloaded = false;
+            if (BundledInstaller() is { } bundled)
+            {
+                installer = bundled;
+                AppendLog($"Usando el instalador incluido: {installer}");
+            }
+            else
+            {
+                AppendLog($"Descargando última release de {GithubRepo}…");
+                var (assetUrl, assetName) = await FetchLatestInstallerUrlAsync(ct);
+                AppendLog($"Asset: {assetName}");
 
-            var tempExe = Path.Combine(Path.GetTempPath(), $"OpenStreamMS_{assetName}");
-            await DownloadAsync(assetUrl, tempExe, ct);
-            AppendLog($"Descargado en: {tempExe}");
+                installer = Path.Combine(Path.GetTempPath(), $"OpenStreamMS_{assetName}");
+                await DownloadAsync(assetUrl, installer, ct);
+                downloaded = true;
+                AppendLog($"Descargado en: {installer}");
+            }
 
-            AppendLog("Ejecutando instalador silencioso (/quiet /install /norestart)…");
-            var exit = await RunProcessAsync(tempExe, "/quiet /install /norestart",
-                                             Path.GetDirectoryName(tempExe)!, ct);
-            try { File.Delete(tempExe); } catch { }
+            AppendLog($"Ejecutando instalador silencioso ({InstallArgs})…");
+            var exit = await RunProcessAsync(installer, InstallArgs, Path.GetDirectoryName(installer)!, ct);
+            if (downloaded) try { File.Delete(installer); } catch { }
 
             InterpretExitCode(exit, installing: true);
         });
+    }
+
+    /// <summary>Instala el driver si no lo está. Para el registro del servicio (<c>--install</c>).</summary>
+    public void EnsureInstalled()
+    {
+        if (GetStatus().Installed) return;
+        InstallAsync().GetAwaiter().GetResult();
     }
 
     public async Task UninstallAsync(CancellationToken ct = default)
     {
         await RunExclusiveAsync("uninstall", async () =>
         {
-            // El bundle WiX Burn guarda su BundleCachePath en la entrada de Uninstall.
-            // Si existe, lanzamos esa copia cacheada directamente para desinstalar.
             var (_, uninstallCmd) = ReadUninstallEntry();
-
-            if (!string.IsNullOrWhiteSpace(uninstallCmd))
+            if (string.IsNullOrWhiteSpace(uninstallCmd))
             {
-                AppendLog($"Usando comando de desinstalación registrado: {uninstallCmd}");
-                var (exe, args) = SplitCommandLine(uninstallCmd);
-                args = AppendSilentFlags(args);
-                var exit = await RunProcessAsync(exe, args, Path.GetDirectoryName(exe) ?? ".", ct);
-                InterpretExitCode(exit, installing: false);
+                AppendLog($"✗ No se encontró el comando de desinstalación de {Name} en el registro.");
                 return;
             }
 
-            // Fallback: re-descargar el bundle y lanzarlo con /uninstall.
-            AppendLog("No se encontró comando de desinstalación en el registro. Descargando bundle para desinstalar…");
-            var (assetUrl, assetName) = await FetchLatestInstallerUrlAsync(ct);
-            var tempExe = Path.Combine(Path.GetTempPath(), $"OpenStreamMS_{assetName}");
-            await DownloadAsync(assetUrl, tempExe, ct);
-
-            AppendLog("Ejecutando bundle en modo /quiet /uninstall /norestart…");
-            var exit2 = await RunProcessAsync(tempExe, "/quiet /uninstall /norestart",
-                                              Path.GetDirectoryName(tempExe)!, ct);
-            try { File.Delete(tempExe); } catch { }
-
-            InterpretExitCode(exit2, installing: false);
+            AppendLog($"Usando comando de desinstalación registrado: {uninstallCmd}");
+            var (exe, args) = SplitCommandLine(uninstallCmd);
+            args = AppendSilentFlags(exe, args);
+            var exit = await RunProcessAsync(exe, args, Path.GetDirectoryName(exe) is { Length: > 0 } d ? d : ".", ct);
+            InterpretExitCode(exit, installing: false);
         });
     }
 
     // ── Implementación interna ───────────────────────────────────────────────
+
+    private string? BundledInstaller()
+    {
+        var dir = Path.Combine(AppContext.BaseDirectory, "drivers");
+        return Directory.Exists(dir)
+            ? Directory.GetFiles(dir, $"{InstallerPrefix}*.exe").OrderDescending().FirstOrDefault()
+            : null;
+    }
 
     private void InterpretExitCode(int exit, bool installing)
     {
@@ -137,8 +160,8 @@ public sealed class ViGEmBusManager
             case 0:
                 _rebootRequired = false;
                 AppendLog(installing
-                    ? "✓ ViGEmBus instalado correctamente."
-                    : "✓ ViGEmBus desinstalado correctamente.");
+                    ? $"✓ {Name} instalado correctamente."
+                    : $"✓ {Name} desinstalado correctamente.");
                 break;
             case 3010:
                 _rebootRequired = true;
@@ -164,7 +187,7 @@ public sealed class ViGEmBusManager
     {
         lock (_sync)
         {
-            if (_busy) throw new InvalidOperationException("Ya hay una operación de ViGEmBus en curso.");
+            if (_busy) throw new InvalidOperationException($"Ya hay una operación de {Name} en curso.");
             _busy       = true;
             _lastAction = action;
             _log.Clear();
@@ -177,7 +200,7 @@ public sealed class ViGEmBusManager
         catch (Exception ex)
         {
             AppendLog($"ERROR: {ex.Message}");
-            Logger.Error($"[ViGEmBus] Error en {action}: {ex}");
+            Logger.Error($"[{Name}] Error en {action}: {ex}");
         }
         finally
         {
@@ -205,13 +228,14 @@ public sealed class ViGEmBusManager
         foreach (var asset in doc.RootElement.GetProperty("assets").EnumerateArray())
         {
             var name = asset.GetProperty("name").GetString() ?? "";
-            if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+            if (name.StartsWith(InstallerPrefix, StringComparison.OrdinalIgnoreCase) &&
+                name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
                 return (asset.GetProperty("browser_download_url").GetString()!, name);
         }
-        throw new InvalidOperationException("No se encontró el instalador .exe en la última release de nefarius/ViGEmBus.");
+        throw new InvalidOperationException($"No se encontró el instalador .exe en la última release de {GithubRepo}.");
     }
 
-    private async Task DownloadAsync(string url, string destPath, CancellationToken ct)
+    private static async Task DownloadAsync(string url, string destPath, CancellationToken ct)
     {
         using var resp = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
         resp.EnsureSuccessStatusCode();
@@ -250,17 +274,17 @@ public sealed class ViGEmBusManager
             _log.Add($"[{DateTime.Now:HH:mm:ss}] {line}");
             if (_log.Count > MaxLogLines) _log.RemoveRange(0, _log.Count - MaxLogLines);
         }
-        Logger.Log($"[ViGEmBus] {line}");
+        Logger.Log($"[{Name}] {line}");
     }
 
     // ── Helpers del registro ─────────────────────────────────────────────────
 
-    private static (string? ImagePath, string? State) ReadService()
+    private (string? ImagePath, string? State) ReadService()
     {
         try
         {
             using var key = Microsoft.Win32.Registry.LocalMachine
-                .OpenSubKey(@"SYSTEM\CurrentControlSet\Services\ViGEmBus");
+                .OpenSubKey($@"SYSTEM\CurrentControlSet\Services\{ServiceName}");
             if (key is null) return (null, null);
 
             var imagePath = key.GetValue("ImagePath") as string;
@@ -269,7 +293,7 @@ public sealed class ViGEmBusManager
             string? state = null;
             try
             {
-                using var sc = new System.ServiceProcess.ServiceController("ViGEmBus");
+                using var sc = new System.ServiceProcess.ServiceController(ServiceName);
                 state = sc.Status.ToString();
             }
             catch { /* el servicio puede existir sólo como driver on-demand y ServiceController fallar */ }
@@ -280,10 +304,10 @@ public sealed class ViGEmBusManager
     }
 
     /// <summary>
-    /// Busca la entrada de desinstalación de ViGEmBus bajo HKLM\...\Uninstall\* y
+    /// Busca la entrada de desinstalación del driver bajo HKLM\...\Uninstall\* y
     /// devuelve (DisplayVersion, UninstallString).
     /// </summary>
-    private static (string? Version, string? UninstallString) ReadUninstallEntry()
+    private (string? Version, string? UninstallString) ReadUninstallEntry()
     {
         foreach (var root in new[]
         {
@@ -300,7 +324,7 @@ public sealed class ViGEmBusManager
                     using var sub = parent.OpenSubKey(subName);
                     var display = sub?.GetValue("DisplayName") as string;
                     if (display is not null &&
-                        display.Contains("ViGEmBus", StringComparison.OrdinalIgnoreCase))
+                        display.Contains(DisplayNameMatch, StringComparison.OrdinalIgnoreCase))
                     {
                         return (
                             sub?.GetValue("DisplayVersion") as string,
@@ -316,8 +340,8 @@ public sealed class ViGEmBusManager
 
     private static string ResolveDriverPath(string imagePath)
     {
-        // ImagePath puede venir como "\SystemRoot\System32\drivers\ViGEmBus.sys"
-        // o "\??\C:\Windows\System32\drivers\ViGEmBus.sys". Normalizamos.
+        // ImagePath puede venir como "\SystemRoot\System32\drivers\X.sys"
+        // o "\??\C:\Windows\System32\drivers\X.sys". Normalizamos.
         var p = imagePath.Trim();
         if (p.StartsWith(@"\??\",        StringComparison.Ordinal))       p = p[4..];
         if (p.StartsWith(@"\SystemRoot\", StringComparison.OrdinalIgnoreCase))
@@ -337,14 +361,46 @@ public sealed class ViGEmBusManager
         return sp > 0 ? (cmd[..sp], cmd[(sp + 1)..]) : (cmd, "");
     }
 
-    private static string AppendSilentFlags(string args)
+    /// <summary>
+    /// Fuerza el modo silencioso en el comando registrado (que suele ser interactivo):
+    /// <c>msiexec /X{...}</c> usa /qn; un bundle (WiX Burn), /quiet /uninstall.
+    /// </summary>
+    private static string AppendSilentFlags(string exe, string args)
     {
-        // Forzamos modo silencioso al string registrado (que suele ser interactivo)
-        var needs = new[] { "/quiet", "/uninstall", "/norestart" };
+        bool msiexec = Path.GetFileName(exe).Equals("msiexec.exe", StringComparison.OrdinalIgnoreCase);
+        var needs = msiexec ? new[] { "/qn", "/norestart" } : new[] { "/quiet", "/uninstall", "/norestart" };
         var final = args ?? "";
         foreach (var flag in needs)
             if (!final.Contains(flag, StringComparison.OrdinalIgnoreCase))
                 final = (final + " " + flag).Trim();
         return final;
     }
+}
+
+/// <summary>
+/// <see href="https://github.com/nefarius/ViGEmBus"/>: driver de mando virtual,
+/// dependencia de Sunshine/Moonlight.
+/// </summary>
+public sealed class ViGEmBusManager : NefariusDriverManager
+{
+    public override string Name => "ViGEmBus";
+    protected override string GithubRepo       => "nefarius/ViGEmBus";
+    protected override string ServiceName      => "ViGEmBus";
+    protected override string DisplayNameMatch => "ViGEm";       // "ViGEm Bus Driver"
+    protected override string InstallArgs      => "/quiet /install /norestart";   // bundle WiX Burn
+    protected override string InstallerPrefix  => "ViGEmBus_";
+}
+
+/// <summary>
+/// <see href="https://github.com/nefarius/HidHide"/>: filtro que oculta mandos a otras
+/// sesiones de Windows (lo usa <see cref="Gamepad.GamepadSessionIsolation"/>).
+/// </summary>
+public sealed class HidHideManager : NefariusDriverManager
+{
+    public override string Name => "HidHide";
+    protected override string GithubRepo       => "nefarius/HidHide";
+    protected override string ServiceName      => "HidHide";
+    protected override string DisplayNameMatch => "HidHide";
+    protected override string InstallArgs      => "/exenoui /qn /norestart";      // bootstrapper Advanced Installer
+    protected override string InstallerPrefix  => "HidHide_";
 }

@@ -23,10 +23,15 @@
         <span class="status-pill-label" data-i18n="rdp.pill">Multi-RDP</span>
         <span class="status-pill-state" id="rdp-pill-state">—</span>
       </button>
-      <button id="vigem-pill" class="status-pill" onclick="openViGEmModal()" type="button">
+      <button id="vigem-pill" class="status-pill" onclick="openDriverModal('vigem')" type="button">
         <span class="status-pill-dot"></span>
         <span class="status-pill-label" data-i18n="vigem.pill">ViGEmBus</span>
         <span class="status-pill-state" id="vigem-pill-state">—</span>
+      </button>
+      <button id="hidhide-pill" class="status-pill" onclick="openDriverModal('hidhide')" type="button">
+        <span class="status-pill-dot"></span>
+        <span class="status-pill-label" data-i18n="hidhide.pill">HidHide</span>
+        <span class="status-pill-state" id="hidhide-pill-state">—</span>
       </button>
       <select id="lang-select" class="lang-select" data-i18n-title="nav.langLabel" title="Idioma"></select>
       <a href="/scalar/v1" target="_blank" class="btn btn-ghost btn-sm nav-extra" data-i18n="nav.apiDocs">API docs</a>
@@ -503,6 +508,10 @@
             <span class="about-credit-name">Sunshine</span>
             <span class="about-credit-desc" data-i18n="about.credit.sunshine">Servidor de streaming compatible con Moonlight</span>
           </a>
+          <a href="https://github.com/nefarius/HidHide" target="_blank" rel="noopener" class="about-credit">
+            <span class="about-credit-name">HidHide</span>
+            <span class="about-credit-desc" data-i18n="about.credit.hidhide">Aísla cada mando en su sesión de Windows</span>
+          </a>
           <a href="https://github.com/nefarius/ViGEmBus" target="_blank" rel="noopener" class="about-credit">
             <span class="about-credit-name">ViGEmBus</span>
             <span class="about-credit-desc" data-i18n="about.credit.vigem">Driver de gamepad virtual para el mando remoto</span>
@@ -625,7 +634,7 @@
   <div class="modal modal-lg" onclick="event.stopPropagation()">
     <div class="modal-header">
       <h3 data-i18n="vigem.title">ViGEmBus (mando virtual)</h3>
-      <button class="modal-close" onclick="closeViGEmModal()">×</button>
+      <button class="modal-close" onclick="closeDriverModal('vigem')">×</button>
     </div>
     <div class="modal-body">
       <p class="dep-desc" data-i18n="vigem.description"></p>
@@ -645,16 +654,55 @@
       </table>
 
       <div class="dep-actions">
-        <button class="btn btn-primary btn-sm" id="vigem-btn-install"   onclick="vigemInstall()"   data-i18n="vigem.btn.install">Instalar</button>
-        <button class="btn btn-danger btn-sm"  id="vigem-btn-uninstall" onclick="vigemUninstall()" data-i18n="vigem.btn.uninstall">Desinstalar</button>
-        <button class="btn btn-ghost btn-sm"                            onclick="vigemRefresh()"   data-i18n="vigem.btn.refresh">↻ Refrescar</button>
+        <button class="btn btn-primary btn-sm" id="vigem-btn-install"   onclick="driverInstall('vigem')"   data-i18n="vigem.btn.install">Instalar</button>
+        <button class="btn btn-danger btn-sm"  id="vigem-btn-uninstall" onclick="driverUninstall('vigem')" data-i18n="vigem.btn.uninstall">Desinstalar</button>
+        <button class="btn btn-ghost btn-sm"                            onclick="driverRefresh('vigem')"   data-i18n="vigem.btn.refresh">↻ Refrescar</button>
       </div>
 
       <div class="dep-log-label" data-i18n="vigem.log.title">Log</div>
       <div class="log-box" id="vigem-log-box"><span class="log-empty" data-i18n="vigem.log.empty">Aún no hay log.</span></div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeViGEmModal()" data-i18n="vigem.btn.close">Cerrar</button>
+      <button class="btn btn-ghost" onclick="closeDriverModal('vigem')" data-i18n="vigem.btn.close">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Modal: HidHide ─────────────────────────────────────────────────── -->
+<div class="modal-backdrop hidden" id="hidhide-modal" onclick="handleBackdropClick(event,'hidhide-modal')">
+  <div class="modal modal-lg" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 data-i18n="hidhide.title">HidHide (aislamiento de mandos)</h3>
+      <button class="modal-close" onclick="closeDriverModal('hidhide')">×</button>
+    </div>
+    <div class="modal-body">
+      <p class="dep-desc" data-i18n="hidhide.description"></p>
+
+      <div id="hidhide-reboot-banner" class="auth-alert error" style="display:none" data-i18n="vigem.rebootRequired">
+        Se requiere reiniciar Windows para completar la operación.
+      </div>
+
+      <table class="dep-status">
+        <tr>
+          <td data-i18n="vigem.row.status">Estado</td>
+          <td><span id="hidhide-status-badge" class="badge badge-created"><span class="badge-dot"></span>—</span></td>
+        </tr>
+        <tr><td data-i18n="vigem.row.version">Versión</td>        <td id="hidhide-version">—</td></tr>
+        <tr><td data-i18n="vigem.row.service">Servicio</td>       <td id="hidhide-service">—</td></tr>
+        <tr><td data-i18n="vigem.row.driver">Driver</td>          <td id="hidhide-driver">—</td></tr>
+      </table>
+
+      <div class="dep-actions">
+        <button class="btn btn-primary btn-sm" id="hidhide-btn-install"   onclick="driverInstall('hidhide')"   data-i18n="vigem.btn.install">Instalar</button>
+        <button class="btn btn-danger btn-sm"  id="hidhide-btn-uninstall" onclick="driverUninstall('hidhide')" data-i18n="vigem.btn.uninstall">Desinstalar</button>
+        <button class="btn btn-ghost btn-sm"                            onclick="driverRefresh('hidhide')"   data-i18n="vigem.btn.refresh">↻ Refrescar</button>
+      </div>
+
+      <div class="dep-log-label" data-i18n="vigem.log.title">Log</div>
+      <div class="log-box" id="hidhide-log-box"><span class="log-empty" data-i18n="vigem.log.empty">Aún no hay log.</span></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeDriverModal('hidhide')" data-i18n="vigem.btn.close">Cerrar</button>
     </div>
   </div>
 </div>

@@ -103,9 +103,12 @@ namespace OpenStreamMS.Services.Sunshine
         private const string SteamOpenBigPicture = "steam://open/bigpicture";
 
         /// <summary>
-        /// Ajusta la entrada de Steam Big Picture en <c>apps.json</c>: URL estándar
-        /// (sin <c>-master_ipc_name_override</c>, con el que Big Picture deja de recibir
-        /// el mando) y undo no bloqueante. Idempotente.
+        /// Ajusta la entrada de Steam Big Picture en <c>apps.json</c>: la abre a través de
+        /// <c>steam\osms-steam.exe</c> (si está instalado) y con undo no bloqueante. En una
+        /// sesión aislada ese lanzador inyecta osms-steamhook.dll en steam.exe para que su
+        /// detección de instancia única (evento Global\ y valores de HKLM) quede dentro de la
+        /// sesión: así no cierra ni recibe órdenes del Steam del host. Usa el IPC por defecto
+        /// (con <c>-master_ipc_name_override</c> Big Picture no recibe el mando). Idempotente.
         /// </summary>
         public static void ConfigureSteamEntry(string sunshineExePath)
         {
@@ -113,7 +116,8 @@ namespace OpenStreamMS.Services.Sunshine
             if (!File.Exists(appsFile))
                 return;
 
-            const string cmd  = SteamOpenBigPicture;
+            string launcher = Path.Combine(AppContext.BaseDirectory, "steam", "osms-steam.exe");
+            string cmd = File.Exists(launcher) ? $"\"{launcher}\" {SteamOpenBigPicture}" : SteamOpenBigPicture;
             const string undo = SafeSteamCloseUndo;
 
             JsonObject root = JsonNode.Parse(File.ReadAllText(appsFile))?.AsObject() ?? new JsonObject();
@@ -160,6 +164,53 @@ namespace OpenStreamMS.Services.Sunshine
             {
                 File.WriteAllText(appsFile, root.ToJsonString(_writeOpts));
                 Logger.Log($"[SunshineCfg] Steam Big Picture configurado ('{cmd}') con undo no bloqueante: {appsFile}");
+            }
+        }
+
+        /// <summary>
+        /// Añade a <c>apps.json</c> las apps "Reboot" y "Power Off": lanzan
+        /// <c>Scripts\osms-power.ps1</c>, que pide al servicio un apagado/reinicio forzado
+        /// (el usuario de la sesión no puede apagar con otros usuarios conectados).
+        /// Rutas absolutas a la instalación actual; las reescribe si cambian. Idempotente.
+        /// </summary>
+        public static void ConfigurePowerEntries(string sunshineExePath)
+        {
+            string appsFile = Path.Combine(Path.GetDirectoryName(sunshineExePath)!, "config", "apps.json");
+            string script   = Path.Combine(AppContext.BaseDirectory, "Scripts", "osms-power.ps1");
+            string assets   = Path.Combine(AppContext.BaseDirectory, "Sunshine", "assets");
+            if (!File.Exists(appsFile) || !File.Exists(script))
+                return;
+
+            JsonObject root = JsonNode.Parse(File.ReadAllText(appsFile))?.AsObject() ?? new JsonObject();
+            if (root["apps"] is not JsonArray apps)
+                return;
+
+            bool modified = false;
+            foreach (var (name, action, image) in new[]
+            {
+                ("Reboot",    "restart",  "reboot.png"),
+                ("Power Off", "shutdown", "power-off.png"),
+            })
+            {
+                string cmd = $"powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{script}\" -Action {action}";
+                string imagePath = Path.Combine(assets, image);
+
+                var app = apps.OfType<JsonObject>()
+                              .FirstOrDefault(a => string.Equals(a["name"]?.GetValue<string>(), name, StringComparison.Ordinal));
+                if (app is null)
+                {
+                    apps.Add(app = new JsonObject { ["name"] = name });
+                    modified = true;
+                }
+                if (app["cmd"]?.GetValue<string>() != cmd)              { app["cmd"] = cmd;              modified = true; }
+                if (app["image-path"]?.GetValue<string>() != imagePath) { app["image-path"] = imagePath; modified = true; }
+                if (app["auto-detach"]?.GetValue<bool>() != true)       { app["auto-detach"] = true;     modified = true; }
+            }
+
+            if (modified)
+            {
+                File.WriteAllText(appsFile, root.ToJsonString(_writeOpts));
+                Logger.Log($"[SunshineCfg] Apps Reboot y Power Off configuradas: {appsFile}");
             }
         }
 
@@ -339,6 +390,10 @@ namespace OpenStreamMS.Services.Sunshine
                 // Sunshine 2026.9+ prioriza Virtual HID Driver (de pago, requiere licencia)
                 // y deja ViGEmBus como fallback con avisos. OpenStreamMS instala ViGEmBus.
                 ["gamepad_driver"] = "vigembus",
+                // DS4 en vez de X360: es un HID normal, que GamepadSessionIsolation oculta
+                // a las demás sesiones con HidHide (el XUSB del X360 no se puede ocultar y
+                // el Steam del host se quedaba el mando).
+                ["gamepad"] = "ds4",
                 // AMF: preset "speed" reduce la latencia de encode por frame. A 4K60 el
                 // bloque VCN se comparte con el H.264 del transporte RDP y con "balanced"
                 // el encode se acerca al presupuesto de 16.6 ms. Ignorado por otros encoders.
