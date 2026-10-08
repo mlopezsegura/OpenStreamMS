@@ -90,117 +90,128 @@ namespace OpenStreamMS.Services.Sunshine
         }
 
         /// <summary>
-        /// Añade (o actualiza) una entrada en <c>apps.json</c> que lanza Steam Big
-        /// Picture dentro de Sandboxie usando el <c>Start.exe</c> embebido. Idempotente:
-        /// si la entrada ya existe se actualiza el comando si difiere; el resto del
-        /// archivo se conserva tal cual. Si <paramref name="enabled"/> es false la
-        /// entrada se elimina.
+        /// Undo de Steam Big Picture que no bloquea a Sunshine. El original
+        /// (<c>steam://close/bigpicture</c>) arranca Steam de nuevo si Sunshine ya lo ha
+        /// matado al cerrar la app, y Sunshine espera a que ese steam.exe termine: nunca
+        /// lo hace y la instancia queda colgada. Start-Process vuelve al instante, y solo
+        /// se lanza si hay un steam.exe en la misma sesión de Windows que Sunshine (no
+        /// toca el Steam del host ni el de otras sesiones de stream).
         /// </summary>
-        /// <param name="sunshineExePath">Ruta absoluta a <c>sunshine.exe</c>.</param>
-        /// <param name="sandboxieStartExe">Ruta absoluta a <c>Sandboxie\Start.exe</c>.</param>
-        /// <param name="boxName">Nombre del box de Sandboxie (p.ej. <c>OpenStream</c>).</param>
-        /// <param name="enabled">true → añade/actualiza la entrada; false → la elimina.</param>
-        public static void ConfigureSandboxedSteamEntry(
-            string sunshineExePath,
-            string sandboxieStartExe,
-            string boxName,
-            bool   enabled)
+        private const string SafeSteamCloseUndo =
+            "powershell -NoProfile -NonInteractive -WindowStyle Hidden -Command \"if (Get-Process steam -ErrorAction SilentlyContinue | Where-Object SessionId -eq ([Diagnostics.Process]::GetCurrentProcess().SessionId)) { Start-Process 'steam://close/bigpicture' }\"";
+
+        private const string SteamOpenBigPicture = "steam://open/bigpicture";
+
+        /// <summary>
+        /// Ajusta la entrada de Steam Big Picture en <c>apps.json</c>: la abre a través de
+        /// <c>steam\osms-steam.exe</c> (si está instalado) y con undo no bloqueante. En una
+        /// sesión aislada ese lanzador inyecta osms-steamhook.dll en steam.exe para que su
+        /// detección de instancia única (evento Global\ y valores de HKLM) quede dentro de la
+        /// sesión: así no cierra ni recibe órdenes del Steam del host. Usa el IPC por defecto
+        /// (con <c>-master_ipc_name_override</c> Big Picture no recibe el mando). Idempotente.
+        /// </summary>
+        public static void ConfigureSteamEntry(string sunshineExePath)
         {
-            const string EntryName = "Steam Big Picture (Sandboxed)";
-
-            string configDir  = Path.Combine(Path.GetDirectoryName(sunshineExePath)!, "config");
-            string appsFile   = Path.Combine(configDir, "apps.json");
-            string assetsFile = Path.Combine(Path.GetDirectoryName(sunshineExePath)!, "assets", "apps.json");
-
-            Directory.CreateDirectory(configDir);
-
-            JsonObject root;
-            if (File.Exists(appsFile))
-            {
-                root = JsonNode.Parse(File.ReadAllText(appsFile))?.AsObject() ?? new JsonObject();
-            }
-            else if (File.Exists(assetsFile))
-            {
-                root = JsonNode.Parse(File.ReadAllText(assetsFile))?.AsObject() ?? new JsonObject();
-            }
-            else
-            {
-                root = new JsonObject
-                {
-                    ["env"]  = new JsonObject(),
-                    ["apps"] = new JsonArray()
-                };
-            }
-
-            if (root["apps"] is not JsonArray apps)
-            {
-                apps = new JsonArray();
-                root["apps"] = apps;
-            }
-
-            int existingIndex = -1;
-            for (int i = 0; i < apps.Count; i++)
-            {
-                if (apps[i] is JsonObject app &&
-                    string.Equals(app["name"]?.GetValue<string>(), EntryName, StringComparison.Ordinal))
-                {
-                    existingIndex = i;
-                    break;
-                }
-            }
-
-            if (!enabled)
-            {
-                if (existingIndex < 0)
-                {
-                    Logger.Log("[SunshineCfg] Sandboxed Steam: entrada ya ausente, sin cambios");
-                    return;
-                }
-                apps.RemoveAt(existingIndex);
-                File.WriteAllText(appsFile, root.ToJsonString(_writeOpts));
-                Logger.Log($"[SunshineCfg] Sandboxed Steam eliminada de apps.json: {appsFile}");
+            string appsFile = Path.Combine(Path.GetDirectoryName(sunshineExePath)!, "config", "apps.json");
+            if (!File.Exists(appsFile))
                 return;
-            }
 
-            // cmd: "<Start.exe>" /box:<box> steam://open/bigpicture
-            // detached: para evitar que Sunshine cierre el sandbox al matar el cmd
-            string cmd  = $"\"{sandboxieStartExe}\" /box:{boxName} steam://open/bigpicture";
-            string undo = $"\"{sandboxieStartExe}\" /box:{boxName} /terminate";
+            string launcher = Path.Combine(AppContext.BaseDirectory, "steam", "osms-steam.exe");
+            string cmd = File.Exists(launcher) ? $"\"{launcher}\" {SteamOpenBigPicture}" : SteamOpenBigPicture;
+            const string undo = SafeSteamCloseUndo;
 
-            var entry = new JsonObject
+            JsonObject root = JsonNode.Parse(File.ReadAllText(appsFile))?.AsObject() ?? new JsonObject();
+            if (root["apps"] is not JsonArray apps)
+                return;
+
+            // Elimina la entrada heredada de versiones anteriores (ya no soportada)
+            bool modified = false;
+            for (int i = apps.Count - 1; i >= 0; i--)
             {
-                ["name"]      = EntryName,
-                ["cmd"]       = cmd,
-                ["prep-cmd"]  = new JsonArray
+                if (apps[i] is JsonObject old &&
+                    string.Equals(old["name"]?.GetValue<string>(), "Steam Big Picture (Sandboxed)", StringComparison.Ordinal))
                 {
-                    new JsonObject
-                    {
-                        ["do"]   = "",
-                        ["undo"] = undo
-                    }
-                },
-                ["auto-detach"] = true,
-                ["wait-all"]    = true,
-                ["image-path"]  = "steam.png"
-            };
-
-            if (existingIndex >= 0)
-            {
-                if (apps[existingIndex] is JsonObject existing &&
-                    string.Equals(existing["cmd"]?.GetValue<string>(), cmd, StringComparison.Ordinal))
-                {
-                    Logger.Log("[SunshineCfg] Sandboxed Steam ya configurada en apps.json, sin cambios");
-                    return;
+                    apps.RemoveAt(i);
+                    modified = true;
                 }
-                apps[existingIndex] = entry;
-            }
-            else
-            {
-                apps.Add(entry);
             }
 
-            File.WriteAllText(appsFile, root.ToJsonString(_writeOpts));
-            Logger.Log($"[SunshineCfg] Sandboxed Steam configurada en apps.json: {appsFile}");
+            foreach (var node in apps)
+            {
+                if (node is not JsonObject app) continue;
+                string? appCmd = app["cmd"]?.GetValue<string>();
+                if (appCmd is null || !appCmd.Contains(SteamOpenBigPicture, StringComparison.OrdinalIgnoreCase)) continue;
+
+                if (appCmd != cmd)
+                {
+                    app["cmd"] = cmd;
+                    modified = true;
+                }
+
+                if (app["prep-cmd"] is not JsonArray prepCmds) continue;
+                foreach (var cmdNode in prepCmds)
+                {
+                    if (cmdNode is not JsonObject prep) continue;
+                    string? prepUndo = prep["undo"]?.GetValue<string>();
+                    if (prepUndo is null || prepUndo == undo) continue;
+                    if (!prepUndo.Contains("steam://close/bigpicture", StringComparison.OrdinalIgnoreCase)) continue;
+                    prep["undo"] = undo;
+                    modified = true;
+                }
+            }
+
+            if (modified)
+            {
+                File.WriteAllText(appsFile, root.ToJsonString(_writeOpts));
+                Logger.Log($"[SunshineCfg] Steam Big Picture configurado ('{cmd}') con undo no bloqueante: {appsFile}");
+            }
+        }
+
+        /// <summary>
+        /// Añade a <c>apps.json</c> las apps "Reboot" y "Power Off": lanzan
+        /// <c>Scripts\osms-power.ps1</c>, que pide al servicio un apagado/reinicio forzado
+        /// (el usuario de la sesión no puede apagar con otros usuarios conectados).
+        /// Rutas absolutas a la instalación actual; las reescribe si cambian. Idempotente.
+        /// </summary>
+        public static void ConfigurePowerEntries(string sunshineExePath)
+        {
+            string appsFile = Path.Combine(Path.GetDirectoryName(sunshineExePath)!, "config", "apps.json");
+            string script   = Path.Combine(AppContext.BaseDirectory, "Scripts", "osms-power.ps1");
+            string assets   = Path.Combine(AppContext.BaseDirectory, "Sunshine", "assets");
+            if (!File.Exists(appsFile) || !File.Exists(script))
+                return;
+
+            JsonObject root = JsonNode.Parse(File.ReadAllText(appsFile))?.AsObject() ?? new JsonObject();
+            if (root["apps"] is not JsonArray apps)
+                return;
+
+            bool modified = false;
+            foreach (var (name, action, image) in new[]
+            {
+                ("Reboot",    "restart",  "reboot.png"),
+                ("Power Off", "shutdown", "power-off.png"),
+            })
+            {
+                string cmd = $"powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File \"{script}\" -Action {action}";
+                string imagePath = Path.Combine(assets, image);
+
+                var app = apps.OfType<JsonObject>()
+                              .FirstOrDefault(a => string.Equals(a["name"]?.GetValue<string>(), name, StringComparison.Ordinal));
+                if (app is null)
+                {
+                    apps.Add(app = new JsonObject { ["name"] = name });
+                    modified = true;
+                }
+                if (app["cmd"]?.GetValue<string>() != cmd)              { app["cmd"] = cmd;              modified = true; }
+                if (app["image-path"]?.GetValue<string>() != imagePath) { app["image-path"] = imagePath; modified = true; }
+                if (app["auto-detach"]?.GetValue<bool>() != true)       { app["auto-detach"] = true;     modified = true; }
+            }
+
+            if (modified)
+            {
+                File.WriteAllText(appsFile, root.ToJsonString(_writeOpts));
+                Logger.Log($"[SunshineCfg] Apps Reboot y Power Off configuradas: {appsFile}");
+            }
         }
 
         /// <summary>
@@ -379,6 +390,10 @@ namespace OpenStreamMS.Services.Sunshine
                 // Sunshine 2026.9+ prioriza Virtual HID Driver (de pago, requiere licencia)
                 // y deja ViGEmBus como fallback con avisos. OpenStreamMS instala ViGEmBus.
                 ["gamepad_driver"] = "vigembus",
+                // DS4 en vez de X360: es un HID normal, que GamepadSessionIsolation oculta
+                // a las demás sesiones con HidHide (el XUSB del X360 no se puede ocultar y
+                // el Steam del host se quedaba el mando).
+                ["gamepad"] = "ds4",
                 // AMF: preset "speed" reduce la latencia de encode por frame. A 4K60 el
                 // bloque VCN se comparte con el H.264 del transporte RDP y con "balanced"
                 // el encode se acerca al presupuesto de 16.6 ms. Ignorado por otros encoders.

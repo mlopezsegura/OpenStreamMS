@@ -43,7 +43,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "Crear acceso directo en el escritorio"; GroupDescription: "Iconos adicionales:"
-Name: "startservice"; Description: "Iniciar el servicio ahora tras la instalación"; GroupDescription: "Servicio:"; Flags: checked
+Name: "startservice"; Description: "Iniciar el servicio ahora tras la instalación"; GroupDescription: "Servicio:"
 
 [Files]
 ; Toda la salida de dotnet publish (runtime incluido)
@@ -62,7 +62,7 @@ Name: "{commondesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Parameters:
 ; 1. Instalar el servicio Windows (y registrar el tray en inicio automático)
 Filename: "{app}\{#AppExeName}"; Parameters: "--install --silent"; \
   Flags: runhidden waituntilterminated; \
-  StatusMsg: "Registrando servicio de Windows..."
+  StatusMsg: "Registrando servicio de Windows e instalando drivers (ViGEmBus, HidHide)..."
 
 ; 2. Iniciar el servicio (solo si el usuario marcó la tarea)
 Filename: "net.exe"; Parameters: "start ""{#AppService}"""; \
@@ -86,3 +86,38 @@ Filename: "{app}\{#AppExeName}"; Parameters: "--uninstall --silent"; \
 Type: files;     Name: "{app}\openstream*.log"
 Type: files;     Name: "{app}\sessions.json"
 Type: filesandordirs; Name: "{app}"
+
+[Code]
+// Detiene el servicio y mata todo proceso que se ejecute desde {app} (bandeja,
+// sunshine.exe y FreeRDP en cualquier sesión). Restart Manager no puede cerrar
+// servicios ni procesos de otras sesiones, y dejarían DLLs bloqueadas.
+procedure StopAppProcesses(const AppDir: String);
+var
+  Script: String;
+  ScriptFile: String;
+  ResultCode: Integer;
+begin
+  Script :=
+    'param([string]$AppDir)' + #13#10 +
+    'Stop-Service -Name ''{#AppService}'' -Force -ErrorAction SilentlyContinue' + #13#10 +
+    '$dir = $AppDir.TrimEnd(''\'') + ''\''' + #13#10 +
+    'Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($dir, [StringComparison]::OrdinalIgnoreCase) } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }' + #13#10 +
+    'Start-Sleep -Seconds 2' + #13#10;
+  ScriptFile := ExpandConstant('{tmp}\stop-openstreamms.ps1');
+  if SaveStringToFile(ScriptFile, Script, False) then
+    Exec('powershell.exe',
+      '-NoProfile -ExecutionPolicy Bypass -File "' + ScriptFile + '" -AppDir "' + AppDir + '"',
+      '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  StopAppProcesses(ExpandConstant('{app}'));
+  Result := '';
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usUninstall then
+    StopAppProcesses(ExpandConstant('{app}'));
+end;

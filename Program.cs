@@ -3,10 +3,9 @@ using OpenStreamMS.Core.Api;
 using OpenStreamMS.Core.Helpers;
 using OpenStreamMS.Services;
 using OpenStreamMS.Services.OpenStream;
-using OpenStreamMS.Services.Sandboxie;
 using OpenStreamMS.Services.Session;
 using OpenStreamMS.Services.TrayApp;
-using OpenStreamMS.Services.VigEmBus;
+using OpenStreamMS.Services.Drivers;
 using Scalar.AspNetCore;
 using System.Diagnostics;
 using System.Net;
@@ -72,9 +71,9 @@ static async Task RunService(string[] args)
     builder.Services.AddSingleton<RdpWrapperManager>();
     builder.Services.AddSingleton<TermWrapManager>();
     builder.Services.AddSingleton<ViGEmBusManager>();
-    builder.Services.AddSingleton<SandboxieManager>(_ =>
-        new SandboxieManager(boxName: config.SandboxBoxName));
+    builder.Services.AddSingleton<HidHideManager>();
     builder.Services.AddHostedService<OpenStreamService>();
+    builder.Services.AddHostedService<OpenStreamMS.Services.Gamepad.GamepadSessionIsolation>();
 
     builder.Services.ConfigureHttpJsonOptions(options =>
         options.SerializerOptions.Converters.Add(
@@ -202,11 +201,8 @@ static async Task RunService(string[] args)
     // ── RDP Wrapper API (fallback por si TermWrap se rompe en una build) ──────
     app.MapRdpWrapperApi();
 
-    // ── ViGEmBus API ──────────────────────────────────────────────────────────
-    app.MapViGEmBusApi();
-
-    // ── Sandboxie API ─────────────────────────────────────────────────────────
-    app.MapSandboxieApi();
+    // ── Drivers (ViGEmBus, HidHide) API ───────────────────────────────────────
+    app.MapDriverApis();
 
     // ── Power API ─────────────────────────────────────────────────────────────
     app.MapPowerApi();
@@ -308,6 +304,16 @@ static void Install(bool silent = false)
     AddApiFirewallRule(apiPort);
     if (!silent) Console.WriteLine($"[Install] Regla de firewall añadida para puerto {apiPort} (TCP).");
 
+    // Drivers de mando: ViGEmBus (mando virtual) y HidHide (aislamiento por sesión)
+    foreach (NefariusDriverManager driver in new NefariusDriverManager[] { new ViGEmBusManager(), new HidHideManager() })
+    {
+        driver.EnsureInstalled();
+        var st = driver.GetStatus();
+        Console.WriteLine(st.Installed
+            ? $"[Install] {driver.Name} instalado ({st.InstalledVersion ?? "versión desconocida"}){(st.RebootRequired ? "; requiere reiniciar Windows" : "")}."
+            : $"[Install] AVISO: no se pudo instalar {driver.Name}; puede instalarse desde el panel web.");
+    }
+
     // Registrar icono de bandeja en inicio automático (todos los usuarios)
     const string RunKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
     using (var key = Registry.LocalMachine.OpenSubKey(RunKey, writable: true))
@@ -358,6 +364,10 @@ static void Uninstall(bool silent = false)
 
     RemoveApiFirewallRule();
     if (!silent) Console.WriteLine("[Uninstall] Regla de firewall de la API eliminada.");
+
+    // Sin el servicio nadie las mantendría: los mandos quedarían ocultos a otras sesiones
+    OpenStreamMS.Services.Gamepad.GamepadSessionIsolation.ClearJails();
+    if (!silent) Console.WriteLine("[Uninstall] Aislamiento de mandos por sesión retirado de HidHide.");
 
     const string RunKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
     using var key = Registry.LocalMachine.OpenSubKey(RunKey, writable: true);

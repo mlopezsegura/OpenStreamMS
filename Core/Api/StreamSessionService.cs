@@ -1,7 +1,6 @@
 using OpenStreamMS.Core.Helpers;
 using OpenStreamMS.Services;
 using OpenStreamMS.Services.OpenStream;
-using OpenStreamMS.Services.Sandboxie;
 using OpenStreamMS.Services.Session;
 using OpenStreamMS.Services.Sunshine;
 using System.Collections.Concurrent;
@@ -19,7 +18,6 @@ namespace OpenStreamMS.Core.Api;
 public class StreamSessionService
 {
     private readonly ServiceConfig    _defaultConfig;
-    private readonly SandboxieManager _sandboxie;
     private readonly ConcurrentDictionary<Guid, StreamSession>   _sessions = new();
     private readonly ConcurrentDictionary<Guid, SunshineManager> _sunshine = new();
 
@@ -29,10 +27,9 @@ public class StreamSessionService
     private static readonly JsonSerializerOptions JsonOpts =
         new() { WriteIndented = true };
 
-    public StreamSessionService(ServiceConfig defaultConfig, SandboxieManager sandboxie)
+    public StreamSessionService(ServiceConfig defaultConfig)
     {
         _defaultConfig = defaultConfig;
-        _sandboxie     = sandboxie;
         LoadSessions();
     }
 
@@ -84,6 +81,14 @@ public class StreamSessionService
     }
 
     public IEnumerable<StreamSession> GetAll() => _sessions.Values;
+
+    /// <summary>Sesiones en marcha con su sesión de Windows y la ruta del sunshine.log.</summary>
+    public IReadOnlyList<(Guid Id, string Name, uint RdpSessionId, string SunshineLog)> GetRunningSunshineSessions() =>
+        _sessions.Values
+            .Where(s => s.State == SessionState.Running && s.RdpSessionId > 0)
+            .Select(s => (s.Id, s.Name, s.RdpSessionId,
+                          Path.Combine(GetSunshineInstanceDir(s.Id), "config", "sunshine.log")))
+            .ToList();
 
     public StreamSession? Get(Guid id) => _sessions.GetValueOrDefault(id);
 
@@ -685,10 +690,7 @@ public class StreamSessionService
                 new SunshineConfigurator.SunshineCredentials(session.SunshineAuthUser, session.SunshineAuthPass),
                 profileOverrides,
                 GetSunshineStatePersistPath(session.Id),
-                GetSunshineStateAliasPath(session),
-                _sandboxie.GetStartExePath(),
-                _defaultConfig.SandboxBoxName,
-                _defaultConfig.SandboxedSteamEnabled);
+                GetSunshineStateAliasPath(session));
         });
 
     /// <summary>

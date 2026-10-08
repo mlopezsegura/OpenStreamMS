@@ -1,6 +1,7 @@
 using Microsoft.Win32;
 using OpenStreamMS.Services;
 using System.Runtime.InteropServices;
+using System.Security.AccessControl;
 using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Text;
@@ -12,9 +13,9 @@ namespace OpenStreamMS.Core.Helpers;
 /// marcada como aislada corre bajo un usuario local dedicado (<c>osms-xxxxxxxxxxxx</c>)
 /// que el servicio crea y gestiona automáticamente.
 ///
-/// QUÉ APORTA frente a Sandboxie:
+/// QUÉ APORTA:
 ///   - Perfil propio (C:\Users\osms-...) → filesystem aislado con ACLs NTFS reales,
-///     no virtualización copy-on-write.
+///     sin virtualización.
 ///   - HKCU propio → registro aislado de verdad.
 ///   - Sesión WTS, audio y desktop propios → el mismo aislamiento que dos usuarios
 ///     físicos distintos. Steam/Chrome/etc. corren en paralelo sin lock files.
@@ -152,6 +153,7 @@ internal static class IsolatedUserManager
         AddToLocalGroup(username, WellKnownSidType.BuiltinUsersSid);
         AddToLocalGroup(username, WellKnownSidType.BuiltinRemoteDesktopUsersSid);
         HideFromLoginScreen(username);
+        RemoveLegacySteamDeny(username);
 
         return new IsolatedCredentials(username, password);
     }
@@ -226,6 +228,8 @@ internal static class IsolatedUserManager
         if (!TryDeleteProfile(sessionId, out var error) && error is not null)
             Logger.Warning($"[IsolatedUser] No se pudo eliminar el perfil de '{username}': {error}");
 
+        RemoveLegacySteamDeny(username);   // antes de borrar la cuenta: hace falta su SID
+
         int rc = NetUserDel(null, username);
         if (rc == NERR_Success)
             Logger.Log($"[IsolatedUser] Usuario local '{username}' eliminado.");
@@ -276,6 +280,39 @@ internal static class IsolatedUserManager
             key?.DeleteValue(username, throwOnMissingValue: false);
         }
         catch { /* no crítico */ }
+    }
+
+    const string SteamMachineKey = @"SOFTWARE\WOW6432Node\Valve\Steam";
+
+    /// <summary>
+    /// Quita la regla Deny que una versión anterior ponía al usuario aislado sobre
+    /// <see cref="SteamMachineKey"/>: sin poder leer esa clave su Steam no arranca.
+    /// El aislamiento entre Steams lo hace ahora osms-steamhook.dll. Idempotente.
+    /// </summary>
+    static void RemoveLegacySteamDeny(string username) =>
+        EditSteamKeyAcl(username, (security, rule) => security.RemoveAccessRuleSpecific(rule));
+
+    static void EditSteamKeyAcl(string username, Action<RegistrySecurity, RegistryAccessRule> edit)
+    {
+        try
+        {
+            using var key = Registry.LocalMachine.OpenSubKey(SteamMachineKey,
+                RegistryKeyPermissionCheck.ReadWriteSubTree,
+                RegistryRights.ReadPermissions | RegistryRights.ChangePermissions);
+            if (key is null) return;   // Steam no instalado
+
+            var sid  = (SecurityIdentifier)new NTAccount(username).Translate(typeof(SecurityIdentifier));
+            var rule = new RegistryAccessRule(sid, RegistryRights.QueryValues | RegistryRights.SetValue,
+                InheritanceFlags.None, PropagationFlags.None, AccessControlType.Deny);
+
+            var security = key.GetAccessControl();
+            edit(security, rule);
+            key.SetAccessControl(security);
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"[IsolatedUser] No se pudo ajustar el acceso de '{username}' al registro de Steam: {ex.Message}");
+        }
     }
 
     /// <summary>

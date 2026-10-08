@@ -11,7 +11,7 @@
       "prep-cmd": [
         {
           "do": "",
-          "undo": "steam://close/bigpicture"
+          "undo": "powershell -NoProfile -NonInteractive -WindowStyle Hidden -Command \"if (Get-Process steam -ErrorAction SilentlyContinue | Where-Object SessionId -eq ([Diagnostics.Process]::GetCurrentProcess().SessionId)) { Start-Process 'steam://close/bigpicture' }\""
         }
       ],
       "auto-detach": true,

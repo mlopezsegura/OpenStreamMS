@@ -61,3 +61,7 @@
 #*.PDF   diff=astextplain
 #*.rtf   diff=astextplain
 #*.RTF   diff=astextplain
+
+# cmd interpreta mal los .bat/.cmd con LF
+*.bat text eol=crlf
+*.cmd text eol=crlf

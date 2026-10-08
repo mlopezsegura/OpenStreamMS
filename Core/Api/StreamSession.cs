@@ -56,7 +56,7 @@ public class StreamSession
     /// <summary>
     /// Aislamiento nativo SIN software de terceros: la sesión corre bajo un usuario
     /// local dedicado (osms-xxxxxxxxxxxx) que OpenStreamMS crea y gestiona. Perfil,
-    /// HKCU y ACLs propios — aislamiento real de SO, sustituye a Sandboxie.
+    /// HKCU y ACLs propios — aislamiento real de SO.
     /// Cuando está activo, Username/Domain/Password de esta sesión se ignoran; la
     /// contraseña del usuario aislado es aleatoria, se rota en cada arranque y no
     /// se persiste nunca.

@@ -2,12 +2,13 @@
 setlocal
 
 :: ── Configuración ────────────────────────────────────────────────────────────
-set PROJECT=..\OpenStreamMS.csproj
+set PROJECT=%~dp0..\..\OpenStreamMS.csproj
 set PUBLISH_DIR=%~dp0publish
 set DIST_DIR=%~dp0..\dist
 
 :: Ruta habitual de Inno Setup; ajusta si lo tienes en otro lugar
 set ISCC="C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+if not exist %ISCC% set ISCC="%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"
 
 :: ── Limpiar salida anterior ──────────────────────────────────────────────────
 echo [1/3] Limpiando publicacion anterior...
@@ -26,6 +27,22 @@ dotnet publish "%PROJECT%" ^
 
 if errorlevel 1 (
     echo ERROR: dotnet publish fallo.
+    exit /b 1
+)
+
+echo [2b/3] Compilando osms-steamhook (x64)...
+call "%~dp0..\..\Native\SteamHook\build.cmd" "%PUBLISH_DIR%\steam"
+if errorlevel 1 (
+    echo ERROR: no se pudo compilar Native\SteamHook.
+    exit /b 1
+)
+
+:: Instaladores firmados de ViGEmBus y HidHide (ultima release de GitHub): --install
+:: los ejecuta en silencio si faltan, sin depender de tener internet al instalar.
+echo [2c/3] Descargando drivers (ViGEmBus, HidHide)...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0download-drivers.ps1" -OutDir "%PUBLISH_DIR%\drivers"
+if errorlevel 1 (
+    echo ERROR: no se pudieron descargar los drivers.
     exit /b 1
 )
 

@@ -32,12 +32,6 @@ namespace OpenStreamMS.Core.Helpers
         /// <summary>Puerto en que escucha la API REST (defecto: 5000).</summary>
         public int ApiPort                   { get; set; } = 5000;
 
-        // ── Sandboxie ────────────────────────────────────────────────────────
-        /// <summary>Nombre del box de Sandboxie usado para Steam.</summary>
-        public string SandboxBoxName         { get; set; } = "OpenStream";
-        /// <summary>true → añade entrada "Steam Big Picture (Sandboxed)" a apps.json.</summary>
-        public bool SandboxedSteamEnabled    { get; set; } = false;
-
         // ── Autenticación ────────────────────────────────────────────────────
         /// <summary>
         /// Nombre de usuario del administrador de la web/API.
@@ -84,8 +78,6 @@ namespace OpenStreamMS.Core.Helpers
                 cfg.SunshineExePath = Path.Combine(
                     AppDomain.CurrentDomain.BaseDirectory, cfg.SunshineExePath);
 
-            if (string.IsNullOrWhiteSpace(cfg.SandboxBoxName))
-                cfg.SandboxBoxName = "OpenStream";
 
             return cfg;
         }

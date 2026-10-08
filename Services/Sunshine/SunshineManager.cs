@@ -31,9 +31,6 @@ namespace OpenStreamMS.Services.Sunshine
         private readonly Dictionary<string, string>? _envOverrides;
         private readonly string? _statePersistPath;
         private readonly string? _stateAliasPath;
-        private readonly string? _sandboxieStartExe;
-        private readonly string? _sandboxBoxName;
-        private readonly bool    _sandboxedSteamEnabled;
         private FileSystemWatcher? _stateWatcher;
         private System.Threading.Timer? _statePollTimer;
         private DateTime _lastMirrorUtc = DateTime.MinValue;
@@ -48,10 +45,7 @@ namespace OpenStreamMS.Services.Sunshine
                                SunshineConfigurator.SunshineCredentials? credentials = null,
                                Dictionary<string, string>? envOverrides = null,
                                string? statePersistPath = null,
-                               string? stateAliasPath = null,
-                               string? sandboxieStartExe = null,
-                               string? sandboxBoxName = null,
-                               bool    sandboxedSteamEnabled = false)
+                               string? stateAliasPath = null)
         {
             _sunshineExe           = sunshineExePath;
             _vddEnabled            = vddEnabled;
@@ -60,9 +54,6 @@ namespace OpenStreamMS.Services.Sunshine
             _envOverrides          = envOverrides;
             _statePersistPath      = statePersistPath;
             _stateAliasPath        = stateAliasPath;
-            _sandboxieStartExe     = sandboxieStartExe;
-            _sandboxBoxName        = sandboxBoxName;
-            _sandboxedSteamEnabled = sandboxedSteamEnabled;
         }
 
         private string ActiveStatePath =>
@@ -148,17 +139,22 @@ namespace OpenStreamMS.Services.Sunshine
                     Logger.Warning($"[Sunshine] No se pudo configurar entorno aislado en apps.json: {ex.Message}");
                 }
 
-                if (!string.IsNullOrEmpty(_sandboxieStartExe) && !string.IsNullOrEmpty(_sandboxBoxName))
+                try
                 {
-                    try
-                    {
-                        SunshineConfigurator.ConfigureSandboxedSteamEntry(
-                            _sunshineExe, _sandboxieStartExe!, _sandboxBoxName!, _sandboxedSteamEnabled);
-                    }
-                    catch (Exception ex)
-                    {
-                        Logger.Warning($"[Sunshine] No se pudo configurar Sandboxed Steam en apps.json: {ex.Message}");
-                    }
+                    SunshineConfigurator.ConfigureSteamEntry(_sunshineExe);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warning($"[Sunshine] No se pudo configurar la entrada de Steam en apps.json: {ex.Message}");
+                }
+
+                try
+                {
+                    SunshineConfigurator.ConfigurePowerEntries(_sunshineExe);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warning($"[Sunshine] No se pudieron configurar las entradas Reboot/Power Off en apps.json: {ex.Message}");
                 }
 
                 _configured = true;
