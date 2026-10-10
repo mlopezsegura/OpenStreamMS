@@ -59,6 +59,12 @@ namespace OpenStreamMS.Services.Sunshine
         private string ActiveStatePath =>
             Path.Combine(Path.GetDirectoryName(_sunshineExe)!, "config", "sunshine_state.json");
 
+        /// <summary>TVs Moonlight WebRTC emparejados (Sunshine con WebRTC los guarda junto a su conf).</summary>
+        private string ActiveTvClientsPath =>
+            Path.Combine(Path.GetDirectoryName(_sunshineExe)!, "config", TvClientsFileName);
+
+        private const string TvClientsFileName = "webrtc_tv_clients.json";
+
         /// <summary>
         /// Lanza sunshine.exe en la sesión RDP indicada si no está ya corriendo.
         /// Si VDD está habilitado, parchea apps.json antes del primer arranque.
@@ -96,6 +102,7 @@ namespace OpenStreamMS.Services.Sunshine
                 // de tocar credenciales, así --creds opera sobre el JSON con los pareos
                 // intactos y solo reescribe username/salt/password.
                 RestoreStateBackup();
+                RestoreTvClientsBackup();
 
                 try
                 {
@@ -385,6 +392,7 @@ namespace OpenStreamMS.Services.Sunshine
             // Volcado final del estado al backup antes de matar el proceso, por si Sunshine
             // tenía cambios sin flushear que el watcher aún no había mirrored.
             MirrorStateToBackup(force: true);
+            MirrorTvClientsToBackup();
             StopStateMirror();
 
             if (_sunshinePid <= 0) return;
@@ -886,6 +894,7 @@ namespace OpenStreamMS.Services.Sunshine
         /// </summary>
         private void MirrorStateToBackupIfStale()
         {
+            MirrorTvClientsToBackup();
             var targets = GetStatePathCandidates().ToList();
             if (targets.Count == 0) return;
             try
@@ -903,6 +912,64 @@ namespace OpenStreamMS.Services.Sunshine
             }
             catch { /* poll silencioso */ }
         }
+
+        /// <summary>
+        /// Copia los TVs emparejados al lado del backup de <c>sunshine_state.json</c> cuando el
+        /// activo es más reciente, para que sobrevivan a la recreación del instance dir igual que
+        /// los clientes Moonlight.
+        /// </summary>
+        private void MirrorTvClientsToBackup()
+        {
+            var backups = GetTvClientsBackupPaths().ToList();
+            if (backups.Count == 0) return;
+            try
+            {
+                var active = ActiveTvClientsPath;
+                if (!File.Exists(active)) return;
+                var activeUtc = File.GetLastWriteTimeUtc(active);
+                foreach (var backup in backups)
+                {
+                    if (File.Exists(backup) && File.GetLastWriteTimeUtc(backup) >= activeUtc) continue;
+                    Directory.CreateDirectory(Path.GetDirectoryName(backup)!);
+                    File.Copy(active, backup, overwrite: true);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warning($"[Sunshine] No se pudo copiar {TvClientsFileName} a backup: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Restaura los TVs emparejados desde el backup más reciente si falta el activo o es más antiguo.
+        /// </summary>
+        private void RestoreTvClientsBackup()
+        {
+            try
+            {
+                var backup = GetTvClientsBackupPaths()
+                    .Where(File.Exists)
+                    .OrderByDescending(File.GetLastWriteTimeUtc)
+                    .FirstOrDefault();
+                if (backup is null) return;
+
+                var active = ActiveTvClientsPath;
+                if (File.Exists(active) && File.GetLastWriteTimeUtc(active) >= File.GetLastWriteTimeUtc(backup))
+                    return;
+
+                Directory.CreateDirectory(Path.GetDirectoryName(active)!);
+                File.Copy(backup, active, overwrite: true);
+                Logger.Log($"[Sunshine] {TvClientsFileName} restaurado desde backup: {backup}");
+            }
+            catch (Exception ex)
+            {
+                Logger.Warning($"[Sunshine] No se pudo restaurar {TvClientsFileName}: {ex.Message}");
+            }
+        }
+
+        private IEnumerable<string> GetTvClientsBackupPaths() =>
+            GetStatePathCandidates()
+                .Select(p => Path.Combine(Path.GetDirectoryName(p)!, TvClientsFileName));
 
         private void MirrorStateToBackup(bool force = false)
         {

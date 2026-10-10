@@ -10,6 +10,40 @@ public enum SessionState
     Error      // Error durante inicio o ejecución
 }
 
+/// <summary>
+/// Protocolos que sirve el Sunshine de la sesión (<c>stream_protocol</c> en <c>sunshine.conf</c>,
+/// solo en Sunshine con WebRTC). Los puertos de un protocolo apagado no se abren.
+/// </summary>
+public enum StreamProtocol
+{
+    Moonlight, // Solo clientes Moonlight (GameStream)
+    WebRtc,    // Solo TVs con Moonlight WebRTC
+    Both       // Ambos
+}
+
+public static class StreamProtocolExtensions
+{
+    /// <summary>Valor de <c>stream_protocol</c> en <c>sunshine.conf</c>.</summary>
+    public static string ToConfigValue(this StreamProtocol protocol) => protocol switch
+    {
+        StreamProtocol.Moonlight => "moonlight",
+        StreamProtocol.WebRtc    => "webrtc",
+        _                        => "both",
+    };
+
+    /// <summary>Interpreta un valor de <c>stream_protocol</c>; false si no es uno conocido.</summary>
+    public static bool TryParseConfigValue(string? value, out StreamProtocol protocol)
+    {
+        switch (value?.Trim().ToLowerInvariant())
+        {
+            case "moonlight": protocol = StreamProtocol.Moonlight; return true;
+            case "webrtc":    protocol = StreamProtocol.WebRtc;    return true;
+            case "both":      protocol = StreamProtocol.Both;      return true;
+            default:          protocol = StreamProtocol.Both;      return false;
+        }
+    }
+}
+
 public class StreamSession
 {
     public Guid         Id              { get; set; } = Guid.NewGuid();
@@ -78,6 +112,21 @@ public class StreamSession
 
     /// <summary>Puerto HTTPS del panel de gestión. Derivado: <c>StreamPort + 1</c>.</summary>
     public int          SunshineWebPort  => SunshineStreamPort + 1;
+    /// <summary>
+    /// Protocolos que sirve Sunshine. Se puede cambiar en caliente desde OpenStreamMS o desde el
+    /// interruptor de la pestaña Red del panel de Sunshine: el último cambio gana.
+    /// </summary>
+    public StreamProtocol StreamProtocol    { get; set; } = StreamProtocol.Both;
+    /// <summary>Puerto TCP al que conectan las TVs Moonlight WebRTC (<c>webrtc_port</c>). Defecto: 8000.</summary>
+    public int          WebRtcPort          { get; set; } = SunshinePorts.DefaultWebRtcPort;
+    /// <summary>Primer puerto UDP del vídeo y audio WebRTC (<c>webrtc_media_port_min</c>).</summary>
+    public int          WebRtcMediaPortMin  { get; set; } = SunshinePorts.DefaultWebRtcMediaPortMin;
+    /// <summary>Último puerto UDP del vídeo y audio WebRTC (<c>webrtc_media_port_max</c>).</summary>
+    public int          WebRtcMediaPortMax  { get; set; } = SunshinePorts.DefaultWebRtcMediaPortMin + SunshinePorts.WebRtcMediaPortCount - 1;
+    /// <summary>Si Sunshine atiende a clientes Moonlight.</summary>
+    public bool         MoonlightEnabled    => StreamProtocol != StreamProtocol.WebRtc;
+    /// <summary>Si Sunshine atiende a TVs Moonlight WebRTC.</summary>
+    public bool         WebRtcEnabled       => StreamProtocol != StreamProtocol.Moonlight;
     /// <summary>
     /// Nombre que publica Sunshine por mDNS/Moonlight. Si es null o vacío se usa <see cref="Name"/>.
     /// </summary>

@@ -20,6 +20,8 @@ public class StreamSessionService
     private readonly ServiceConfig    _defaultConfig;
     private readonly ConcurrentDictionary<Guid, StreamSession>   _sessions = new();
     private readonly ConcurrentDictionary<Guid, SunshineManager> _sunshine = new();
+    /// <summary>Sesiones cuyo Sunshine se está relanzando a propósito: el monitor no las toca.</summary>
+    private readonly ConcurrentDictionary<Guid, byte> _sunshineRelaunching = new();
 
     private static readonly string SessionsFile =
         Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "sessions.json");
@@ -45,8 +47,12 @@ public class StreamSessionService
                                 string? originWebUiAllowed = null,
                                 string? sunshineAuthUser = null, string? sunshineAuthPass = null,
                                 bool rotateSunshineCredentials = false,
-                                bool isolated = false, bool isolatedEphemeral = false)
+                                bool isolated = false, bool isolatedEphemeral = false,
+                                StreamProtocol streamProtocol = StreamProtocol.Both,
+                                int webRtcPort = 0, int webRtcMediaPortMin = 0, int webRtcMediaPortMax = 0)
     {
+        // Puertos WebRTC sin indicar (0) = los primeros libres.
+        var suggested = SunshinePorts.Suggest(_sessions.Values.ToList());
         var session = new StreamSession
         {
             Name               = name,
@@ -73,7 +79,12 @@ public class StreamSessionService
             RotateSunshineCredentials = rotateSunshineCredentials,
             Isolated           = isolated,
             IsolatedEphemeral  = isolatedEphemeral,
+            StreamProtocol     = streamProtocol,
+            WebRtcPort         = webRtcPort > 0 ? webRtcPort : suggested.WebRtcPort,
+            WebRtcMediaPortMin = webRtcMediaPortMin > 0 ? webRtcMediaPortMin : suggested.WebRtcMediaPortMin,
+            WebRtcMediaPortMax = webRtcMediaPortMax > 0 ? webRtcMediaPortMax : suggested.WebRtcMediaPortMax,
         };
+        EnsurePortsAvailable(session, _sessions.Values);
         _sessions[session.Id] = session;
         Logger.Log($"[SessionService] Sesión creada: '{name}' ({session.Id}) enabled={enabled}");
         SaveSessions();
@@ -136,15 +147,31 @@ public class StreamSessionService
                                       string? originWebUiAllowed,
                                       string? sunshineAuthUser, string? sunshineAuthPass,
                                       bool rotateSunshineCredentials,
-                                      bool isolated = false, bool isolatedEphemeral = false)
+                                      bool isolated = false, bool isolatedEphemeral = false,
+                                      StreamProtocol? streamProtocol = null,
+                                      int webRtcPort = 0, int webRtcMediaPortMin = 0, int webRtcMediaPortMax = 0)
     {
         var session = RequireSession(id);
 
         if (session.State is SessionState.Starting or SessionState.Running or SessionState.Stopping)
             throw new InvalidOperationException("Detén la sesión antes de modificar su configuración.");
 
-        var oldExe  = session.SunshineExePath;
-        var oldPort = session.SunshineStreamPort;
+        // Validar los puertos nuevos antes de tocar nada (0/null = mantener el valor actual).
+        var candidate = new StreamSession
+        {
+            Id                 = session.Id,
+            Name               = name,
+            SunshineStreamPort = sunshineStreamPort > 0 ? sunshineStreamPort : SunshinePorts.DefaultMoonlightPort,
+            StreamProtocol     = streamProtocol ?? session.StreamProtocol,
+            WebRtcPort         = webRtcPort > 0 ? webRtcPort : session.WebRtcPort,
+            WebRtcMediaPortMin = webRtcMediaPortMin > 0 ? webRtcMediaPortMin : session.WebRtcMediaPortMin,
+            WebRtcMediaPortMax = webRtcMediaPortMax > 0 ? webRtcMediaPortMax : session.WebRtcMediaPortMax,
+        };
+        EnsurePortsAvailable(candidate, _sessions.Values);
+
+        var oldExe   = session.SunshineExePath;
+        var oldPorts = PortSignature(session);
+        var oldProtocol = session.StreamProtocol;
         session.Name               = name;
         session.SunshineExePath    = ResolveExePath(sunshineExePath);
         session.RdpBackground      = rdpBackground;
@@ -161,6 +188,10 @@ public class StreamSessionService
         session.OutputName         = NullIfBlank(outputName);
         session.OriginWebUiAllowed = NullIfBlank(originWebUiAllowed);
         session.RotateSunshineCredentials = rotateSunshineCredentials;
+        session.StreamProtocol     = candidate.StreamProtocol;
+        session.WebRtcPort         = candidate.WebRtcPort;
+        session.WebRtcMediaPortMin = candidate.WebRtcMediaPortMin;
+        session.WebRtcMediaPortMax = candidate.WebRtcMediaPortMax;
 
         // Si se desactiva el aislamiento, limpiar el usuario dedicado que quedaba
         if (session.Isolated && !isolated)
@@ -187,9 +218,17 @@ public class StreamSessionService
                 try { Directory.Delete(instanceDir, recursive: true); } catch { }
         }
 
-        // Si cambió el puerto base, actualizar la regla de firewall (rango Moonlight completo)
-        if (oldPort != session.SunshineStreamPort && Directory.Exists(GetSunshineInstanceDir(id)))
-            AddFirewallRule(id, session.SunshineStreamPort);
+        if (Directory.Exists(GetSunshineInstanceDir(id)))
+        {
+            // El protocolo también se puede cambiar desde el panel de Sunshine: dejarlo escrito ya
+            // para que el próximo arranque no adopte el valor viejo de sunshine.conf.
+            if (oldProtocol != session.StreamProtocol)
+                WriteStreamProtocolToInstance(session);
+
+            // Si cambiaron puertos o protocolo, rehacer las reglas de firewall
+            if (oldPorts != PortSignature(session))
+                AddFirewallRule(session);
+        }
 
         Logger.Log($"[{session.Name}] Configuración actualizada.");
         SaveSessions();
@@ -205,11 +244,85 @@ public class StreamSessionService
         if (session.State is SessionState.Starting or SessionState.Running)
             throw new InvalidOperationException($"La sesión ya está en estado '{session.State}'.");
 
+        // Dos Sunshine activos no pueden compartir puertos: el segundo no arrancaría bien.
+        EnsurePortsAvailable(session, ActiveSessions());
+
         session.State        = SessionState.Starting;
         session.ErrorMessage = null;
 
         // Operación bloqueante (hasta 30 s) → ejecutar en hilo del pool
         _ = Task.Run(() => DoStart(session));
+    }
+
+    /// <summary>
+    /// Cambia los protocolos que sirve el Sunshine de la sesión. Funciona en caliente: escribe
+    /// <c>stream_protocol</c> en <c>sunshine.conf</c>, rehace el firewall y, si la sesión está activa,
+    /// relanza solo Sunshine (la sesión RDP sigue viva).
+    /// </summary>
+    public StreamSession SetStreamProtocol(Guid id, StreamProtocol protocol)
+    {
+        var session = RequireSession(id);
+        if (session.StreamProtocol == protocol) return session;
+
+        var candidate = new StreamSession
+        {
+            Id                 = session.Id,
+            Name               = session.Name,
+            SunshineStreamPort = session.SunshineStreamPort,
+            StreamProtocol     = protocol,
+            WebRtcPort         = session.WebRtcPort,
+            WebRtcMediaPortMin = session.WebRtcMediaPortMin,
+            WebRtcMediaPortMax = session.WebRtcMediaPortMax,
+        };
+        EnsurePortsAvailable(candidate, _sessions.Values);
+
+        session.StreamProtocol = protocol;
+        SaveSessions();
+        Logger.Log($"[{session.Name}] Protocolo de streaming: {protocol.ToConfigValue()}.", session.Id);
+
+        if (Directory.Exists(GetSunshineInstanceDir(id)))
+        {
+            WriteStreamProtocolToInstance(session);
+            AddFirewallRule(session);
+        }
+
+        if (session.State == SessionState.Running)
+            RelaunchSunshine(session, "cambio de protocolo");
+
+        return session;
+    }
+
+    /// <summary>Puertos libres para una sesión nueva.</summary>
+    public SuggestedPortsResponse SuggestPorts() => SunshinePorts.Suggest(_sessions.Values.ToList());
+
+    /// <summary>
+    /// Si el Sunshine configurado para la sesión trae WebRTC (build de sunshine-webrtc).
+    /// </summary>
+    public static bool SupportsWebRtc(StreamSession session) =>
+        SunshineCapabilities.SupportsWebRtc(session.SunshineExePath);
+
+    /// <summary>
+    /// Para el Sunshine de una sesión activa y deja que el monitor lo relance con la configuración
+    /// actual. Mientras dura, el monitor no lo toca, así no arranca un segundo Sunshine con la
+    /// configuración vieja ni con los puertos aún ocupados.
+    /// </summary>
+    private void RelaunchSunshine(StreamSession session, string reason)
+    {
+        _sunshineRelaunching[session.Id] = 0;
+        try
+        {
+            if (_sunshine.TryRemove(session.Id, out var mgr))
+            {
+                try { mgr.Stop(); }
+                catch (Exception ex) { Logger.Warning($"[{session.Name}] Aviso al parar Sunshine ({reason}): {ex.Message}", session.Id); }
+            }
+            session.SunshinePid = 0;
+            Logger.Log($"[{session.Name}] Sunshine detenido por {reason}; se relanzará automáticamente.", session.Id);
+        }
+        finally
+        {
+            _sunshineRelaunching.TryRemove(session.Id, out _);
+        }
     }
 
     public void Stop(Guid id)
@@ -405,7 +518,8 @@ public class StreamSessionService
 
     public void MonitorAll()
     {
-        foreach (var session in _sessions.Values.Where(s => s.State == SessionState.Running))
+        foreach (var session in _sessions.Values.Where(s => s.State == SessionState.Running &&
+                                                             !_sunshineRelaunching.ContainsKey(s.Id)))
         {
             Logger.SetSessionContext(session.Id);
             try
@@ -466,7 +580,11 @@ public class StreamSessionService
                 RdpFrameRate: s.RdpFrameRate,
                 RdpColorDepth: s.RdpColorDepth,
                 Isolated: s.Isolated,
-                IsolatedEphemeral: s.IsolatedEphemeral));
+                IsolatedEphemeral: s.IsolatedEphemeral,
+                StreamProtocol: s.StreamProtocol,
+                WebRtcPort: s.WebRtcPort,
+                WebRtcMediaPortMin: s.WebRtcMediaPortMin,
+                WebRtcMediaPortMax: s.WebRtcMediaPortMax));
             File.WriteAllText(SessionsFile, JsonSerializer.Serialize(data, JsonOpts));
         }
         catch (Exception ex)
@@ -482,6 +600,7 @@ public class StreamSessionService
         {
             var data = JsonSerializer.Deserialize<SessionData[]>(File.ReadAllText(SessionsFile));
             if (data is null) return;
+            var migrated = false;
 
             foreach (var d in data)
             {
@@ -519,11 +638,32 @@ public class StreamSessionService
                     RotateSunshineCredentials = d.RotateSunshineCredentials,
                     Isolated           = d.Isolated,
                     IsolatedEphemeral  = d.IsolatedEphemeral,
+                    // Sesiones anteriores a WebRTC: siguen siendo solo Moonlight hasta que se cambie.
+                    StreamProtocol     = d.StreamProtocol ?? StreamProtocol.Moonlight,
+                    WebRtcPort         = d.WebRtcPort,
+                    WebRtcMediaPortMin = d.WebRtcMediaPortMin,
+                    WebRtcMediaPortMax = d.WebRtcMediaPortMax,
                     State              = SessionState.Stopped,
                 };
+
+                // Migración: sesiones anteriores a WebRTC reciben puertos WebRTC libres, distintos
+                // de los de las sesiones ya cargadas.
+                if (session.WebRtcPort <= 0 || session.WebRtcMediaPortMin <= 0 || session.WebRtcMediaPortMax <= 0)
+                {
+                    var suggested = SunshinePorts.Suggest(_sessions.Values.ToList());
+                    session.WebRtcPort         = suggested.WebRtcPort;
+                    session.WebRtcMediaPortMin = suggested.WebRtcMediaPortMin;
+                    session.WebRtcMediaPortMax = suggested.WebRtcMediaPortMax;
+                    migrated = true;
+                }
                 _sessions[session.Id] = session;
             }
             Logger.Log($"[SessionService] {data.Length} sesión(es) cargadas desde disco.");
+            if (migrated)
+            {
+                Logger.Log("[SessionService] Puertos WebRTC asignados a sesiones existentes.");
+                SaveSessions();
+            }
         }
         catch (Exception ex)
         {
@@ -681,6 +821,10 @@ public class StreamSessionService
         Dictionary<string, string>? profileOverrides = null) =>
         _sunshine.GetOrAdd(session.Id, _ =>
         {
+            AdoptStreamProtocolFromSunshine(session);
+            if (session.WebRtcEnabled && !SupportsWebRtc(session))
+                Logger.Warning($"[{session.Name}] El protocolo incluye WebRTC pero el Sunshine configurado no lo soporta " +
+                               "(usa la build de sunshine-webrtc); solo funcionará Moonlight.", session.Id);
             EnsureSunshineCredentials(session, session.RotateSunshineCredentials);
             profileOverrides ??= BuildProfileOverridesForProcessLaunch(session);
             return new SunshineManager(
@@ -797,7 +941,97 @@ public class StreamSessionService
             // Con FreeRDP /audio-mode:redirect + /sound, ese default es "Remote Audio"
             // (endpoint que crea Windows para el redirect). Loopback ahí captura el
             // source del juego.
-            AudioSink: null);
+            AudioSink: null,
+            // Las claves WebRTC solo se escriben para la build de sunshine-webrtc: un Sunshine sin
+            // el parche las rechazaría con avisos de opción desconocida en su log.
+            StreamProtocol:           SupportsWebRtc(s) ? s.StreamProtocol.ToConfigValue() : null,
+            WebRtcPort:               SupportsWebRtc(s) ? s.WebRtcPort : 0,
+            WebRtcMediaPortMin:       SupportsWebRtc(s) ? s.WebRtcMediaPortMin : 0,
+            WebRtcMediaPortMax:       SupportsWebRtc(s) ? s.WebRtcMediaPortMax : 0);
+
+    /// <summary>
+    /// Sesiones con Sunshine arrancando o activo, cuyos puertos están ocupados.
+    /// </summary>
+    private IEnumerable<StreamSession> ActiveSessions() =>
+        _sessions.Values.Where(s => s.State is SessionState.Starting or SessionState.Running);
+
+    /// <summary>
+    /// Lanza <see cref="InvalidOperationException"/> si los puertos de <paramref name="session"/> no son
+    /// válidos o chocan con los de <paramref name="others"/>.
+    /// </summary>
+    private static void EnsurePortsAvailable(StreamSession session, IEnumerable<StreamSession> others)
+    {
+        var problem = SunshinePorts.Validate(session) ?? SunshinePorts.FindConflict(session, others);
+        if (problem is not null)
+            throw new InvalidOperationException(problem);
+    }
+
+    private static string PortSignature(StreamSession s) =>
+        $"{s.StreamProtocol}|{s.SunshineStreamPort}|{s.WebRtcPort}|{s.WebRtcMediaPortMin}|{s.WebRtcMediaPortMax}";
+
+    private static void WriteStreamProtocolToInstance(StreamSession session)
+    {
+        if (!SupportsWebRtc(session)) return;
+        try
+        {
+            SunshineConfigurator.SetConfigValues(GetSunshineInstanceExe(session.Id),
+                new Dictionary<string, string>
+                {
+                    [SunshineConfigurator.StreamProtocolKey] = session.StreamProtocol.ToConfigValue(),
+                });
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"[{session.Name}] No se pudo escribir stream_protocol en sunshine.conf: {ex.Message}", session.Id);
+        }
+    }
+
+    /// <summary>
+    /// El interruptor de protocolo del panel de Sunshine guarda <c>stream_protocol</c> en su
+    /// <c>sunshine.conf</c>. Antes de relanzar Sunshine, OpenStreamMS adopta ese valor si difiere
+    /// del suyo (el último cambio gana), salvo que choque con los puertos de otra sesión activa.
+    /// </summary>
+    private void AdoptStreamProtocolFromSunshine(StreamSession session)
+    {
+        var exe = GetSunshineInstanceExe(session.Id);
+        if (!File.Exists(exe)) return;
+
+        string? value;
+        try { value = SunshineConfigurator.ReadConfigValue(exe, SunshineConfigurator.StreamProtocolKey); }
+        catch (Exception ex)
+        {
+            Logger.Warning($"[{session.Name}] No se pudo leer stream_protocol de sunshine.conf: {ex.Message}", session.Id);
+            return;
+        }
+
+        if (!StreamProtocolExtensions.TryParseConfigValue(value, out var protocol) ||
+            protocol == session.StreamProtocol)
+            return;
+
+        var candidate = new StreamSession
+        {
+            Id                 = session.Id,
+            Name               = session.Name,
+            SunshineStreamPort = session.SunshineStreamPort,
+            StreamProtocol     = protocol,
+            WebRtcPort         = session.WebRtcPort,
+            WebRtcMediaPortMin = session.WebRtcMediaPortMin,
+            WebRtcMediaPortMax = session.WebRtcMediaPortMax,
+        };
+        var problem = SunshinePorts.Validate(candidate) ??
+                      SunshinePorts.FindConflict(candidate, ActiveSessions());
+        if (problem is not null)
+        {
+            Logger.Warning($"[{session.Name}] Se ignora stream_protocol={value} del panel de Sunshine: {problem}", session.Id);
+            return;
+        }
+
+        Logger.Log($"[{session.Name}] Protocolo cambiado desde el panel de Sunshine: " +
+                   $"{session.StreamProtocol.ToConfigValue()} -> {protocol.ToConfigValue()}.", session.Id);
+        session.StreamProtocol = protocol;
+        SaveSessions();
+        AddFirewallRule(session);
+    }
 
     private static string? NullIfBlank(string? s) =>
         string.IsNullOrWhiteSpace(s) ? null : s.Trim();
@@ -832,6 +1066,14 @@ public class StreamSessionService
             Logger.Log($"[{session.Name}] Copiando Sunshine a instancia propia: {instanceDir}", session.Id);
             CopyDirectory(templateDir, instanceDir);
         }
+        else if (TemplateChanged(session.SunshineExePath, instanceExe))
+        {
+            // Plantilla actualizada (p.ej. sustituida por la build de sunshine-webrtc): refrescar
+            // binarios y assets de la instancia sin tocar config/ (conf, estado, pareos, logs).
+            Logger.Log($"[{session.Name}] La plantilla de Sunshine cambió; actualizando la instancia: {instanceDir}", session.Id);
+            try { CopyDirectory(Path.GetDirectoryName(session.SunshineExePath)!, instanceDir, skipTopLevelDir: "config"); }
+            catch (Exception ex) { Logger.Warning($"[{session.Name}] No se pudo actualizar la instancia de Sunshine: {ex.Message}", session.Id); }
+        }
         else
         {
             Logger.Log($"[{session.Name}] Instancia de Sunshine ya existe en: {instanceDir}", session.Id);
@@ -846,7 +1088,23 @@ public class StreamSessionService
 
         // Siempre garantizar la regla de firewall, independientemente de si la instancia
         // ya existía (p.ej. sesiones creadas antes de que se añadiera este código).
-        AddFirewallRule(session.Id, session.SunshineStreamPort);
+        AddFirewallRule(session);
+    }
+
+    /// <summary>true si el sunshine.exe de la plantilla no es el mismo que el de la instancia.</summary>
+    private static bool TemplateChanged(string templateExe, string instanceExe)
+    {
+        try
+        {
+            var template = new FileInfo(templateExe);
+            var instance = new FileInfo(instanceExe);
+            return template.Exists && instance.Exists &&
+                   (template.Length != instance.Length || template.LastWriteTimeUtc != instance.LastWriteTimeUtc);
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     /// <summary>
@@ -938,27 +1196,42 @@ public class StreamSessionService
     }
 
     /// <summary>
-    /// Abre en el firewall de Windows el rango de puertos Moonlight que usa Sunshine
-    /// (TCP+UDP <c>streamPort..streamPort+21</c>). El panel HTTPS queda fuera del rango
-    /// y por tanto ya no se expone — OpenStreamMS hace de reverse proxy.
+    /// Abre en el firewall de Windows los puertos de los protocolos activos de la sesión y cierra
+    /// los del resto:
+    /// <list type="bullet">
+    /// <item>Moonlight: TCP+UDP <c>streamPort-5 .. streamPort+21</c> (HTTPS -5, HTTP, vídeo/control/audio
+    /// +9..+11, micrófono +13, RTSP +21). El panel (+1) queda dentro pero solo escucha en localhost:
+    /// OpenStreamMS hace de reverse proxy.</item>
+    /// <item>WebRTC: TCP <c>WebRtcPort</c> (señalización) y UDP <c>8000</c> (descubrimiento de TVs) más el
+    /// rango de media.</item>
+    /// </list>
     /// </summary>
-    private static void AddFirewallRule(Guid sessionId, int streamPort)
+    private static void AddFirewallRule(StreamSession session)
     {
-        var name = FirewallRuleName(sessionId);
-        // Sunshine usa offsets del base port: video +9 (UDP), audio +10 (UDP),
-        // control +11 (UDP), mic +13 (UDP), RTSP +21 (TCP). Abrimos el rango entero
-        // para TCP y UDP; el panel (+1) queda dentro pero solo escucha en localhost
-        // una vez que el stream se gestiona por proxy.
-        var tcpName = name + " (TCP)";
-        var udpName = name + " (UDP)";
-        var range   = $"{streamPort}-{streamPort + 21}";
+        var name = FirewallRuleName(session.Id);
         try
         {
-            RunNetsh($"advfirewall firewall delete rule name=\"{tcpName}\"");
-            RunNetsh($"advfirewall firewall delete rule name=\"{udpName}\"");
-            RunNetsh($"advfirewall firewall add rule name=\"{tcpName}\" dir=in action=allow protocol=TCP localport={range} profile=any");
-            RunNetsh($"advfirewall firewall add rule name=\"{udpName}\" dir=in action=allow protocol=UDP localport={range} profile=any");
-            Logger.Log($"[Sunshine] Firewall: abierto rango {range} TCP+UDP ({sessionId})");
+            RemoveFirewallRule(session.Id);
+            var opened = new List<string>();
+
+            if (session.MoonlightEnabled)
+            {
+                var range = SunshinePorts.MoonlightFirewallRange(session.SunshineStreamPort).ToString();
+                RunNetsh($"advfirewall firewall add rule name=\"{name} (TCP)\" dir=in action=allow protocol=TCP localport={range} profile=any");
+                RunNetsh($"advfirewall firewall add rule name=\"{name} (UDP)\" dir=in action=allow protocol=UDP localport={range} profile=any");
+                opened.Add($"Moonlight {range} TCP+UDP");
+            }
+
+            if (session.WebRtcEnabled)
+            {
+                var media = new PortRange(session.WebRtcMediaPortMin, session.WebRtcMediaPortMax);
+                var udp   = $"{SunshinePorts.WebRtcDiscoveryPort},{media}";
+                RunNetsh($"advfirewall firewall add rule name=\"{name} WebRTC (TCP)\" dir=in action=allow protocol=TCP localport={session.WebRtcPort} profile=any");
+                RunNetsh($"advfirewall firewall add rule name=\"{name} WebRTC (UDP)\" dir=in action=allow protocol=UDP localport={udp} profile=any");
+                opened.Add($"WebRTC TCP {session.WebRtcPort}, UDP {udp}");
+            }
+
+            Logger.Log($"[Sunshine] Firewall ({session.StreamProtocol.ToConfigValue()}): {string.Join("; ", opened)} ({session.Id})");
         }
         catch (Exception ex)
         {
@@ -973,6 +1246,8 @@ public class StreamSessionService
         {
             RunNetsh($"advfirewall firewall delete rule name=\"{name} (TCP)\"");
             RunNetsh($"advfirewall firewall delete rule name=\"{name} (UDP)\"");
+            RunNetsh($"advfirewall firewall delete rule name=\"{name} WebRTC (TCP)\"");
+            RunNetsh($"advfirewall firewall delete rule name=\"{name} WebRTC (UDP)\"");
             RunNetsh($"advfirewall firewall delete rule name=\"{name}\""); // legacy pre-rango
         }
         catch { }
@@ -990,13 +1265,29 @@ public class StreamSessionService
         p?.WaitForExit(5_000);
     }
 
-    private static void CopyDirectory(string src, string dst)
+    private static void CopyDirectory(string src, string dst, string? skipTopLevelDir = null)
     {
+        bool Skipped(string relative) =>
+            skipTopLevelDir is not null &&
+            (string.Equals(relative, skipTopLevelDir, StringComparison.OrdinalIgnoreCase) ||
+             relative.StartsWith(skipTopLevelDir + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase));
+
         Directory.CreateDirectory(dst);
         foreach (var dir in Directory.GetDirectories(src, "*", SearchOption.AllDirectories))
-            Directory.CreateDirectory(Path.Combine(dst, Path.GetRelativePath(src, dir)));
+        {
+            var relative = Path.GetRelativePath(src, dir);
+            if (!Skipped(relative))
+                Directory.CreateDirectory(Path.Combine(dst, relative));
+        }
         foreach (var file in Directory.GetFiles(src, "*", SearchOption.AllDirectories))
-            File.Copy(file, Path.Combine(dst, Path.GetRelativePath(src, file)), overwrite: true);
+        {
+            var relative = Path.GetRelativePath(src, file);
+            if (Skipped(relative)) continue;
+            var target = Path.Combine(dst, relative);
+            File.Copy(file, target, overwrite: true);
+            // Conservar la fecha de la plantilla: TemplateChanged compara tamaño y fecha.
+            File.SetLastWriteTimeUtc(target, File.GetLastWriteTimeUtc(file));
+        }
     }
 
     private StreamSession RequireSession(Guid id) =>
@@ -1044,5 +1335,11 @@ public class StreamSessionService
         /// <summary>Aislamiento nativo: usuario local dedicado gestionado por el servicio.</summary>
         bool     Isolated = false,
         /// <summary>Solo con Isolated: borrar el perfil del usuario dedicado al detener.</summary>
-        bool     IsolatedEphemeral = false);
+        bool     IsolatedEphemeral = false,
+        /// <summary>Protocolos de streaming. Null en sesiones anteriores a WebRTC = Moonlight.</summary>
+        StreamProtocol? StreamProtocol = null,
+        /// <summary>Puertos WebRTC. 0 en sesiones anteriores a WebRTC: se asignan al cargar.</summary>
+        int      WebRtcPort = 0,
+        int      WebRtcMediaPortMin = 0,
+        int      WebRtcMediaPortMax = 0);
 }

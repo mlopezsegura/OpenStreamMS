@@ -39,6 +39,8 @@ Cada sesion usa una instancia propia de Sunshine ubicada bajo `sessions/<session
 
 El estado de Sunshine se guarda en `sunshine_state.json`, incluyendo credenciales y clientes emparejados. OpenStreamMS debe conservar los dispositivos Moonlight emparejados y solo modificar credenciales cuando corresponda.
 
+Con la build de sunshine-webrtc cada sesion elige protocolo: Moonlight, WebRTC (TVs Samsung con Moonlight WebRTC) o ambos. OpenStreamMS escribe `stream_protocol`, `webrtc_port` y `webrtc_media_port_min/max` en `sunshine.conf`, abre en el firewall solo los puertos de los protocolos activos (Moonlight `port-5..port+21`; WebRTC TCP de senalizacion, UDP 8000 de descubrimiento y rango UDP de media), sugiere puertos libres al crear sesiones y rechaza crear, editar o arrancar sesiones cuyos puertos choquen con otras. El protocolo se puede cambiar en caliente desde la tarjeta de la sesion o desde el interruptor de la pestana Red del panel de Sunshine; al relanzar Sunshine se adopta el ultimo valor guardado. Cuando la plantilla de Sunshine cambia, las instancias existentes se actualizan en el siguiente arranque conservando su carpeta `config`.
+
 La rotacion de credenciales del panel Sunshine es configurable por sesion. Si esta activada, OpenStreamMS puede generar credenciales nuevas al arrancar o reparar una desincronizacion del proxy. Si esta desactivada, las credenciales permanecen estables.
 
 ### Perfil de stream independiente

@@ -140,10 +140,14 @@ function renderCard(s) {
         <div>
           <div class="card-name">${esc(s.name)}</div>
           <div class="card-user">${s.isolated ? esc(t('card.isolatedUser')) : `${esc(s.username)}@${esc(s.domain)}`}</div>
-          <div class="card-meta">${s.rdpWidth}×${s.rdpHeight} · ${s.rdpFrameRate || 60} fps · ${s.rdpColorDepth || 32} bpp · ${esc(t('card.port'))} ${s.sunshineStreamPort}</div>
+          <div class="card-meta">${s.rdpWidth}×${s.rdpHeight} · ${s.rdpFrameRate || 60} fps · ${s.rdpColorDepth || 32} bpp</div>
+          <div class="card-meta">${esc(portSummary(s))}</div>
         </div>
         ${badge(s.state)}
       </div>
+      ${renderProtocolSwitch(s, isBusy)}
+      ${s.streamProtocol !== 'Moonlight' && !s.sunshineSupportsWebRtc
+        ? `<div class="card-warning">${esc(t('proto.unsupported'))}</div>` : ''}
       ${s.errorMessage ? `<div class="card-error">${esc(s.errorMessage)}</div>` : ''}
       <div class="card-footer">
         <label class="toggle" title="${esc(t('card.autostart_title'))}">
@@ -165,6 +169,73 @@ function renderCard(s) {
         </div>
       </div>
     </div>`;
+}
+
+// ── Protocolo de streaming (Moonlight / WebRTC / ambos) ───────────────────
+const PROTOCOLS = ['Moonlight', 'WebRtc', 'Both'];
+
+function protocolLabel(p) {
+  return p === 'Both' ? t('proto.both') : p === 'WebRtc' ? 'WebRTC' : 'Moonlight';
+}
+
+function portSummary(s) {
+  const parts = [];
+  if (s.streamProtocol !== 'WebRtc')    parts.push(`Moonlight ${s.sunshineStreamPort}`);
+  if (s.streamProtocol !== 'Moonlight') parts.push(`WebRTC ${s.webRtcPort} · UDP ${s.webRtcMediaPortMin}-${s.webRtcMediaPortMax}`);
+  return `${t('card.port')} ${parts.join(' · ')}`;
+}
+
+function renderProtocolSwitch(s, isBusy) {
+  const buttons = PROTOCOLS.map(p => {
+    const active = s.streamProtocol === p;
+    return `<button type="button" class="${active ? 'active' : ''}" ${isBusy || active ? 'disabled' : ''}
+              onclick="setProtocol('${s.id}','${p}')">${esc(protocolLabel(p))}</button>`;
+  }).join('');
+  return `<div class="card-protocol" title="${esc(t('proto.switch_title'))}">
+            <span class="card-protocol-label">${esc(t('proto.label'))}</span>
+            <div class="segmented segmented-sm">${buttons}</div>
+          </div>`;
+}
+
+async function setProtocol(id, protocol) {
+  const s = sessions.find(x => x.id === id);
+  if (s && s.state === 'Running' && !confirm(t('confirm.protocol', { name: s.name, protocol: protocolLabel(protocol) }))) return;
+  const res = await api('PUT', `/api/sessions/${id}/protocol`, { protocol });
+  if (!res) return;
+  if (!res.ok) { toast(await res.text(), true); loadSessions(); return; }
+  toast(t('toast.protocol', { protocol: protocolLabel(protocol) }));
+  loadSessions();
+}
+
+function getProtocol(prefix) {
+  const checked = document.querySelector(`#${prefix}-modal input[id^="${prefix}-proto-"]:checked`);
+  return checked ? checked.value : 'Both';
+}
+
+function setProtocolFields(prefix, protocol, webRtcPort, mediaMin, mediaMax) {
+  const id = { Moonlight: 'moonlight', WebRtc: 'webrtc', Both: 'both' }[protocol] || 'both';
+  document.getElementById(`${prefix}-proto-${id}`).checked = true;
+  document.getElementById(`${prefix}-webrtc-port`).value      = webRtcPort || '';
+  document.getElementById(`${prefix}-webrtc-media-min`).value = mediaMin   || '';
+  document.getElementById(`${prefix}-webrtc-media-max`).value = mediaMax   || '';
+  updateProtocolFields(prefix);
+}
+
+// Los campos WebRTC solo tienen sentido si el protocolo incluye WebRTC.
+function updateProtocolFields(prefix) {
+  const webrtc = getProtocol(prefix) !== 'Moonlight';
+  document.getElementById(`${prefix}-webrtc-ports`)
+    .querySelectorAll('input').forEach(el => { el.disabled = !webrtc; });
+}
+
+function readProtocolFields(prefix) {
+  const num = id => parseInt(document.getElementById(id).value, 10) || 0;
+  return {
+    streamProtocol:     getProtocol(prefix),
+    webRtcPort:         num(`${prefix}-webrtc-port`),
+    webRtcMediaPortMin: num(`${prefix}-webrtc-media-min`),
+    webRtcMediaPortMax: num(`${prefix}-webrtc-media-max`),
+  };
 }
 
 function badge(state) {
@@ -289,11 +360,23 @@ function openNewModal() {
   document.getElementById('chk-bg').checked = true;
   document.getElementById('new-res-preset').value = '1920x1080';
   document.getElementById('new-res-custom').style.display = 'none';
+  setProtocolFields('new', 'Both', 8000, 40000, 40019);
   updateDerivedWebPort('new');
   resetCredTest();
   updateIsolatedUi('new');
   show('new-modal');
   stopRefresh();
+  suggestPorts();
+}
+
+// Rellena el formulario con puertos que no chocan con ninguna sesión existente.
+async function suggestPorts() {
+  const res = await api('GET', '/api/sessions/ports/suggest');
+  if (!res || !res.ok) return;
+  const p = await res.json();
+  document.getElementById('new-stream-port').value = p.sunshineStreamPort;
+  setProtocolFields('new', getProtocol('new'), p.webRtcPort, p.webRtcMediaPortMin, p.webRtcMediaPortMax);
+  updateDerivedWebPort('new');
 }
 
 function closeNewModal() {
@@ -339,6 +422,7 @@ async function submitNew(e) {
     rotateSunshineCredentials: !!fd.get('RotateSunshineCredentials'),
     isolated,
     isolatedEphemeral:  isolated && !!fd.get('IsolatedEphemeral'),
+    ...readProtocolFields('new'),
   };
   if (isolated) {
     // El servicio crea el usuario dedicado: las credenciales del formulario no se usan.
@@ -496,6 +580,7 @@ function openEditModal(id) {
   document.getElementById('edit-exe').value     = s.sunshineExePath || '';
   document.getElementById('edit-port').value    = s.sunshineStreamPort;
   updateDerivedWebPort('edit');
+  setProtocolFields('edit', s.streamProtocol, s.webRtcPort, s.webRtcMediaPortMin, s.webRtcMediaPortMax);
   document.getElementById('edit-bg').checked    = s.rdpBackground;
   document.getElementById('edit-vdd').checked   = s.vddEnabled;
   document.getElementById('edit-profile').checked = s.useStreamProfile;
@@ -551,6 +636,7 @@ async function submitEdit(e) {
     isolated:           document.getElementById('edit-isolated').checked,
     isolatedEphemeral:  document.getElementById('edit-isolated').checked &&
                         document.getElementById('edit-isolated-ephemeral').checked,
+    ...readProtocolFields('edit'),
   };
 
   const errEl = document.getElementById('edit-error');

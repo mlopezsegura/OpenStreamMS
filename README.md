@@ -19,6 +19,7 @@ Manages the full lifecycle of isolated RDP streaming sessions — creation, moni
 - **Auto-start** — sessions flagged as enabled are relaunched automatically when the service restarts
 - **5-second monitoring** — Sunshine is restarted automatically if it crashes
 - **Virtual display support (VDD)** — patches Sunshine's `apps.json` to keep a virtual display active even when the RDP client disconnects
+- **Moonlight, WebRTC or both** — with the [sunshine-webrtc](https://github.com/mlopezsegura/Sunshine-Web-RTC) build, each session serves Moonlight apps, Samsung TVs running Moonlight WebRTC, or both, switchable live from the dashboard or from Sunshine's own panel; OpenStreamMS opens only the ports of the active protocols and refuses sessions whose ports collide
 
 ---
 
@@ -101,8 +102,41 @@ On first access you will be prompted to create admin credentials. After that, th
 - Create, start, stop, and delete streaming sessions
 - Enable auto-start per session
 - Enable **independent stream profile** (runs stream apps with their own profile paths)
+- Switch each session between **Moonlight**, **WebRTC** and **both** from its card
 - View real-time per-session logs
 - Access the interactive API docs at `/scalar/v1`
+
+---
+
+## Streaming protocols and ports
+
+Sessions run the Sunshine in `Sunshine\` (or the one set in `SunshineExePath`). With the
+[sunshine-webrtc](https://github.com/mlopezsegura/Sunshine-Web-RTC) build, a session can serve:
+
+| Protocol | Clients | Ports opened in the firewall |
+|---|---|---|
+| **Moonlight** | Moonlight apps | TCP+UDP `port-5 .. port+21` (HTTPS, HTTP, video/control/audio, RTSP) |
+| **WebRTC** | Samsung TVs with Moonlight WebRTC | TCP `WebRtcPort`, UDP 8000 (TV discovery) and UDP `WebRtcMediaPortMin..Max` |
+| **Both** (default for new sessions) | Both | All of the above |
+
+The switch on each session card (and `PUT /api/sessions/{id}/protocol`) changes it live: OpenStreamMS
+writes `stream_protocol` to the instance's `sunshine.conf`, opens or closes the ports and restarts only
+Sunshine, keeping the RDP session. Sunshine's own panel has the same switch on its **Network** tab;
+when Sunshine restarts, OpenStreamMS adopts the value saved there, so the last change wins. WebRTC
+ports are managed by OpenStreamMS and rewritten on every start.
+
+New sessions get free ports automatically (`GET /api/sessions/ports/suggest`: Moonlight base in steps
+of 100 from 47989, WebRTC from 8000, media in blocks of 20 from 40000). Creating or editing a session
+whose ports overlap another session's is refused, and so is starting one whose ports are in use by a
+running session. Ports of a protocol that is off do not count. UDP 8000 is shared: every instance
+answers a TV's discovery broadcast with its own name and port. Sessions created before this feature
+stay **Moonlight** until switched.
+
+To use the WebRTC build, replace the contents of `Sunshine\` with a sunshine-webrtc build (or point
+`SunshineExePath` at one). Existing sessions pick up the new binaries on their next start; their
+`config\` (settings, paired Moonlight clients and TVs) is kept. A Sunshine without WebRTC support
+ignores the protocol and the dashboard warns on sessions set to WebRTC or both. Paired TVs
+(`webrtc_tv_clients.json`) are backed up with `sunshine_state.json`.
 
 ---
 

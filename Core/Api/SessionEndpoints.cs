@@ -70,7 +70,18 @@ public record CreateSessionRequest(
     /// </summary>
     bool Isolated = false,
     /// <summary>Solo con Isolated: borrar el perfil del usuario dedicado al detener la sesión (cada arranque parte de cero).</summary>
-    bool IsolatedEphemeral = false
+    bool IsolatedEphemeral = false,
+    /// <summary>
+    /// Protocolos que sirve Sunshine: Moonlight, WebRtc o Both (defecto). WebRtc requiere la build
+    /// de sunshine-webrtc. Los puertos de un protocolo apagado no se abren en el firewall.
+    /// </summary>
+    StreamProtocol StreamProtocol = StreamProtocol.Both,
+    /// <summary>Puerto TCP para las TVs Moonlight WebRTC. 0 = el primero libre desde 8000.</summary>
+    int WebRtcPort = 0,
+    /// <summary>Primer puerto UDP de media WebRTC. 0 = el primer bloque libre desde 40000.</summary>
+    int WebRtcMediaPortMin = 0,
+    /// <summary>Último puerto UDP de media WebRTC. 0 = automático.</summary>
+    int WebRtcMediaPortMax = 0
 );
 
 /// <summary>Datos editables de una sesión ya creada (requiere sesión detenida).</summary>
@@ -117,7 +128,21 @@ public record UpdateSessionConfigRequest(
     /// <summary>Aislamiento nativo: usuario local dedicado gestionado por el servicio.</summary>
     bool Isolated = false,
     /// <summary>Solo con Isolated: borrar el perfil del usuario dedicado al detener.</summary>
-    bool IsolatedEphemeral = false
+    bool IsolatedEphemeral = false,
+    /// <summary>Protocolos que sirve Sunshine. Null = mantener el actual.</summary>
+    StreamProtocol? StreamProtocol = null,
+    /// <summary>Puerto TCP para las TVs Moonlight WebRTC. 0 = mantener el actual.</summary>
+    int WebRtcPort = 0,
+    /// <summary>Primer puerto UDP de media WebRTC. 0 = mantener el actual.</summary>
+    int WebRtcMediaPortMin = 0,
+    /// <summary>Último puerto UDP de media WebRTC. 0 = mantener el actual.</summary>
+    int WebRtcMediaPortMax = 0
+);
+
+/// <summary>Cuerpo para cambiar los protocolos de streaming de una sesión.</summary>
+public record SetStreamProtocolRequest(
+    /// <summary>Moonlight, WebRtc o Both.</summary>
+    StreamProtocol Protocol
 );
 
 /// <summary>Cuerpo para activar o desactivar el auto-arranque de una sesión.</summary>
@@ -147,6 +172,16 @@ public record SessionResponse(
     int          SunshineStreamPort,
     /// <summary>Puerto HTTPS del panel (lectura, derivado). No se expone externamente.</summary>
     int          SunshineWebPort,
+    /// <summary>Protocolos que sirve Sunshine (Moonlight, WebRtc, Both).</summary>
+    StreamProtocol StreamProtocol,
+    /// <summary>Puerto TCP de señalización para TVs Moonlight WebRTC.</summary>
+    int          WebRtcPort,
+    /// <summary>Primer puerto UDP de media WebRTC.</summary>
+    int          WebRtcMediaPortMin,
+    /// <summary>Último puerto UDP de media WebRTC.</summary>
+    int          WebRtcMediaPortMax,
+    /// <summary>Si el sunshine.exe configurado es la build de sunshine-webrtc (entiende el protocolo WebRtc).</summary>
+    bool         SunshineSupportsWebRtc,
     /// <summary>Nombre publicado por Sunshine. Null si usa el nombre de la sesión.</summary>
     string?      SunshineName,
     /// <summary>Método de captura configurado (ddx/wgc/nvfbc). Null = auto-detección.</summary>
@@ -257,6 +292,16 @@ public static class SessionEndpoints
                 Debe llamarse y obtener Success=true antes de crear una sesión.
                 """);
 
+        // GET /api/sessions/ports/suggest  (antes que /{id:guid})
+        group.MapGet("/ports/suggest", SuggestPorts)
+             .WithName("SuggestSessionPorts")
+             .WithSummary("Sugerir puertos libres")
+             .WithDescription("""
+                Devuelve el primer puerto base Moonlight (pasos de 100 desde 47989), puerto WebRTC
+                (desde 8000) y rango UDP de media WebRTC (bloques de 20 desde 40000) que no chocan
+                con ninguna sesión existente. La UI los usa para rellenar el formulario de nueva sesión.
+                """);
+
         // GET /api/sessions
         group.MapGet("/", GetAll)
              .WithName("GetAllSessions")
@@ -330,6 +375,19 @@ public static class SessionEndpoints
                 La sesión debe estar detenida. Los cambios se aplican en el próximo inicio.
                 """);
 
+        // PUT /api/sessions/{id}/protocol
+        group.MapPut("/{id:guid}/protocol", SetStreamProtocol)
+             .WithName("SetSessionStreamProtocol")
+             .WithSummary("Elegir protocolo de streaming (Moonlight, WebRTC o ambos)")
+             .WithDescription("""
+                Cambia los protocolos que sirve el Sunshine de la sesión: Moonlight, WebRtc o Both.
+                Funciona en caliente: escribe stream_protocol en sunshine.conf, abre o cierra los
+                puertos correspondientes en el firewall y, si la sesión está activa, relanza solo
+                Sunshine (la sesión RDP se mantiene). El mismo ajuste existe como interruptor en la
+                pestaña Red del panel de Sunshine; OpenStreamMS adopta el cambio al relanzar Sunshine.
+                Requiere la build de sunshine-webrtc para WebRtc/Both.
+                """);
+
         // GET /api/sessions/{id}/logs?lines=200
         group.MapGet("/{id:guid}/logs", GetLogs)
              .WithName("GetSessionLogs")
@@ -372,6 +430,26 @@ public static class SessionEndpoints
     static Ok<IEnumerable<SessionResponse>> GetAll(StreamSessionService svc) =>
         TypedResults.Ok(svc.GetAll().Select(ToResponse));
 
+    static Ok<SuggestedPortsResponse> SuggestPorts(StreamSessionService svc) =>
+        TypedResults.Ok(svc.SuggestPorts());
+
+    static Results<Ok<SessionResponse>, NotFound, BadRequest<string>> SetStreamProtocol(
+        Guid id, SetStreamProtocolRequest req, StreamSessionService svc)
+    {
+        try
+        {
+            return TypedResults.Ok(ToResponse(svc.SetStreamProtocol(id, req.Protocol)));
+        }
+        catch (KeyNotFoundException)
+        {
+            return TypedResults.NotFound();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return TypedResults.BadRequest(ex.Message);
+        }
+    }
+
     static Results<Created<SessionResponse>, BadRequest<string>> Create(
         CreateSessionRequest req, StreamSessionService svc)
     {
@@ -383,7 +461,10 @@ public static class SessionEndpoints
         if (!req.Isolated && string.IsNullOrWhiteSpace(req.Password))
             return TypedResults.BadRequest("El campo 'Password' es obligatorio.");
 
-        var session = svc.Create(req.Name, req.Username ?? "", req.Domain ?? ".", req.Password ?? "",
+        StreamSession session;
+        try
+        {
+            session = svc.Create(req.Name, req.Username ?? "", req.Domain ?? ".", req.Password ?? "",
                                  req.SunshineExePath, req.RdpBackground, req.VddEnabled,
                                  req.RdpWidth, req.RdpHeight, req.RdpFrameRate, req.RdpColorDepth,
                                  req.Enabled,
@@ -392,7 +473,16 @@ public static class SessionEndpoints
                                  req.OutputName, req.OriginWebUiAllowed,
                                  req.SunshineAuthUser, req.SunshineAuthPass,
                                  req.RotateSunshineCredentials,
-                                 req.Isolated, req.IsolatedEphemeral);
+                                 req.Isolated, req.IsolatedEphemeral,
+                                 streamProtocol: req.StreamProtocol,
+                                 webRtcPort: req.WebRtcPort,
+                                 webRtcMediaPortMin: req.WebRtcMediaPortMin,
+                                 webRtcMediaPortMax: req.WebRtcMediaPortMax);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return TypedResults.BadRequest(ex.Message);
+        }
         return TypedResults.Created($"/api/sessions/{session.Id}", ToResponse(session));
     }
 
@@ -483,7 +573,11 @@ public static class SessionEndpoints
                                            req.OutputName, req.OriginWebUiAllowed,
                                            req.SunshineAuthUser, req.SunshineAuthPass,
                                            req.RotateSunshineCredentials,
-                                           req.Isolated, req.IsolatedEphemeral);
+                                           req.Isolated, req.IsolatedEphemeral,
+                                           streamProtocol: req.StreamProtocol,
+                                           webRtcPort: req.WebRtcPort,
+                                           webRtcMediaPortMin: req.WebRtcMediaPortMin,
+                                           webRtcMediaPortMax: req.WebRtcMediaPortMax);
             return TypedResults.Ok(ToResponse(session));
         }
         catch (KeyNotFoundException)
@@ -690,6 +784,8 @@ public static class SessionEndpoints
         s.RdpBackground, s.VddEnabled, s.RdpWidth, s.RdpHeight,
         s.RdpFrameRate, s.RdpColorDepth,
         s.Enabled, s.UseStreamProfile, s.SunshineStreamPort, s.SunshineWebPort,
+        s.StreamProtocol, s.WebRtcPort, s.WebRtcMediaPortMin, s.WebRtcMediaPortMax,
+        StreamSessionService.SupportsWebRtc(s),
         s.SunshineName, s.Capture, s.Encoder, s.OutputName, s.OriginWebUiAllowed,
         s.SunshineAuthUser, s.SunshineAuthPass, s.RotateSunshineCredentials,
         s.Isolated, s.IsolatedEphemeral,

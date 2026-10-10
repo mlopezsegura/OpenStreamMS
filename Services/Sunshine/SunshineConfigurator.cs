@@ -322,7 +322,20 @@ namespace OpenStreamMS.Services.Sunshine
             /// En Windows se prefiere el endpoint ID de tools\audio-info.exe para evitar
             /// ambiguedades con dispositivos que comparten nombre.
             /// </summary>
-            string? AudioSink          = null);
+            string? AudioSink          = null,
+            /// <summary>
+            /// <c>stream_protocol</c>: <c>moonlight</c>, <c>webrtc</c> o <c>both</c>. Solo lo entiende
+            /// Sunshine con WebRTC; un Sunshine sin el parche lo ignora con un aviso en su log.
+            /// </summary>
+            string? StreamProtocol     = null,
+            /// <summary>Puerto TCP de señalización WebRTC (<c>webrtc_port</c>). 0 = no tocar.</summary>
+            int     WebRtcPort         = 0,
+            /// <summary>Rango UDP de media WebRTC (<c>webrtc_media_port_min/max</c>). 0 = no tocar.</summary>
+            int     WebRtcMediaPortMin = 0,
+            int     WebRtcMediaPortMax = 0);
+
+        /// <summary>Clave de <c>sunshine.conf</c> con los protocolos que sirve Sunshine.</summary>
+        public const string StreamProtocolKey = "stream_protocol";
 
         /// <summary>
         /// Escribe/actualiza claves en <c>sunshine.conf</c>.
@@ -375,6 +388,7 @@ namespace OpenStreamMS.Services.Sunshine
                 ["output_name"]           = cfg.OutputName,
                 ["origin_web_ui_allowed"] = cfg.OriginWebUiAllowed,
                 ["audio_sink"]            = cfg.AudioSink,
+                [StreamProtocolKey]       = cfg.StreamProtocol,
             };
 
             foreach (var (key, value) in optional)
@@ -399,6 +413,15 @@ namespace OpenStreamMS.Services.Sunshine
                 // el encode se acerca al presupuesto de 16.6 ms. Ignorado por otros encoders.
                 ["amd_quality"] = "speed",
             };
+
+            // Puertos WebRTC: los gestiona OpenStreamMS (firewall y choques entre sesiones).
+            if (cfg.WebRtcPort > 0)
+                overrides["webrtc_port"] = cfg.WebRtcPort.ToString();
+            if (cfg.WebRtcMediaPortMin > 0 && cfg.WebRtcMediaPortMax >= cfg.WebRtcMediaPortMin)
+            {
+                overrides["webrtc_media_port_min"] = cfg.WebRtcMediaPortMin.ToString();
+                overrides["webrtc_media_port_max"] = cfg.WebRtcMediaPortMax.ToString();
+            }
 
             var lines   = new List<string>();
             var applied = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -465,6 +488,70 @@ namespace OpenStreamMS.Services.Sunshine
             File.WriteAllLines(confFile, lines);
             var summary = string.Join(", ", overrides.Select(kv => $"{kv.Key}={kv.Value}"));
             Logger.Log($"[SunshineCfg] sunshine.conf actualizado ({summary}) en: {confFile}");
+        }
+
+        /// <summary>
+        /// Escribe claves sueltas en el <c>sunshine.conf</c> de una instancia, conservando el resto.
+        /// Sirve para cambios en caliente (p.ej. el protocolo) sin regenerar toda la configuración.
+        /// </summary>
+        /// <returns>true si el fichero cambió.</returns>
+        public static bool SetConfigValues(string sunshineExePath, IReadOnlyDictionary<string, string> values)
+        {
+            string configDir = Path.Combine(Path.GetDirectoryName(sunshineExePath)!, "config");
+            Directory.CreateDirectory(configDir);
+            var confFile = Path.Combine(configDir, "sunshine.conf");
+
+            var lines   = new List<string>();
+            var applied = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var current = File.Exists(confFile) ? File.ReadAllLines(confFile) : Array.Empty<string>();
+            foreach (var line in current)
+            {
+                var trimmed = line.TrimStart();
+                var eqIdx   = trimmed.IndexOf('=');
+                if (eqIdx > 0 && !trimmed.StartsWith('#'))
+                {
+                    var key = trimmed[..eqIdx].TrimEnd();
+                    var match = values.FirstOrDefault(kv => string.Equals(kv.Key, key, StringComparison.OrdinalIgnoreCase));
+                    if (match.Key is not null)
+                    {
+                        lines.Add($"{key} = {match.Value}");
+                        applied.Add(match.Key);
+                        continue;
+                    }
+                }
+                lines.Add(line);
+            }
+            foreach (var (key, val) in values)
+                if (!applied.Contains(key))
+                    lines.Add($"{key} = {val}");
+
+            if (File.Exists(confFile) && current.SequenceEqual(lines))
+                return false;
+
+            File.WriteAllLines(confFile, lines);
+            Logger.Log($"[SunshineCfg] sunshine.conf actualizado ({string.Join(", ", values.Select(kv => $"{kv.Key}={kv.Value}"))}) en: {confFile}");
+            return true;
+        }
+
+        /// <summary>
+        /// Lee una clave del <c>sunshine.conf</c> de una instancia (la última si se repite).
+        /// null si el fichero o la clave no existen.
+        /// </summary>
+        public static string? ReadConfigValue(string sunshineExePath, string key)
+        {
+            var confFile = Path.Combine(Path.GetDirectoryName(sunshineExePath)!, "config", "sunshine.conf");
+            if (!File.Exists(confFile)) return null;
+
+            string? value = null;
+            foreach (var line in File.ReadAllLines(confFile))
+            {
+                var trimmed = line.TrimStart();
+                var eqIdx   = trimmed.IndexOf('=');
+                if (eqIdx <= 0 || trimmed.StartsWith('#')) continue;
+                if (string.Equals(trimmed[..eqIdx].TrimEnd(), key, StringComparison.OrdinalIgnoreCase))
+                    value = trimmed[(eqIdx + 1)..].Trim();
+            }
+            return value;
         }
 
         /// <summary>

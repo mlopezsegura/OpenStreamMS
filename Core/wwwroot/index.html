@@ -166,6 +166,34 @@
             <span class="port-derived" id="new-port-derived"></span>
           </div>
         </div>
+        <div class="form-row">
+          <label data-i18n="proto.label">Protocolo de streaming</label>
+          <div class="segmented" role="radiogroup">
+            <input type="radio" name="StreamProtocol" id="new-proto-moonlight" value="Moonlight" onchange="updateProtocolFields('new')">
+            <label for="new-proto-moonlight">Moonlight</label>
+            <input type="radio" name="StreamProtocol" id="new-proto-webrtc" value="WebRtc" onchange="updateProtocolFields('new')">
+            <label for="new-proto-webrtc">WebRTC</label>
+            <input type="radio" name="StreamProtocol" id="new-proto-both" value="Both" onchange="updateProtocolFields('new')" checked>
+            <label for="new-proto-both" data-i18n="proto.both">Ambos</label>
+          </div>
+          <div class="hint" data-i18n="proto.hint">Moonlight para apps Moonlight, WebRTC para TVs Samsung con Moonlight WebRTC. Los puertos del protocolo apagado no se abren. WebRTC requiere la build de sunshine-webrtc.</div>
+        </div>
+        <div class="form-grid" id="new-webrtc-ports">
+          <div class="form-row">
+            <label data-i18n="proto.webrtcPortLabel">Puerto WebRTC (TVs)</label>
+            <input type="number" id="new-webrtc-port" min="1024" max="65535">
+            <div class="hint" data-i18n="proto.webrtcPortHint">TCP. La app de la TV usa 8000 salvo que indiques otro puerto junto a la IP del PC.</div>
+          </div>
+          <div class="form-row">
+            <label data-i18n="proto.mediaLabel">Puertos UDP de vídeo/audio WebRTC</label>
+            <div class="port-range">
+              <input type="number" id="new-webrtc-media-min" min="1024" max="65535">
+              <span>–</span>
+              <input type="number" id="new-webrtc-media-max" min="1024" max="65535">
+            </div>
+            <div class="hint" data-i18n="proto.mediaHint">Rango que se abre en el firewall junto al UDP 8000 de descubrimiento de TVs.</div>
+          </div>
+        </div>
         <div class="form-check">
           <input type="checkbox" id="chk-bg"  name="RdpBackground" checked>
           <label for="chk-bg" data-i18n="new.bgLabel">Lanzar mstsc en segundo plano (recomendado en producción)</label>
@@ -319,6 +347,34 @@
           <div class="hint">
             <span data-i18n="new.portHint">Puerto base de Moonlight. Cámbialo si tienes varias instancias.</span>
             <span class="port-derived" id="edit-port-derived"></span>
+          </div>
+        </div>
+        <div class="form-row">
+          <label data-i18n="proto.label">Protocolo de streaming</label>
+          <div class="segmented" role="radiogroup">
+            <input type="radio" name="EditStreamProtocol" id="edit-proto-moonlight" value="Moonlight" onchange="updateProtocolFields('edit')">
+            <label for="edit-proto-moonlight">Moonlight</label>
+            <input type="radio" name="EditStreamProtocol" id="edit-proto-webrtc" value="WebRtc" onchange="updateProtocolFields('edit')">
+            <label for="edit-proto-webrtc">WebRTC</label>
+            <input type="radio" name="EditStreamProtocol" id="edit-proto-both" value="Both" onchange="updateProtocolFields('edit')" checked>
+            <label for="edit-proto-both" data-i18n="proto.both">Ambos</label>
+          </div>
+          <div class="hint" data-i18n="proto.hint">Moonlight para apps Moonlight, WebRTC para TVs Samsung con Moonlight WebRTC. Los puertos del protocolo apagado no se abren. WebRTC requiere la build de sunshine-webrtc.</div>
+        </div>
+        <div class="form-grid" id="edit-webrtc-ports">
+          <div class="form-row">
+            <label data-i18n="proto.webrtcPortLabel">Puerto WebRTC (TVs)</label>
+            <input type="number" id="edit-webrtc-port" min="1024" max="65535">
+            <div class="hint" data-i18n="proto.webrtcPortHint">TCP. La app de la TV usa 8000 salvo que indiques otro puerto junto a la IP del PC.</div>
+          </div>
+          <div class="form-row">
+            <label data-i18n="proto.mediaLabel">Puertos UDP de vídeo/audio WebRTC</label>
+            <div class="port-range">
+              <input type="number" id="edit-webrtc-media-min" min="1024" max="65535">
+              <span>–</span>
+              <input type="number" id="edit-webrtc-media-max" min="1024" max="65535">
+            </div>
+            <div class="hint" data-i18n="proto.mediaHint">Rango que se abre en el firewall junto al UDP 8000 de descubrimiento de TVs.</div>
           </div>
         </div>
         <div class="form-check">
