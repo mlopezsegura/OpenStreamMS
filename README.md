@@ -132,8 +132,8 @@ running session. Ports of a protocol that is off do not count. UDP 8000 is share
 answers a TV's discovery broadcast with its own name and port. Sessions created before this feature
 stay **Moonlight** until switched.
 
-To use the WebRTC build, replace the contents of `Sunshine\` with a sunshine-webrtc build (or point
-`SunshineExePath` at one). Existing sessions pick up the new binaries on their next start; their
+The bundled `Sunshine\` is a sunshine-webrtc build. To use another Sunshine, replace the contents of
+`Sunshine\` (or point `SunshineExePath` at one). Existing sessions pick up the new binaries on their next start; their
 `config\` (settings, paired Moonlight clients and TVs) is kept. A Sunshine without WebRTC support
 ignores the protocol and the dashboard warns on sessions set to WebRTC or both. Paired TVs
 (`webrtc_tv_clients.json`) are backed up with `sunshine_state.json`.
