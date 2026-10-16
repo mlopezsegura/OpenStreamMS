@@ -139,8 +139,8 @@ function renderCard(s) {
       <div class="card-header">
         <div>
           <div class="card-name">${esc(s.name)}</div>
-          <div class="card-user">${s.isolated ? esc(t('card.isolatedUser')) : `${esc(s.username)}@${esc(s.domain)}`}</div>
-          <div class="card-meta">${s.rdpWidth}×${s.rdpHeight} · ${s.rdpFrameRate || 60} fps · ${s.rdpColorDepth || 32} bpp</div>
+          <div class="card-user">${s.local ? esc(t('card.localUser')) : s.isolated ? esc(t('card.isolatedUser')) : `${esc(s.username)}@${esc(s.domain)}`}</div>
+          ${s.local ? '' : `<div class="card-meta">${s.rdpWidth}×${s.rdpHeight} · ${s.rdpFrameRate || 60} fps · ${s.rdpColorDepth || 32} bpp</div>`}
           <div class="card-meta">${esc(portSummary(s))}</div>
         </div>
         ${badge(s.state)}
@@ -318,10 +318,26 @@ function updateIsolatedUi(prefix) {
   document.getElementById(`${prefix}-ephemeral-row`).style.display = isolated ? '' : 'none';
   if (prefix !== 'new') return;
 
+  // La sesión local usa el usuario del escritorio: tampoco pide credenciales.
+  const needsCreds = !isolated && !isLocalKind();
   const block = document.getElementById('new-creds-block');
-  block.style.display = isolated ? 'none' : '';
-  block.querySelectorAll('[name=Username],[name=Password]').forEach(el => { el.required = !isolated; });
-  document.getElementById('btn-create').disabled = !isolated && !credentialsTested;
+  block.style.display = needsCreds ? '' : 'none';
+  block.querySelectorAll('[name=Username],[name=Password]').forEach(el => { el.required = needsCreds; });
+  document.getElementById('btn-create').disabled = needsCreds && !credentialsTested;
+}
+
+// ── Tipo de sesión: RDP en segundo plano o escritorio local ───────────────
+function isLocalKind() {
+  return document.getElementById('new-kind-local').checked;
+}
+
+function setKindFields(prefix, local) {
+  document.getElementById(`${prefix}-modal`).classList.toggle('kind-local', local);
+}
+
+function updateKindUi(prefix) {
+  setKindFields(prefix, isLocalKind());
+  updateIsolatedUi(prefix);
 }
 
 // ── Modal: nueva sesión ────────────────────────────────────────────────────
@@ -334,7 +350,7 @@ function openNewModal() {
   setProtocolFields('new', 'Both', 8000, 40000, 40019);
   updateDerivedWebPort('new');
   resetCredTest();
-  updateIsolatedUi('new');
+  updateKindUi('new');
   show('new-modal');
   stopRefresh();
   suggestPorts();
@@ -358,8 +374,9 @@ function closeNewModal() {
 async function submitNew(e) {
   e.preventDefault();
 
-  const isolated = document.getElementById('chk-isolated').checked;
-  if (!isolated && !credentialsTested) {
+  const local    = isLocalKind();
+  const isolated = !local && document.getElementById('chk-isolated').checked;
+  if (!isolated && !local && !credentialsTested) {
     const errEl = document.getElementById('new-error');
     errEl.textContent   = t('new.errorTestCreds');
     errEl.style.display = '';
@@ -393,10 +410,11 @@ async function submitNew(e) {
     rotateSunshineCredentials: !!fd.get('RotateSunshineCredentials'),
     isolated,
     isolatedEphemeral:  isolated && !!fd.get('IsolatedEphemeral'),
+    local,
     ...readProtocolFields('new'),
   };
-  if (isolated) {
-    // El servicio crea el usuario dedicado: las credenciales del formulario no se usan.
+  if (isolated || local) {
+    // El servicio crea el usuario dedicado o usa el del escritorio: las credenciales del formulario no se usan.
     body.username = '';
     body.domain   = '.';
     body.password = '';
@@ -568,6 +586,7 @@ function openEditModal(id) {
   document.getElementById('edit-isolated').checked = !!s.isolated;
   document.getElementById('edit-isolated-ephemeral').checked = !!s.isolatedEphemeral;
   updateIsolatedUi('edit');
+  setKindFields('edit', !!s.local);
   document.getElementById('edit-error').style.display = 'none';
   setResPreset('edit', s.rdpWidth, s.rdpHeight);
 

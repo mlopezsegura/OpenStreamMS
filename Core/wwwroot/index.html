@@ -78,6 +78,18 @@
           <label data-i18n="new.nameLabel">Nombre *</label>
           <input type="text" name="Name" required data-i18n-placeholder="new.namePlaceholder" placeholder="Ej: Sala de juegos">
         </div>
+        <div class="form-row">
+          <label data-i18n="kind.label">Tipo de sesión</label>
+          <div class="segmented" role="radiogroup">
+            <input type="radio" name="SessionKind" id="new-kind-rdp" value="rdp" onchange="updateKindUi('new')" checked>
+            <label for="new-kind-rdp" data-i18n="kind.rdp">Sesión RDP</label>
+            <input type="radio" name="SessionKind" id="new-kind-local" value="local" onchange="updateKindUi('new')">
+            <label for="new-kind-local" data-i18n="kind.local">Escritorio local</label>
+          </div>
+          <div class="hint rdp-only" data-i18n="kind.rdpHint">Sesión de Windows en segundo plano, independiente del escritorio de este PC.</div>
+          <div class="hint local-only" data-i18n="kind.localHint">Sunshine transmite el escritorio físico de este PC con el usuario que lo tenga abierto. Al detenerla no se cierra la sesión de Windows. Solo puede haber una.</div>
+        </div>
+        <div class="rdp-only">
         <div class="form-check">
           <input type="checkbox" id="chk-isolated" name="Isolated" onchange="updateIsolatedUi('new')">
           <label for="chk-isolated" data-i18n-html="new.isolatedLabel_html"><strong>Sesión aislada (usuario dedicado)</strong> — OpenStreamMS crea un usuario local propio para esta sesión, con su perfil y registro. Permite, por ejemplo, otra cuenta de Steam en paralelo</label>
@@ -112,11 +124,13 @@
           </div>
         </div>
         </div>
+        </div>
         <div class="form-row">
           <label data-i18n="new.exeLabel">Ruta a sunshine.exe</label>
           <input type="text" name="SunshineExePath" data-i18n-placeholder="new.exePlaceholder" placeholder="(usar configuración global)">
           <div class="hint" data-i18n="new.exeHint">Déjalo vacío para usar la ruta definida en service.config.json.</div>
         </div>
+        <div class="rdp-only">
         <div class="form-row">
           <label data-i18n="new.resolutionLabel">Resolución</label>
           <select id="new-res-preset" onchange="onResPreset('new')">
@@ -157,6 +171,7 @@
             <div class="hint" data-i18n="new.colorDepthHint">Profundidad de color enviada al cliente RDP.</div>
           </div>
         </div>
+        </div>
         <div class="form-row">
           <label data-i18n="new.portLabel">Puerto de stream (Moonlight)</label>
           <input type="number" name="SunshineStreamPort" id="new-stream-port" value="47989" min="1024" max="65514" required
@@ -194,7 +209,7 @@
             <div class="hint" data-i18n="proto.mediaHint">Rango que se abre en el firewall junto al UDP 8000 de descubrimiento de TVs.</div>
           </div>
         </div>
-        <div class="form-check">
+        <div class="form-check rdp-only">
           <input type="checkbox" id="chk-bg"  name="RdpBackground" checked>
           <label for="chk-bg" data-i18n="new.bgLabel">Lanzar mstsc en segundo plano (recomendado en producción)</label>
         </div>
@@ -202,7 +217,7 @@
           <input type="checkbox" id="chk-vdd" name="VddEnabled">
           <label for="chk-vdd" data-i18n="new.vddLabel">Activar pantalla virtual (VDD) en Sunshine</label>
         </div>
-        <div class="form-check">
+        <div class="form-check rdp-only">
           <input type="checkbox" id="chk-stream-profile" name="UseStreamProfile">
           <label for="chk-stream-profile" data-i18n-html="new.profileLabel_html"><strong>Perfil de stream independiente</strong> — permite abrir las mismas apps (Steam, Chrome…) en la sesión local y en la de stream a la vez</label>
         </div>
@@ -295,11 +310,13 @@
           <label data-i18n="new.nameLabel">Nombre *</label>
           <input type="text" id="edit-name" required>
         </div>
+        <div class="hint local-only" data-i18n="kind.localEditHint">Sesión local: transmite el escritorio físico de este PC con el usuario que lo tenga abierto.</div>
         <div class="form-row">
           <label data-i18n="new.exeLabel">Ruta a sunshine.exe</label>
           <input type="text" id="edit-exe" data-i18n-placeholder="new.exePlaceholder" placeholder="(usar configuración global)">
           <div class="hint" data-i18n="new.exeHint">Déjalo vacío para usar la ruta definida en service.config.json.</div>
         </div>
+        <div class="rdp-only">
         <div class="form-row">
           <label data-i18n="new.resolutionLabel">Resolución</label>
           <select id="edit-res-preset" onchange="onResPreset('edit')">
@@ -340,6 +357,7 @@
             <div class="hint" data-i18n="new.colorDepthHint">Profundidad de color enviada al cliente RDP.</div>
           </div>
         </div>
+        </div>
         <div class="form-row">
           <label data-i18n="new.portLabel">Puerto de stream (Moonlight)</label>
           <input type="number" id="edit-port" min="1024" max="65514" required
@@ -377,7 +395,7 @@
             <div class="hint" data-i18n="proto.mediaHint">Rango que se abre en el firewall junto al UDP 8000 de descubrimiento de TVs.</div>
           </div>
         </div>
-        <div class="form-check">
+        <div class="form-check rdp-only">
           <input type="checkbox" id="edit-bg">
           <label for="edit-bg" data-i18n="new.bgLabel">Lanzar mstsc en segundo plano (recomendado en producción)</label>
         </div>
@@ -385,10 +403,11 @@
           <input type="checkbox" id="edit-vdd">
           <label for="edit-vdd" data-i18n="new.vddLabel">Activar pantalla virtual (VDD) en Sunshine</label>
         </div>
-        <div class="form-check">
+        <div class="form-check rdp-only">
           <input type="checkbox" id="edit-profile">
           <label for="edit-profile" data-i18n-html="new.profileLabel_html"><strong>Perfil de stream independiente</strong></label>
         </div>
+        <div class="rdp-only">
         <div class="form-check">
           <input type="checkbox" id="edit-isolated" onchange="updateIsolatedUi('edit')">
           <label for="edit-isolated" data-i18n-html="new.isolatedLabel_html"><strong>Sesión aislada (usuario dedicado)</strong></label>
@@ -396,6 +415,7 @@
         <div class="form-check" id="edit-ephemeral-row" style="display:none">
           <input type="checkbox" id="edit-isolated-ephemeral">
           <label for="edit-isolated-ephemeral" data-i18n-html="new.ephemeralLabel_html"><strong>Perfil efímero</strong></label>
+        </div>
         </div>
 
         <details class="form-advanced">

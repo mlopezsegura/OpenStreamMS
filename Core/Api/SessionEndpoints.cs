@@ -81,7 +81,13 @@ public record CreateSessionRequest(
     /// <summary>Primer puerto UDP de media WebRTC. 0 = el primer bloque libre desde 40000.</summary>
     int WebRtcMediaPortMin = 0,
     /// <summary>Último puerto UDP de media WebRTC. 0 = automático.</summary>
-    int WebRtcMediaPortMax = 0
+    int WebRtcMediaPortMax = 0,
+    /// <summary>
+    /// Sesión local: Sunshine en el escritorio físico de este PC con el usuario que lo tenga abierto,
+    /// sin sesión RDP. Usuario, contraseña, resolución RDP, perfil y aislamiento se ignoran.
+    /// Solo puede haber una.
+    /// </summary>
+    bool Local = false
 );
 
 /// <summary>Datos editables de una sesión ya creada (requiere sesión detenida).</summary>
@@ -202,6 +208,8 @@ public record SessionResponse(
     bool         Isolated,
     /// <summary>Solo con Isolated: el perfil del usuario dedicado se borra al detener.</summary>
     bool         IsolatedEphemeral,
+    /// <summary>Si true, Sunshine corre en el escritorio físico del PC en lugar de en una sesión RDP.</summary>
+    bool         Local,
     SessionState State,
     uint         RdpSessionId,
     int          SunshinePid,
@@ -455,10 +463,12 @@ public static class SessionEndpoints
     {
         if (string.IsNullOrWhiteSpace(req.Name))
             return TypedResults.BadRequest("El campo 'Name' es obligatorio.");
-        // Con aislamiento nativo el usuario lo crea el servicio: no hacen falta credenciales.
-        if (!req.Isolated && string.IsNullOrWhiteSpace(req.Username))
+        // Con aislamiento nativo el usuario lo crea el servicio y la sesión local usa el del
+        // escritorio: en ambos casos no hacen falta credenciales.
+        var needsCredentials = !req.Isolated && !req.Local;
+        if (needsCredentials && string.IsNullOrWhiteSpace(req.Username))
             return TypedResults.BadRequest("El campo 'Username' es obligatorio.");
-        if (!req.Isolated && string.IsNullOrWhiteSpace(req.Password))
+        if (needsCredentials && string.IsNullOrWhiteSpace(req.Password))
             return TypedResults.BadRequest("El campo 'Password' es obligatorio.");
 
         StreamSession session;
@@ -477,7 +487,8 @@ public static class SessionEndpoints
                                  streamProtocol: req.StreamProtocol,
                                  webRtcPort: req.WebRtcPort,
                                  webRtcMediaPortMin: req.WebRtcMediaPortMin,
-                                 webRtcMediaPortMax: req.WebRtcMediaPortMax);
+                                 webRtcMediaPortMax: req.WebRtcMediaPortMax,
+                                 local: req.Local);
         }
         catch (InvalidOperationException ex)
         {
@@ -788,7 +799,7 @@ public static class SessionEndpoints
         StreamSessionService.SupportsWebRtc(s),
         s.SunshineName, s.Capture, s.Encoder, s.OutputName, s.OriginWebUiAllowed,
         s.SunshineAuthUser, s.SunshineAuthPass, s.RotateSunshineCredentials,
-        s.Isolated, s.IsolatedEphemeral,
+        s.Isolated, s.IsolatedEphemeral, s.Local,
         s.State, s.RdpSessionId, s.SunshinePid,
         s.CreatedAt, s.StartedAt, s.StoppedAt, s.ErrorMessage);
 }

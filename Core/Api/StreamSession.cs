@@ -103,6 +103,12 @@ public class StreamSession
     /// </summary>
     public bool         IsolatedEphemeral { get; set; } = false;
     /// <summary>
+    /// Sesión local: Sunshine corre en el escritorio físico de este PC (la sesión de consola),
+    /// con el usuario que lo tenga abierto. No se crea sesión RDP y al detenerla no se cierra
+    /// la sesión de Windows. Las opciones de RDP, usuario, perfil y aislamiento no se aplican.
+    /// </summary>
+    public bool         Local            { get; set; } = false;
+    /// <summary>
     /// Puerto base de Sunshine (<c>port</c> en <c>sunshine.conf</c>). Es el que usan los clientes
     /// Moonlight y del que Sunshine deriva el resto: panel HTTPS = <c>StreamPort + 1</c>,
     /// vídeo/audio/control = <c>StreamPort + 9..13</c>, RTSP = <c>StreamPort + 21</c>.

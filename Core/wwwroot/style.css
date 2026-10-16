@@ -335,6 +335,10 @@ main {
 .segmented input:checked + label,
 .segmented button.active { background: var(--accent); color: #fff; cursor: default; }
 .segmented button:disabled:not(.active) { opacity: .5; cursor: not-allowed; }
+/* Tipo de sesión: la local no usa los campos de RDP, usuario ni aislamiento */
+.local-only { display: none; }
+.kind-local .local-only { display: block; }
+.kind-local .rdp-only { display: none; }
 .port-range { display: flex; align-items: center; gap: .5rem; }
 .port-range input { flex: 1 1 0; min-width: 0; }
 

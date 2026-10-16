@@ -49,16 +49,23 @@ public class StreamSessionService
                                 bool rotateSunshineCredentials = false,
                                 bool isolated = false, bool isolatedEphemeral = false,
                                 StreamProtocol streamProtocol = StreamProtocol.Both,
-                                int webRtcPort = 0, int webRtcMediaPortMin = 0, int webRtcMediaPortMax = 0)
+                                int webRtcPort = 0, int webRtcMediaPortMin = 0, int webRtcMediaPortMax = 0,
+                                bool local = false)
     {
+        // Solo hay un escritorio físico: dos sesiones locales lo capturarían a la vez.
+        if (local && _sessions.Values.Any(s => s.Local))
+            throw new InvalidOperationException("Ya existe una sesión local; edita esa en lugar de crear otra.");
+
         // Puertos WebRTC sin indicar (0) = los primeros libres.
         var suggested = SunshinePorts.Suggest(_sessions.Values.ToList());
         var session = new StreamSession
         {
             Name               = name,
-            Username           = username,
-            Domain             = domain,
-            Password           = password,
+            // La sesión local usa el usuario que tenga abierto el escritorio en cada momento.
+            Username           = local ? "" : username,
+            Domain             = local ? "." : domain,
+            Password           = local ? "" : password,
+            Local              = local,
             SunshineExePath    = ResolveExePath(sunshineExePath),
             RdpBackground      = rdpBackground,
             VddEnabled         = vddEnabled,
@@ -67,7 +74,7 @@ public class StreamSessionService
             RdpFrameRate       = NormalizeRdpFrameRate(rdpFrameRate),
             RdpColorDepth      = NormalizeRdpColorDepth(rdpColorDepth),
             Enabled            = enabled,
-            UseStreamProfile   = useStreamProfile,
+            UseStreamProfile   = useStreamProfile && !local,
             SunshineStreamPort = sunshineStreamPort > 0 ? sunshineStreamPort : 47989,
             SunshineName       = NullIfBlank(sunshineName),
             Capture            = NullIfBlank(capture),
@@ -77,8 +84,8 @@ public class StreamSessionService
             SunshineAuthUser   = NullIfBlank(sunshineAuthUser) ?? "",
             SunshineAuthPass   = NullIfBlank(sunshineAuthPass) ?? "",
             RotateSunshineCredentials = rotateSunshineCredentials,
-            Isolated           = isolated,
-            IsolatedEphemeral  = isolatedEphemeral,
+            Isolated           = isolated && !local,
+            IsolatedEphemeral  = isolatedEphemeral && !local,
             StreamProtocol     = streamProtocol,
             WebRtcPort         = webRtcPort > 0 ? webRtcPort : suggested.WebRtcPort,
             WebRtcMediaPortMin = webRtcMediaPortMin > 0 ? webRtcMediaPortMin : suggested.WebRtcMediaPortMin,
@@ -86,7 +93,7 @@ public class StreamSessionService
         };
         EnsurePortsAvailable(session, _sessions.Values);
         _sessions[session.Id] = session;
-        Logger.Log($"[SessionService] Sesión creada: '{name}' ({session.Id}) enabled={enabled}");
+        Logger.Log($"[SessionService] Sesión creada: '{name}' ({session.Id}) enabled={enabled}{(local ? " local" : "")}");
         SaveSessions();
         return session;
     }
@@ -155,6 +162,14 @@ public class StreamSessionService
 
         if (session.State is SessionState.Starting or SessionState.Running or SessionState.Stopping)
             throw new InvalidOperationException("Detén la sesión antes de modificar su configuración.");
+
+        // La sesión local corre con el usuario del escritorio: ni perfil de stream ni usuario dedicado.
+        if (session.Local)
+        {
+            useStreamProfile  = false;
+            isolated          = false;
+            isolatedEphemeral = false;
+        }
 
         // Validar los puertos nuevos antes de tocar nada (0/null = mantener el valor actual).
         var candidate = new StreamSession
@@ -402,10 +417,12 @@ public class StreamSessionService
                 session.FreeRdpPid = 0;
             }
 
-            // Cerrar la sesión Windows del usuario (terminar todos sus procesos)
+            // Cerrar la sesión Windows del usuario (terminar todos sus procesos). La sesión
+            // local es el escritorio de quien usa el PC: de ella solo se para Sunshine.
             if (session.RdpSessionId > 0)
             {
-                StreamProfileSetup.LogoffSession(session.RdpSessionId);
+                if (!session.Local)
+                    StreamProfileSetup.LogoffSession(session.RdpSessionId);
                 session.RdpSessionId = 0;
             }
 
@@ -584,7 +601,8 @@ public class StreamSessionService
                 StreamProtocol: s.StreamProtocol,
                 WebRtcPort: s.WebRtcPort,
                 WebRtcMediaPortMin: s.WebRtcMediaPortMin,
-                WebRtcMediaPortMax: s.WebRtcMediaPortMax));
+                WebRtcMediaPortMax: s.WebRtcMediaPortMax,
+                Local: s.Local));
             File.WriteAllText(SessionsFile, JsonSerializer.Serialize(data, JsonOpts));
         }
         catch (Exception ex)
@@ -643,6 +661,7 @@ public class StreamSessionService
                     WebRtcPort         = d.WebRtcPort,
                     WebRtcMediaPortMin = d.WebRtcMediaPortMin,
                     WebRtcMediaPortMax = d.WebRtcMediaPortMax,
+                    Local              = d.Local,
                     State              = SessionState.Stopped,
                 };
 
@@ -678,6 +697,12 @@ public class StreamSessionService
         Logger.SetSessionContext(session.Id);
         try
         {
+            if (session.Local)
+            {
+                StartLocal(session);
+                return;
+            }
+
             StreamUserConfig user;
             if (session.Isolated)
             {
@@ -815,6 +840,35 @@ public class StreamSessionService
         {
             Logger.SetSessionContext(null);
         }
+    }
+
+    /// <summary>
+    /// Arranca la sesión local: lanza Sunshine directamente en la sesión de Windows del escritorio
+    /// físico, con el usuario que la tenga abierta. Sin RDP.
+    /// </summary>
+    private void StartLocal(StreamSession session)
+    {
+        if (!ConsoleSession.TryGetUser(out var consoleId, out var domain, out var username))
+            throw new Exception("No hay ningún usuario con sesión iniciada en este PC.");
+
+        Logger.Log($"[{session.Name}] Sesión local: escritorio de '{domain}\\{username}' (sesión de Windows {consoleId}).", session.Id);
+        session.RdpSessionId = consoleId;
+
+        EnsureSunshineInstance(session, domain, username);
+        var result = GetOrCreateSunshineManager(session).EnsureRunning(consoleId);
+        session.SunshinePid = result.Pid;
+        if (result.Status == SunshineRunStatus.LaunchFailed)
+            throw new Exception(result.Message ?? "No se pudo lanzar Sunshine.");
+
+        if (session.State != SessionState.Starting)
+        {
+            Logger.Log($"[{session.Name}] Inicio abortado (sesión detenida durante el lanzamiento de Sunshine).", session.Id);
+            return;
+        }
+
+        session.State     = SessionState.Running;
+        session.StartedAt = DateTime.UtcNow;
+        Logger.Log($"[{session.Name}] Sesión local activa (sesión de Windows {consoleId}).", session.Id);
     }
 
     private SunshineManager GetOrCreateSunshineManager(StreamSession session,
@@ -1341,5 +1395,7 @@ public class StreamSessionService
         /// <summary>Puertos WebRTC. 0 en sesiones anteriores a WebRTC: se asignan al cargar.</summary>
         int      WebRtcPort = 0,
         int      WebRtcMediaPortMin = 0,
-        int      WebRtcMediaPortMax = 0);
+        int      WebRtcMediaPortMax = 0,
+        /// <summary>Sesión local: Sunshine en el escritorio físico, sin RDP.</summary>
+        bool     Local = false);
 }

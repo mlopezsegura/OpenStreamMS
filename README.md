@@ -13,6 +13,7 @@ Manages the full lifecycle of isolated RDP streaming sessions — creation, moni
 ## Features
 
 - **Isolated RDP sessions** — each session runs under its own Windows user account with a dedicated Sunshine instance, fully separated from your local desktop
+- **Local desktop session** — the PC's own physical desktop can be added as one more session: Sunshine is launched directly in the PC's local session (no RDP), and stopping it never signs anyone out
 - **Independent stream profile** — launches Explorer, Sunshine, and Sunshine apps with a per-session profile sandbox (`USERPROFILE`, `APPDATA`, `LOCALAPPDATA`, temp, and XDG paths) so local and stream sessions do not share common profile lock files
 - **Web dashboard + REST API** — manage sessions from any browser; full OpenAPI docs at `/scalar/v1`
 - **System tray icon** — start/stop sessions and open the web interface from the Windows notification area
