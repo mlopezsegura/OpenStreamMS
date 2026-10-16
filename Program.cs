@@ -36,6 +36,10 @@ switch (command)
     case "--tray":
         RunTray();
         break;
+    case "--display":
+        // Puestos locales: operaciones de pantalla en la sesión de consola (lanzado por el servicio).
+        Environment.Exit(OpenStreamMS.Services.Seats.ConsoleDisplay.RunCommand(args));
+        break;
     case "--setup":
         RunSetup(args);
         break;

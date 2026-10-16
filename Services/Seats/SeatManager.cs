@@ -70,7 +70,10 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
         var used = _seats.Values.Where(s => s.State == SeatState.Running && s.Monitor is not null)
                                 .Select(s => s.Monitor!.DevicePath).ToHashSet();
         // Un monitor libre: no está en el escritorio, o está pero no lo gestiona un puesto activo.
-        return DisplayTopology.Enumerate().Where(d => !used.Contains(d.DevicePath)).ToList();
+        // El principal (activo en 0,0) es el de la consola: nunca se ofrece para un puesto.
+        return ConsoleDisplay.List()
+            .Where(d => !used.Contains(d.DevicePath) && !(d.Active && d.PosX == 0 && d.PosY == 0))
+            .ToList();
     }
 
     public IReadOnlyList<(string Id, string Name)> AvailableAudioOutputs() => SeatAudio.Outputs();
@@ -163,7 +166,7 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
             if (seat.Monitor is not null)
             {
                 Status(seat, "Encendiendo el monitor…");
-                if (!DisplayTopology.Activate(seat.Monitor.DevicePath))
+                if (!ConsoleDisplay.Activate(seat.Monitor.DevicePath))
                     Logger.Warning($"[Seats] '{seat.Name}': no se pudo activar el monitor; se presentará igualmente si ya estaba activo.");
             }
 
@@ -216,7 +219,7 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
         // TODO (F1–F3): parar el agente de sesión y el presentador (op "stop" por el canal).
 
         if (seat.Monitor is not null)
-            DisplayTopology.Deactivate(seat.Monitor.DevicePath);
+            ConsoleDisplay.Deactivate(seat.Monitor.DevicePath);
 
         if (seat.SessionId is { } sid && seat.ExclusiveSession)
             sessions.ResumeSunshine(sid);
