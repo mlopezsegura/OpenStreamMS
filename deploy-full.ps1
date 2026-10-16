@@ -44,6 +44,13 @@ Write-Host '== 3. Copiar binarios ==' -ForegroundColor Cyan
 Get-ChildItem $bin -File | Where-Object { $_.Extension -in '.exe', '.dll', '.pdb', '.json', '.ico' -and
                                           $_.Name -notin 'service.config.json', 'sessions.json' } |
     ForEach-Object { Copy-Item $_.FullName (Join-Path $install $_.Name) -Force }
+# bin\Debug es framework-dependent, pero el instalador deja un runtime self-contained.
+# Con hostfxr.dll junto al exe, el apphost busca .NET en la carpeta de la app y no arranca
+# ("You must install .NET"). Se quitan para que use el .NET compartido del sistema.
+foreach ($f in 'hostfxr.dll', 'hostpolicy.dll') {
+    $p = Join-Path $install $f
+    if (Test-Path $p) { Move-Item $p "$p.bak" -Force; Write-Host "   -> $f retirado (runtime self-contained)" -ForegroundColor Green }
+}
 foreach ($d in 'Sunshine', 'FreeRDP', 'wwwroot', 'runtimes') {
     # /MIR: carpeta identica a bin (borra restos de versiones anteriores). Solo contienen binarios.
     robocopy (Join-Path $bin $d) (Join-Path $install $d) /MIR /NFL /NDL /NJH /NJS /R:2 /W:1 | Out-Null
