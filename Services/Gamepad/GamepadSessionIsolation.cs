@@ -2,6 +2,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Win32;
 using Microsoft.Win32.SafeHandles;
 using OpenStreamMS.Core.Api;
+using OpenStreamMS.Core.Helpers;
 using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.InteropServices;
@@ -49,6 +50,7 @@ public sealed partial class GamepadSessionIsolation : BackgroundService
     private static partial Regex GamepadCreatedRegex();
 
     private readonly StreamSessionService _sessions;
+    private readonly Seats.SeatManager _seats;
 
     private sealed class Pad
     {
@@ -78,13 +80,18 @@ public sealed partial class GamepadSessionIsolation : BackgroundService
     private DateTime _lastHidHideTry = DateTime.MinValue;
     private bool _hidHideWarned;
 
-    // Mandos físicos ocultados → sesión de consola con la que se ocultaron
+    // Mandos físicos ocultados → sesión (de consola, o del puesto que los reclama) con la que se ocultaron
     private readonly Dictionary<string, uint> _physical = new(StringComparer.OrdinalIgnoreCase);
     private uint _console = NoSession;
     private DateTime _lastPhysicalScan = DateTime.MinValue;
+    private int _seatGeneration = -1;
     private const uint NoSession = 0xFFFFFFFF;
 
-    public GamepadSessionIsolation(StreamSessionService sessions) => _sessions = sessions;
+    public GamepadSessionIsolation(StreamSessionService sessions, Seats.SeatManager seats)
+    {
+        _sessions = sessions;
+        _seats    = seats;
+    }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -391,8 +398,13 @@ public sealed partial class GamepadSessionIsolation : BackgroundService
     {
         uint console = WTSGetActiveConsoleSessionId();
         if (console == NoSession) return;   // transición de sesión: se reintenta luego
-        if (console == _console && DateTime.UtcNow - _lastPhysicalScan < PhysicalRescan) return;
+
+        // Un puesto encendido o apagado cambia a qué sesión va cada mando: fuerza una pasada.
+        int seatGen = _seats.Generation;
+        bool seatsChanged = seatGen != _seatGeneration;
+        if (console == _console && !seatsChanged && DateTime.UtcNow - _lastPhysicalScan < PhysicalRescan) return;
         _lastPhysicalScan = DateTime.UtcNow;
+        _seatGeneration = seatGen;
 
         if (console != _console)
         {
@@ -407,27 +419,33 @@ public sealed partial class GamepadSessionIsolation : BackgroundService
     }
 
     /// <summary>
-    /// Deja los mandos físicos visibles solo en la sesión de consola. Si alguno estaba
-    /// arrancado con sesiones de stream en marcha, se reinicia una vez para cerrar los
-    /// handles que esas sesiones pudieran tener.
+    /// Deja cada mando físico visible solo en su sesión destino: la del puesto que lo reclama
+    /// (por puerto USB), o la de consola si ningún puesto lo tiene asignado. Si alguno estaba
+    /// arrancado con sesiones de stream en marcha, se reinicia una vez para cerrar los handles
+    /// que esas sesiones pudieran tener.
     /// </summary>
     private void HidePhysical(IReadOnlyList<string> ids)
     {
         if (_console == NoSession) _console = WTSGetActiveConsoleSessionId();
         if (_console == NoSession) return;
 
-        var nodes = ids.Where(id => !_physical.TryGetValue(id, out var s) || s != _console).ToList();
+        // Destino de cada mando: la sesión del puesto que lo reclama, o la consola.
+        var nodes = ids.Select(id => (Id: id, Target: TargetSessionFor(id)))
+                       .Where(n => !_physical.TryGetValue(n.Id, out var s) || s != n.Target)
+                       .ToList();
         if (nodes.Count == 0) return;
 
         bool streaming = _sessions.GetRunningSunshineSessions().Count > 0;
-        var started = nodes.Where(Cm.IsOpenableAndStarted).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        if (!UpdateJails(add: nodes.Select(n => HidHide.JailEntry(n, _console)), remove: nodes)) return;
+        var started = nodes.Where(n => Cm.IsOpenableAndStarted(n.Id)).Select(n => n.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (!UpdateJails(add: nodes.Select(n => HidHide.JailEntry(n.Id, n.Target)), remove: nodes.Select(n => n.Id))) return;
 
-        foreach (var node in nodes)
+        foreach (var (node, target) in nodes)
         {
             bool first = !_physical.ContainsKey(node);
-            _physical[node] = _console;
-            Logger.Log($"[Gamepad] Mando físico {node} visible solo en la sesión de consola ({_console}).");
+            _physical[node] = target;
+            Logger.Log(target == _console
+                ? $"[Gamepad] Mando físico {node} visible solo en la sesión de consola ({target})."
+                : $"[Gamepad] Mando físico {node} asignado a un puesto: visible solo en la sesión {target}.");
             if (!(first && streaming && started.Contains(node))) continue;
             try { DevSetup.Restart(node); }
             catch (Win32Exception ex)
@@ -437,6 +455,12 @@ public sealed partial class GamepadSessionIsolation : BackgroundService
             }
         }
     }
+
+    /// <summary>Sesión de Windows a la que debe ir un mando físico: la de su puesto, o la consola.</summary>
+    private uint TargetSessionFor(string node) =>
+        DeviceTopology.UsbPortOf(node) is { } usb && _seats.TryGetSeatWindowsSession(usb, out var seatSession)
+            ? seatSession
+            : _console;
 
     [DllImport("kernel32.dll")]
     private static extern uint WTSGetActiveConsoleSessionId();

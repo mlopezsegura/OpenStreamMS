@@ -35,6 +35,34 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
             try { Stop(seat.Id); } catch { /* cierre */ }
     }
 
+    // ── Consulta para el aislamiento de mandos ──────────────────────────────────
+
+    /// <summary>
+    /// Cambia cada vez que un puesto se enciende o se apaga. GamepadSessionIsolation lo
+    /// vigila para reasignar los mandos sin esperar a su rescan periódico.
+    /// </summary>
+    private volatile int _generation;
+    public int Generation => _generation;
+
+    /// <summary>
+    /// Sesión de Windows del puesto activo que tiene asignado ese puerto USB, o false si
+    /// ningún puesto encendido lo reclama (entonces el dispositivo va a la consola).
+    /// </summary>
+    public bool TryGetSeatWindowsSession(string usbPort, out uint windowsSession)
+    {
+        windowsSession = 0;
+        foreach (var seat in _seats.Values)
+        {
+            if (seat.State != SeatState.Running) continue;
+            if (!seat.Devices.Any(d => d.UsbPort.Equals(usbPort, StringComparison.OrdinalIgnoreCase))) continue;
+            if (seat.SessionId is not { } sid || sessions.Get(sid) is not { } session) continue;
+            if (session.State != SessionState.Running || session.RdpSessionId == 0) continue;
+            windowsSession = session.RdpSessionId;
+            return true;
+        }
+        return false;
+    }
+
     // ── Inventario ─────────────────────────────────────────────────────────────
 
     public IReadOnlyList<DisplayInfo> AvailableMonitors()
@@ -170,6 +198,7 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
 
             seat.State = SeatState.Running;
             seat.StatusDetail = "Activo (falta el agente de sesión para ver imagen y usar la entrada).";
+            Interlocked.Increment(ref _generation);   // que GamepadSessionIsolation reasigne los mandos
             Logger.Log($"[Seats] Puesto '{seat.Name}' activo.");
         }
         catch (Exception ex)
@@ -194,6 +223,7 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
 
         seat.State = SeatState.Stopped;
         seat.StatusDetail = null;
+        Interlocked.Increment(ref _generation);   // los mandos del puesto vuelven a la consola
         Logger.Log($"[Seats] Puesto '{seat.Name}' detenido.");
     }
 

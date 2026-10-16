@@ -133,21 +133,18 @@ servicio recibe del agente los 3 handles (por el canal), los duplica al PID del
 
 ---
 
-## 4. Mandos por puesto (extensión de `GamepadSessionIsolation`)
+## 4. Mandos por puesto (extensión de `GamepadSessionIsolation`) — HECHO
 
-Hoy `GamepadSessionIsolation` deja los mandos físicos visibles solo en la consola.
-Para puestos: un mando cuyo puerto USB esté en `seat.Devices` debe enjaularse en
-**la sesión del puesto** en lugar de en la consola.
+Un mando físico cuyo puerto USB está en `seat.Devices` de un puesto activo se
+enjaula en **la sesión del puesto** en vez de en la consola. Implementado:
 
-- En `HidePhysical`, antes de usar `_console`, mirar si el nodo del mando cuelga
-  de un puerto asignado a un puesto activo (`SeatManager` expone esa consulta) y,
-  si es así, usar `seat`→`session.RdpSessionId` como destino del jail
-  (`HidHide.JailEntry(nodo, sesiónDelPuesto)`).
-- `SeatManager` debe exponer algo como
-  `bool TryGetSeatSessionForUsbPort(string usbPort, out uint windowsSession)`.
-
-Esto sí se puede implementar sin bloqueos (es lo mismo que ya hace para la
-consola, cambiando el destino); se dejó fuera por tiempo.
+- `SeatManager.TryGetSeatWindowsSession(string usbPort, out uint windowsSession)`
+  devuelve la sesión de Windows del puesto activo que reclama ese puerto.
+- `GamepadSessionIsolation.TargetSessionFor(nodo)` resuelve el puerto USB del
+  mando (`DeviceTopology.UsbPortOf`) y usa esa sesión, o la consola si nadie lo
+  reclama. `HidePhysical` enjaula cada mando a su destino.
+- `SeatManager.Generation` sube al encender/apagar un puesto; `ScanPhysical`
+  lo vigila para reasignar los mandos al momento, sin esperar al rescan de 30 s.
 
 ---
 
