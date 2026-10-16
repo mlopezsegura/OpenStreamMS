@@ -514,7 +514,7 @@ public sealed partial class GamepadSessionIsolation : BackgroundService
 
     // ── Interop ──────────────────────────────────────────────────────────────
 
-    private static class Cm
+    internal static class Cm
     {
         private const int CR_SUCCESS = 0;
         private const int CM_LOCATE_DEVNODE_NORMAL = 0;
@@ -709,7 +709,7 @@ public sealed partial class GamepadSessionIsolation : BackgroundService
         }
     }
 
-    private static class DevSetup
+    internal static class DevSetup
     {
         [StructLayout(LayoutKind.Sequential)]
         private struct SP_DEVINFO_DATA { public int cbSize; public Guid ClassGuid; public int DevInst; public IntPtr Reserved; }

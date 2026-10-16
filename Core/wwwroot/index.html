@@ -54,14 +54,79 @@
 
   <!-- Main content -->
   <main>
-    <div class="toolbar">
-      <span class="toolbar-title"><span data-i18n="toolbar.sessions">Sesiones</span> — <strong id="session-count">0</strong></span>
-      <button class="btn btn-primary btn-sm" onclick="openNewModal()" data-i18n="toolbar.newSession">+ Nueva sesión</button>
+    <div class="tabs">
+      <button class="tab active" id="tab-sessions" onclick="switchTab('sessions')" data-i18n="tab.sessions">Sesiones</button>
+      <button class="tab" id="tab-seats" onclick="switchTab('seats')" data-i18n="tab.seats">Puestos</button>
     </div>
-    <div class="sessions-grid" id="sessions-grid">
-      <div class="empty-state"><p data-i18n="empty.loading">Cargando…</p></div>
-    </div>
+
+    <!-- Vista: Sesiones -->
+    <section id="view-sessions">
+      <div class="toolbar">
+        <span class="toolbar-title"><span data-i18n="toolbar.sessions">Sesiones</span> — <strong id="session-count">0</strong></span>
+        <button class="btn btn-primary btn-sm" onclick="openNewModal()" data-i18n="toolbar.newSession">+ Nueva sesión</button>
+      </div>
+      <div class="sessions-grid" id="sessions-grid">
+        <div class="empty-state"><p data-i18n="empty.loading">Cargando…</p></div>
+      </div>
+    </section>
+
+    <!-- Vista: Puestos locales -->
+    <section id="view-seats" class="hidden">
+      <div class="toolbar">
+        <span class="toolbar-title"><span data-i18n="toolbar.seats">Puestos</span> — <strong id="seat-count">0</strong></span>
+        <button class="btn btn-primary btn-sm" onclick="openSeatModal()" data-i18n="toolbar.newSeat">+ Nuevo puesto</button>
+      </div>
+      <div class="sessions-grid" id="seats-grid">
+        <div class="empty-state"><p data-i18n="empty.loading">Cargando…</p></div>
+      </div>
+    </section>
   </main>
+</div>
+
+<!-- ─── Modal: nuevo/editar puesto ──────────────────────────────────────── -->
+<div class="modal-backdrop hidden" id="seat-modal" onclick="handleBackdropClick(event,'seat-modal')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 id="seat-modal-title" data-i18n="seat.newTitle">Nuevo puesto</h3>
+      <button class="modal-close" onclick="closeSeatModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="seat-error" class="auth-alert error" style="display:none"></div>
+      <form id="seat-form" onsubmit="submitSeat(event)">
+        <input type="hidden" name="Id">
+        <div class="form-row">
+          <label data-i18n="seat.nameLabel">Nombre *</label>
+          <input type="text" name="Name" required data-i18n-placeholder="seat.namePlaceholder" placeholder="Ej: Puesto salón">
+        </div>
+        <div class="form-row">
+          <label data-i18n="seat.sessionLabel">Sesión asignada</label>
+          <select name="SessionId" id="seat-session"></select>
+        </div>
+        <div class="form-row">
+          <label data-i18n="seat.monitorLabel">Monitor</label>
+          <select name="Monitor" id="seat-monitor"></select>
+        </div>
+        <div class="form-row">
+          <label data-i18n="seat.audioLabel">Salida de audio</label>
+          <select name="AudioOut" id="seat-audio"></select>
+        </div>
+        <div class="form-row">
+          <label data-i18n="seat.devicesLabel">Dispositivos (teclado/ratón/mando)</label>
+          <div id="seat-devices" class="seat-devices"></div>
+        </div>
+        <div class="form-row form-check">
+          <label><input type="checkbox" name="ExclusiveSession" checked> <span data-i18n="seat.exclusive">Uso exclusivo (pausa Moonlight/WebRTC mientras el puesto está activo)</span></label>
+        </div>
+        <div class="form-row form-check">
+          <label><input type="checkbox" name="AutoStart" checked> <span data-i18n="seat.autostart">Encender automáticamente al arrancar el servicio</span></label>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" onclick="closeSeatModal()" data-i18n="btn.cancel">Cancelar</button>
+          <button type="submit" class="btn btn-primary" data-i18n="btn.save">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
 
 <!-- ─── Modal: nueva sesión ─────────────────────────────────────────────── -->
@@ -822,5 +887,6 @@
 <div id="toast" class="hidden"></div>
 
 <script src="/app.js"></script>
+<script src="/seats.js"></script>
 </body>
 </html>

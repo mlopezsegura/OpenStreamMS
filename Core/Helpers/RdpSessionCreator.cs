@@ -144,6 +144,66 @@ namespace OpenStreamMS.Core.Helpers
                                             rdpFrameRate, rdpColorDepth, out freeRdpPid);
         }
 
+        /// <summary>
+        /// Vuelve a conectar una sesión existente con otra resolución y frecuencia (las de la
+        /// pantalla RDP solo se fijan al conectar: dentro de la sesión no se pueden cambiar).
+        /// <para>
+        /// Hay que desconectar antes: con varias sesiones por usuario permitidas
+        /// (fSingleSessionPerUser=0), un cliente nuevo sin desconexión previa crea OTRA sesión
+        /// en lugar de reutilizar esta. Tarda ~1,2 s; la sesión, sus procesos y Sunshine siguen vivos.
+        /// </para>
+        /// </summary>
+        public static uint Reconnect(StreamUserConfig user, uint sessionId,
+                                     int rdpWidth, int rdpHeight,
+                                     int rdpFrameRate, int rdpColorDepth,
+                                     out int clientPid,
+                                     bool preferMstsc = true)
+        {
+            clientPid = 0;
+            Logger.Log($"[RDP] Reconectando la sesión {sessionId} a {rdpWidth}x{rdpHeight} @ {rdpFrameRate} fps...");
+
+            if (!WTSDisconnectSession(IntPtr.Zero, (int)sessionId, true))
+                Logger.Warning($"[RDP] WTSDisconnectSession({sessionId}) falló: {Marshal.GetLastWin32Error()}");
+
+            var sw = Stopwatch.StartNew();
+            while (sw.Elapsed.TotalSeconds < 10 &&
+                   EnumerateSessions(logSessions: false).FirstOrDefault(s => s.SessionId == sessionId) is { State: not WtsDisconnected })
+                Thread.Sleep(50);
+
+            uint id;
+            if (preferMstsc)
+            {
+                try { id = CreateSessionWithMstsc(user, rdpWidth, rdpHeight, rdpFrameRate, rdpColorDepth, out clientPid); }
+                catch (Exception ex)
+                {
+                    Logger.Warning($"[RDP] mstsc falló al reconectar ({ex.Message}); reintentando con FreeRDP...");
+                    id = CreateSessionWithFreeRdp(user, rdpWidth, rdpHeight, rdpFrameRate, rdpColorDepth, out clientPid);
+                }
+            }
+            else
+            {
+                id = CreateSessionWithFreeRdp(user, rdpWidth, rdpHeight, rdpFrameRate, rdpColorDepth, out clientPid);
+            }
+
+            if (id != sessionId)
+                Logger.Warning($"[RDP] La reconexión cayó en la sesión {id} en lugar de la {sessionId}.");
+            Logger.Log($"[RDP] Sesión {id} reconectada en {sw.ElapsedMilliseconds} ms.");
+            return id;
+        }
+
+        /// <summary>
+        /// Fija la frecuencia de las pantallas RDP para las próximas conexiones. Es global
+        /// (todas las sesiones): las que ya están conectadas no cambian hasta reconectarse.
+        /// </summary>
+        public static void SetFrameRate(int frameRate)
+        {
+            frameRate = NormalizeFrameRate(frameRate);
+            ApplyFrameRatePolicy(frameRate);
+            ApplyDisplayRefreshRateRegistry(frameRate);
+        }
+
+        const int WtsDisconnected = 4;
+
         public static RdpSessionInfo? FindConflictingConsoleSession(StreamUserConfig user)
         {
             foreach (var s in EnumerateSessions(logSessions: false))

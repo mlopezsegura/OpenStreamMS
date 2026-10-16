@@ -713,3 +713,33 @@ main {
   .nav { gap: .4rem; padding: 0 .65rem; }
   .nav-actions { gap: .4rem; }
 }
+
+/* ── Puestos locales (pestañas y tarjetas) ──────────────────────────────── */
+.tabs { display: flex; gap: .25rem; margin-bottom: 1rem; border-bottom: 1px solid var(--border); }
+.tab {
+  background: none; border: none; color: var(--muted); cursor: pointer;
+  padding: .6rem 1rem; font-size: .9rem; font-weight: 600;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.card {
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  padding: 1rem; display: flex; flex-direction: column; gap: .6rem;
+}
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.card-body { display: flex; flex-direction: column; gap: .3rem; }
+.card-row { display: flex; justify-content: space-between; gap: 1rem; font-size: .82rem; }
+.card-row > span:first-child { color: var(--muted); }
+.card-row > span:last-child { text-align: right; word-break: break-word; }
+.card-detail { color: var(--muted); font-style: italic; }
+
+.seat-devices { display: flex; flex-direction: column; gap: .35rem; max-height: 180px; overflow-y: auto; }
+.dev-check { display: flex; align-items: center; gap: .5rem; font-size: .85rem; }
+.dev-kind {
+  font-size: .7rem; text-transform: uppercase; letter-spacing: .03em;
+  background: var(--border); color: var(--muted); padding: .1rem .4rem; border-radius: 4px;
+}
+.form-check label { display: flex; align-items: center; gap: .5rem; font-weight: normal; }
+.muted { color: var(--muted); font-size: .85rem; }

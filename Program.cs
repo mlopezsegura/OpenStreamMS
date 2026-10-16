@@ -72,8 +72,10 @@ static async Task RunService(string[] args)
     builder.Services.AddSingleton<TermWrapManager>();
     builder.Services.AddSingleton<ViGEmBusManager>();
     builder.Services.AddSingleton<HidHideManager>();
+    builder.Services.AddSingleton<OpenStreamMS.Services.Seats.SeatManager>();
     builder.Services.AddHostedService<OpenStreamService>();
     builder.Services.AddHostedService<OpenStreamMS.Services.Gamepad.GamepadSessionIsolation>();
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<OpenStreamMS.Services.Seats.SeatManager>());
 
     builder.Services.ConfigureHttpJsonOptions(options =>
         options.SerializerOptions.Converters.Add(
@@ -195,6 +197,9 @@ static async Task RunService(string[] args)
     // ── Session API ───────────────────────────────────────────────────────────
     app.MapSessionApi();
 
+    // ── Seats API (puestos locales) ───────────────────────────────────────────
+    app.MapSeatApi();
+
     // ── TermWrap API (recomendado — auto-detecta offsets de termsrv.dll) ──────
     app.MapTermWrapApi();
 
@@ -276,6 +281,7 @@ static bool IsPublicPath(string path) =>
     path.StartsWith("/setup",   StringComparison.OrdinalIgnoreCase) ||
     path.StartsWith("/style",   StringComparison.OrdinalIgnoreCase) ||
     path.StartsWith("/app.js",  StringComparison.OrdinalIgnoreCase) ||
+    path.StartsWith("/seats.js", StringComparison.OrdinalIgnoreCase) ||
     path.StartsWith("/i18n.js", StringComparison.OrdinalIgnoreCase) ||
     path.StartsWith("/favicon", StringComparison.OrdinalIgnoreCase);
 

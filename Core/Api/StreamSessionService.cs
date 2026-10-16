@@ -340,6 +340,70 @@ public class StreamSessionService
         }
     }
 
+    // ── PUESTOS LOCALES ──────────────────────────────────────────────────────
+
+    /// <summary>Sesiones con Sunshine en pausa porque un puesto local las usa en exclusiva.</summary>
+    private readonly ConcurrentDictionary<Guid, byte> _sunshinePaused = new();
+
+    public bool IsSunshinePaused(Guid id) => _sunshinePaused.ContainsKey(id);
+
+    /// <summary>
+    /// Para el Sunshine de la sesión y evita que el monitor lo relance: la sesión deja de
+    /// servirse por Moonlight/WebRTC mientras un puesto local la usa en exclusiva.
+    /// </summary>
+    public void PauseSunshine(Guid id, string reason)
+    {
+        var session = RequireSession(id);
+        if (!_sunshinePaused.TryAdd(id, 0)) return;
+        if (_sunshine.TryRemove(id, out var mgr))
+        {
+            try { mgr.Stop(); }
+            catch (Exception ex) { Logger.Warning($"[{session.Name}] Aviso al pausar Sunshine: {ex.Message}", id); }
+        }
+        session.SunshinePid = 0;
+        Logger.Log($"[{session.Name}] Sunshine en pausa ({reason}).", id);
+    }
+
+    /// <summary>Quita la pausa: el monitor relanza Sunshine en su siguiente pasada.</summary>
+    public void ResumeSunshine(Guid id)
+    {
+        if (_sunshinePaused.TryRemove(id, out _) && _sessions.TryGetValue(id, out var session))
+            Logger.Log($"[{session.Name}] Sunshine reanudado; se relanzará automáticamente.", id);
+    }
+
+    /// <summary>
+    /// Vuelve a conectar la sesión RDP con otra resolución y frecuencia (las de un puesto
+    /// local, o las propias de la sesión al liberarlo). Bloquea ~1-2 s.
+    /// </summary>
+    public void ReconnectRdp(Guid id, int width, int height, int frameRate)
+    {
+        var session = RequireSession(id);
+        if (session.State != SessionState.Running || session.RdpSessionId == 0 || session.Local)
+            throw new InvalidOperationException($"La sesión '{session.Name}' no tiene una sesión RDP activa.");
+
+        var user = ResolveUser(session);
+        var rdpId = RdpSessionCreator.Reconnect(user, session.RdpSessionId, width, height,
+                                                frameRate, session.RdpColorDepth, out int clientPid,
+                                                preferMstsc: !string.Equals(_defaultConfig.RdpClient, "freerdp", StringComparison.OrdinalIgnoreCase));
+        session.RdpSessionId = rdpId;
+        session.FreeRdpPid   = clientPid;
+        // El audio sale por el cliente RDP del host: el nuevo cliente también se silencia.
+        if (clientPid > 0) AudioSessionMuter.StartPersistentMute((uint)clientPid);
+        RdpSessionCreator.ApplyDisplayFrequency(rdpId, frameRate);
+        Logger.Log($"[{session.Name}] Pantalla RDP: {width}x{height} @ {frameRate} fps.", id);
+    }
+
+    /// <summary>Usuario de Windows de la sesión (el dedicado si está aislada).</summary>
+    private static StreamUserConfig ResolveUser(StreamSession session)
+    {
+        if (session.Isolated)
+        {
+            var creds = IsolatedUserManager.EnsureUser(session.Id, session.Name);
+            return new StreamUserConfig { Username = creds.Username, Domain = ".", Password = creds.Password };
+        }
+        return new StreamUserConfig { Username = session.Username, Domain = session.Domain, Password = session.Password };
+    }
+
     public void Stop(Guid id)
     {
         var session = RequireSession(id);
@@ -536,7 +600,8 @@ public class StreamSessionService
     public void MonitorAll()
     {
         foreach (var session in _sessions.Values.Where(s => s.State == SessionState.Running &&
-                                                             !_sunshineRelaunching.ContainsKey(s.Id)))
+                                                             !_sunshineRelaunching.ContainsKey(s.Id) &&
+                                                             !_sunshinePaused.ContainsKey(s.Id)))
         {
             Logger.SetSessionContext(session.Id);
             try
