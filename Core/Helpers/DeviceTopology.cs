@@ -35,7 +35,11 @@ public static class DeviceTopology
             }
         }
         Add(GamepadSessionIsolation.Cm.DeviceIds(MouseClass, CM_GETIDLIST_FILTER_CLASS | CM_GETIDLIST_FILTER_PRESENT), SeatDeviceKind.Mouse);
-        Add(GamepadSessionIsolation.Cm.DeviceIds(KeyboardClass, CM_GETIDLIST_FILTER_CLASS | CM_GETIDLIST_FILTER_PRESENT), SeatDeviceKind.Keyboard);
+        // Solo teclados de verdad: muchos aparatos (controladores RGB, teclas multimedia de
+        // ratones…) se anuncian con una colección de teclado. Un teclado real expone una
+        // interfaz USB "boot keyboard" (Class_03&SubClass_01&Prot_01).
+        Add(GamepadSessionIsolation.Cm.DeviceIds(KeyboardClass, CM_GETIDLIST_FILTER_CLASS | CM_GETIDLIST_FILTER_PRESENT)
+                .Where(IsBootKeyboard), SeatDeviceKind.Keyboard);
         Add(GamepadSessionIsolation.Cm.GameControllers(), SeatDeviceKind.Gamepad);
         return result;
     }
@@ -83,6 +87,13 @@ public static class DeviceTopology
     private static DEVPROPKEY FriendlyName   => new() { fmtid = DeviceProps, pid = 14 };
     private static DEVPROPKEY DeviceDesc     => new() { fmtid = DeviceProps, pid = 2 };
     private static DEVPROPKEY BusReportedDesc => new() { fmtid = new Guid("540b947e-8b40-45bc-a8a2-6a0b894cbda2"), pid = 4 };
+
+    private static DEVPROPKEY CompatibleIds => new() { fmtid = DeviceProps, pid = 4 };
+
+    /// <summary>La colección de teclado cuelga de una interfaz USB de teclado "boot".</summary>
+    private static bool IsBootKeyboard(string keyboardInstance) =>
+        GamepadSessionIsolation.Cm.Parent(keyboardInstance) is { } parent &&
+        Strings(parent, CompatibleIds).Any(c => c.Contains("Class_03&SubClass_01&Prot_01", StringComparison.OrdinalIgnoreCase));
 
     private static string? LocationPath(string instanceId) => Strings(instanceId, LocationPaths).FirstOrDefault();
 
