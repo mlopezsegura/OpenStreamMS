@@ -5,7 +5,10 @@
 ; El instalador resultante se genera en ..\dist\
 
 #define AppName      "OpenStreamMS"
-#define AppVersion   "1.0.0"
+; La CI pasa la versión con /DAppVersion=x.y.z (sale del tag de la release).
+#ifndef AppVersion
+  #define AppVersion "1.0.0"
+#endif
 #define AppPublisher "mlopezsegura"
 #define AppURL       "https://github.com/mlopezsegura/OpenStreamMS"
 #define AppExeName   "OpenStreamMS.exe"

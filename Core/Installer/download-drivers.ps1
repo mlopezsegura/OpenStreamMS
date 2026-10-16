@@ -6,12 +6,16 @@ $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 New-Item -ItemType Directory -Force $OutDir | Out-Null
 
+# En la CI la API de GitHub sin token se queda sin cuota enseguida (runners compartidos).
+$headers = @{ 'User-Agent' = 'OpenStreamMS' }
+if ($env:GITHUB_TOKEN) { $headers['Authorization'] = "Bearer $env:GITHUB_TOKEN" }
+
 foreach ($d in @(
     @{ Repo = 'nefarius/ViGEmBus'; Prefix = 'ViGEmBus_' },
     @{ Repo = 'nefarius/HidHide';  Prefix = 'HidHide_' })) {
 
     $release = Invoke-RestMethod "https://api.github.com/repos/$($d.Repo)/releases/latest" `
-                                 -Headers @{ 'User-Agent' = 'OpenStreamMS' }
+                                 -Headers $headers
     $asset = $release.assets | Where-Object { $_.name -like "$($d.Prefix)*.exe" } | Select-Object -First 1
     if (-not $asset) { throw "No hay instalador .exe en la ultima release de $($d.Repo)" }
 

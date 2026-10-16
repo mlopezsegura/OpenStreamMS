@@ -10,6 +10,14 @@ set DIST_DIR=%~dp0..\dist
 set ISCC="C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
 if not exist %ISCC% set ISCC="%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"
 
+:: Versión del instalador: APP_VERSION (la CI la saca del tag) o la del setup.iss
+set VERSION_ARGS=
+set ISCC_ARGS=
+if defined APP_VERSION (
+    set VERSION_ARGS=-p:Version=%APP_VERSION%
+    set ISCC_ARGS=/DAppVersion=%APP_VERSION%
+)
+
 :: ── Limpiar salida anterior ──────────────────────────────────────────────────
 echo [1/3] Limpiando publicacion anterior...
 if exist "%PUBLISH_DIR%" rmdir /s /q "%PUBLISH_DIR%"
@@ -23,6 +31,7 @@ dotnet publish "%PROJECT%" ^
   --self-contained true ^
   -p:PublishSingleFile=false ^
   -p:PublishReadyToRun=true ^
+  %VERSION_ARGS% ^
   --output "%PUBLISH_DIR%"
 
 if errorlevel 1 (
@@ -54,7 +63,7 @@ if not exist %ISCC% (
     exit /b 1
 )
 
-%ISCC% "%~dp0setup.iss"
+%ISCC% %ISCC_ARGS% "%~dp0setup.iss"
 
 if errorlevel 1 (
     echo ERROR: ISCC fallo.
