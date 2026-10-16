@@ -49,6 +49,7 @@ public static class SeatEndpoints
                  try { return Results.Ok(ToDto(mgr.Update(id, FromRequest(new Seat(), req)))); }
                  catch (KeyNotFoundException) { return Results.NotFound(); }
                  catch (InvalidOperationException ex) { return Results.BadRequest(ex.Message); }
+                 catch (ArgumentException ex) { return Results.BadRequest(ex.Message); }
              })
              .WithSummary("Edita un puesto (debe estar detenido).");
 

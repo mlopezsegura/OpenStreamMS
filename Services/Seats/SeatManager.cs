@@ -93,6 +93,7 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
     {
         if (string.IsNullOrWhiteSpace(seat.Name)) throw new ArgumentException("El puesto necesita un nombre.");
         seat.Id = seat.Id == Guid.Empty ? Guid.NewGuid() : seat.Id;
+        Validate(seat, seat.Id);
         _seats[seat.Id] = seat;
         Save();
         Logger.Log($"[Seats] Puesto creado: '{seat.Name}'.");
@@ -104,6 +105,8 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
         var seat = Require(id);
         if (seat.State == SeatState.Running)
             throw new InvalidOperationException("Detén el puesto antes de editarlo.");
+        if (string.IsNullOrWhiteSpace(changes.Name)) throw new ArgumentException("El puesto necesita un nombre.");
+        Validate(changes, id);
         seat.Name             = changes.Name;
         seat.Monitor          = changes.Monitor;
         seat.AudioOutId       = changes.AudioOutId;
@@ -114,6 +117,25 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
         seat.ExclusiveSession = changes.ExclusiveSession;
         Save();
         return seat;
+    }
+
+    /// <summary>
+    /// Un monitor, un puerto USB o una sesión solo pueden pertenecer a un puesto: dos puestos
+    /// pintando en el mismo monitor o metiendo entrada en la misma sesión se pisarían.
+    /// </summary>
+    private void Validate(Seat candidate, Guid selfId)
+    {
+        foreach (var other in _seats.Values.Where(s => s.Id != selfId))
+        {
+            if (candidate.Monitor is { } m && other.Monitor?.DevicePath == m.DevicePath)
+                throw new ArgumentException($"El monitor ya está asignado al puesto '{other.Name}'.");
+            if (candidate.SessionId is { } sid && other.SessionId == sid)
+                throw new ArgumentException($"La sesión ya está asignada al puesto '{other.Name}'.");
+            var shared = candidate.Devices.FirstOrDefault(d =>
+                other.Devices.Any(o => o.UsbPort.Equals(d.UsbPort, StringComparison.OrdinalIgnoreCase)));
+            if (shared is not null)
+                throw new ArgumentException($"El dispositivo '{shared.Label}' ya está asignado al puesto '{other.Name}'.");
+        }
     }
 
     public void Delete(Guid id)
@@ -155,19 +177,22 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
             if (seat.ExclusiveSession)
                 sessions.PauseSunshine(session.Id, $"puesto '{seat.Name}'");
 
-            // 3. Ajustar la pantalla RDP a la resolución/frecuencia del monitor del puesto.
-            if (seat.Monitor is { Width: > 0, Height: > 0 } mon)
-            {
-                Status(seat, "Ajustando la resolución de la sesión…");
-                sessions.ReconnectRdp(session.Id, mon.Width, mon.Height, mon.RefreshHz > 0 ? mon.RefreshHz : session.RdpFrameRate);
-            }
-
-            // 4. Encender el monitor del puesto (añadirlo al escritorio).
+            // 3. Encender el monitor del puesto (añadirlo al escritorio).
             if (seat.Monitor is not null)
             {
                 Status(seat, "Encendiendo el monitor…");
                 if (!ConsoleDisplay.Activate(seat.Monitor.DevicePath))
                     Logger.Warning($"[Seats] '{seat.Name}': no se pudo activar el monitor; se presentará igualmente si ya estaba activo.");
+            }
+
+            // 4. Ajustar la pantalla RDP al monitor: la resolución fijada en el puesto o, si
+            //    no hay, la que Windows le haya dado al encenderlo.
+            if (seat.Monitor is { } mon && ResolveMode(mon, session) is { } mode &&
+                (mode.Width != session.RdpWidth || mode.Height != session.RdpHeight || mode.Hz != session.RdpFrameRate))
+            {
+                Status(seat, $"Ajustando la sesión a {mode.Width}x{mode.Height} @ {mode.Hz} Hz…");
+                sessions.ReconnectRdp(session.Id, mode.Width, mode.Height, mode.Hz);
+                _resized[seat.Id] = 0;
             }
 
             // 5. Mandos del puesto → la sesión (lo aplica GamepadSessionIsolation con los
@@ -221,8 +246,16 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
         if (seat.Monitor is not null)
             ConsoleDisplay.Deactivate(seat.Monitor.DevicePath);
 
-        if (seat.SessionId is { } sid && seat.ExclusiveSession)
-            sessions.ResumeSunshine(sid);
+        if (seat.SessionId is { } sid)
+        {
+            // Devolver la sesión a su resolución propia si el puesto la cambió.
+            if (_resized.TryRemove(seat.Id, out _) && sessions.Get(sid) is { State: SessionState.Running } s)
+            {
+                try { sessions.ReconnectRdp(sid, s.RdpWidth, s.RdpHeight, s.RdpFrameRate); }
+                catch (Exception ex) { Logger.Warning($"[Seats] '{seat.Name}': no se pudo restaurar la resolución de la sesión: {ex.Message}"); }
+            }
+            if (seat.ExclusiveSession) sessions.ResumeSunshine(sid);
+        }
 
         seat.State = SeatState.Stopped;
         seat.StatusDetail = null;
@@ -231,6 +264,21 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
+
+    /// <summary>Puestos que reconectaron su sesión a otra resolución (hay que restaurarla al apagar).</summary>
+    private readonly ConcurrentDictionary<Guid, byte> _resized = new();
+
+    /// <summary>
+    /// Modo a usar para la sesión: el fijado en el puesto, o el que tiene el monitor ya
+    /// encendido. La frecuencia, si no está fijada, es la configurada en la sesión.
+    /// </summary>
+    private static (int Width, int Height, int Hz)? ResolveMode(SeatMonitor mon, StreamSession session)
+    {
+        int hz = mon.RefreshHz > 0 ? mon.RefreshHz : session.RdpFrameRate;
+        if (mon.Width > 0 && mon.Height > 0) return (mon.Width, mon.Height, hz);
+        var live = ConsoleDisplay.List().FirstOrDefault(d => d.DevicePath == mon.DevicePath && d.Active);
+        return live is { Width: > 0, Height: > 0 } ? (live.Width, live.Height, hz) : null;
+    }
 
     private static void WaitSessionRunning(StreamSession session, int timeoutMs = 45000)
     {
