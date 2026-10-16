@@ -145,7 +145,6 @@ function renderCard(s) {
         </div>
         ${badge(s.state)}
       </div>
-      ${renderProtocolSwitch(s, isBusy)}
       ${s.streamProtocol !== 'Moonlight' && !s.sunshineSupportsWebRtc
         ? `<div class="card-warning">${esc(t('proto.unsupported'))}</div>` : ''}
       ${s.errorMessage ? `<div class="card-error">${esc(s.errorMessage)}</div>` : ''}
@@ -172,39 +171,11 @@ function renderCard(s) {
 }
 
 // ── Protocolo de streaming (Moonlight / WebRTC / ambos) ───────────────────
-const PROTOCOLS = ['Moonlight', 'WebRtc', 'Both'];
-
-function protocolLabel(p) {
-  return p === 'Both' ? t('proto.both') : p === 'WebRtc' ? 'WebRTC' : 'Moonlight';
-}
-
 function portSummary(s) {
   const parts = [];
   if (s.streamProtocol !== 'WebRtc')    parts.push(`Moonlight ${s.sunshineStreamPort}`);
   if (s.streamProtocol !== 'Moonlight') parts.push(`WebRTC ${s.webRtcPort} · UDP ${s.webRtcMediaPortMin}-${s.webRtcMediaPortMax}`);
   return `${t('card.port')} ${parts.join(' · ')}`;
-}
-
-function renderProtocolSwitch(s, isBusy) {
-  const buttons = PROTOCOLS.map(p => {
-    const active = s.streamProtocol === p;
-    return `<button type="button" class="${active ? 'active' : ''}" ${isBusy || active ? 'disabled' : ''}
-              onclick="setProtocol('${s.id}','${p}')">${esc(protocolLabel(p))}</button>`;
-  }).join('');
-  return `<div class="card-protocol" title="${esc(t('proto.switch_title'))}">
-            <span class="card-protocol-label">${esc(t('proto.label'))}</span>
-            <div class="segmented segmented-sm">${buttons}</div>
-          </div>`;
-}
-
-async function setProtocol(id, protocol) {
-  const s = sessions.find(x => x.id === id);
-  if (s && s.state === 'Running' && !confirm(t('confirm.protocol', { name: s.name, protocol: protocolLabel(protocol) }))) return;
-  const res = await api('PUT', `/api/sessions/${id}/protocol`, { protocol });
-  if (!res) return;
-  if (!res.ok) { toast(await res.text(), true); loadSessions(); return; }
-  toast(t('toast.protocol', { protocol: protocolLabel(protocol) }));
-  loadSessions();
 }
 
 function getProtocol(prefix) {
