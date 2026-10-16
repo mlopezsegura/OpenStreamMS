@@ -191,6 +191,7 @@ namespace OpenStreamMS.Core.Helpers
             // Aplicar politicas ANTES de lanzar FreeRDP — termsrv las lee al aceptar la conexion.
             ApplyFrameRatePolicy(rdpFrameRate);
             ApplyGpuCapturePolicy();
+            ApplyBetterRdpPolicy();
             ApplyDisplayRefreshRateRegistry(rdpFrameRate);
 
             string domain = string.IsNullOrEmpty(user.Domain) || user.Domain == "."
@@ -298,6 +299,7 @@ namespace OpenStreamMS.Core.Helpers
             // Politicas ANTES de conectar — termsrv las lee al aceptar la conexion.
             ApplyFrameRatePolicy(rdpFrameRate);
             ApplyGpuCapturePolicy();
+            ApplyBetterRdpPolicy();
             ApplyAvcPolicy();
             ApplyMstscClientPolicies();
             ApplyDisplayRefreshRateRegistry(rdpFrameRate);
@@ -513,7 +515,61 @@ namespace OpenStreamMS.Core.Helpers
 
             WriteRegistry(rdpTcp, "fEnableHardwareGraphicsCapture", 1, RegistryValueKind.DWord);
             WriteRegistry(policies, "bEnumerateHWBeforeSW", 1, RegistryValueKind.DWord);
-            WriteRegistry(policies, "ImageQuality", 80, RegistryValueKind.DWord);
+        }
+
+        /// <summary>
+        /// Optimizaciones de Upinel/BetterRDP (UpinelBetterRDP.reg) para la sesion RDP.
+        /// <para>
+        /// Se omite su DWMFRAMEINTERVAL=15: lo calcula ApplyFrameRatePolicy segun el fps
+        /// pedido (con 15 Sunshine descartaba frames, ver comentario alli).
+        /// FlowControlDisplayBandwidth/ChannelBandwidth van en el .reg original con 7
+        /// digitos hex (0000010 / 0000090); se escriben los valores pretendidos 0x10 / 0x90.
+        /// </para>
+        /// </summary>
+        static void ApplyBetterRdpPolicy()
+        {
+            const string policies = @"SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services";
+            const string termDd = @"SYSTEM\CurrentControlSet\Services\TermDD";
+            const string rdpTcp = @"SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp";
+            const string systemProfile = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile";
+            const string lanman = @"SYSTEM\CurrentControlSet\Services\LanmanWorkstation\Parameters";
+
+            var entries = new (string Path, string Name, int Value)[]
+            {
+                // GPU y RemoteFX en sesiones RDP
+                (policies, "SelectTransport",                  0),
+                (policies, "fEnableVirtualizedGraphics",       1),
+                (policies, "fEnableRemoteFXAdvancedRemoteApp", 1),
+                (policies, "MaxCompressionLevel",              2),
+                (policies, "VisualExperiencePolicy",           1),
+                (policies, "GraphicsProfile",                  2),
+
+                // Captura a 60 fps y calidad de imagen
+                (policies, "VGOptimization_CaptureFrameRate",  60),
+                (policies, "VGOptimization_CompressionRatio",  2),
+                (policies, "ImageQuality",                     3),
+
+                // Control de flujo display vs canales
+                (termDd, "FlowControlDisable",                 1),
+                (termDd, "FlowControlDisplayBandwidth",        0x10),
+                (termDd, "FlowControlChannelBandwidth",        0x90),
+                (termDd, "FlowControlChargePostCompression",   0),
+
+                // Prioridad a tareas en primer plano
+                (systemProfile, "SystemResponsiveness",        0),
+
+                // Sin latencia artificial en RDP-Tcp
+                (rdpTcp, "InteractiveDelay",                   0),
+
+                // Red: sin throttling de ancho de banda y con MTU grande
+                (lanman, "DisableBandwidthThrottling",         1),
+                (lanman, "DisableLargeMtu",                    0),
+            };
+
+            foreach (var (path, name, value) in entries)
+                WriteRegistry(path, name, value, RegistryValueKind.DWord);
+
+            Logger.Log("[RDP] Politicas BetterRDP aplicadas.");
         }
 
         /// <summary>
