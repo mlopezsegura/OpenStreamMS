@@ -66,8 +66,8 @@ Lo pendiente está descrito con clases y funciones en
 
 1. Arranca la sesión asignada si no lo está.
 2. Si es exclusivo, pausa Sunshine (deja de servirse por Moonlight/WebRTC).
-3. Reconecta la sesión RDP a la resolución/Hz del monitor del puesto.
-4. Activa el monitor (lo añade al escritorio).
+3. Activa el monitor (lo añade al escritorio).
+4. Reconecta la sesión RDP a la resolución/Hz del puesto (la fijada o, si no hay, la que Windows le dio al monitor). Al apagar se restaura la de la sesión.
 5. Los mandos del puesto pasan a su sesión (HidHide).
 6. *(pendiente)* Lanza el agente en la sesión y el presentador en la consola.
 

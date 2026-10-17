@@ -150,8 +150,8 @@ enjaula en **la sesión del puesto** en vez de en la consola. Implementado:
 
 ## Orden de arranque (resumen)
 
-1. `SeatManager.DoStart`: arranca/ajusta la sesión, pausa Sunshine, reconecta RDP
-   a la resolución del monitor, activa el monitor. **(hecho)**
+1. `SeatManager.DoStart`: arranca la sesión, pausa Sunshine, activa el monitor y
+   reconecta RDP a su resolución (la fijada o la que tenga el monitor). **(hecho)**
 2. Crea la tubería (`SeatPipes.CreateServer`), lanza `SeatAgent` en la sesión,
    espera la conexión. **(TODO)**
 3. Recibe del agente los handles de textura, los duplica al `SeatHost`. **(TODO)**
