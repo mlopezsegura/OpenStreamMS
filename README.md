@@ -5,7 +5,7 @@
 
 Windows service that automates the setup of a game streaming environment using [Sunshine](https://github.com/ClassicOldSong/Sunshine/) (Moonlight/GameStream host).
 
-Manages the full lifecycle of isolated RDP streaming sessions — creation, monitoring, auto-restart, and teardown — from a web dashboard or REST API.
+Manages the full lifecycle of isolated RDP streaming sessions — creation, monitoring, auto-restart, and teardown — from a web dashboard or REST API. With extra monitors, keyboards, mice and gamepads, the same sessions become **local seats**: several people using one PC at the same time, each with their own screen, input and sound.
 
 ---
 <img width="1101" height="195" alt="image" src="https://github.com/user-attachments/assets/d749b03f-c2a4-482b-aca6-04525fb0391c" />
@@ -20,6 +20,8 @@ Manages the full lifecycle of isolated RDP streaming sessions — creation, moni
 - **Auto-start** — sessions flagged as enabled are relaunched automatically when the service restarts
 - **5-second monitoring** — Sunshine is restarted automatically if it crashes
 - **Virtual display support (VDD)** — patches Sunshine's `apps.json` to keep a virtual display active even when the RDP client disconnects
+- **Local seats** — give a session a physical monitor, keyboard, mouse, gamepad and audio output so someone can use it at the PC itself, alongside the console and other seats (see [Local seats](#local-seats))
+- **Isolated users** — a session can run under its own auto-managed local user (`osms-…`), optionally ephemeral (wiped on stop); isolated sessions get a *Steam (isolated)* shortcut and handle `steam://` links so each one can sign in to its own Steam account
 - **Moonlight, WebRTC or both** — with the [sunshine-webrtc](https://github.com/mlopezsegura/Sunshine-Web-RTC) build, each session serves Moonlight apps, Samsung TVs running Moonlight WebRTC, or both, switchable live from the dashboard or from Sunshine's own panel; OpenStreamMS opens only the ports of the active protocols and refuses sessions whose ports collide
 
 ---
@@ -105,6 +107,7 @@ On first access you will be prompted to create admin credentials. After that, th
 - Enable **independent stream profile** (runs stream apps with their own profile paths)
 - Switch each session between **Moonlight**, **WebRTC** and **both** from its card
 - View real-time per-session logs
+- Create **local seats** in the *Seats* tab, test their monitor and audio output, and see which session each seat uses
 - Access the interactive API docs at `/scalar/v1`
 
 ---
@@ -138,6 +141,49 @@ The bundled `Sunshine\` is a sunshine-webrtc build. To use another Sunshine, rep
 `config\` (settings, paired Moonlight clients and TVs) is kept. A Sunshine without WebRTC support
 ignores the protocol and the dashboard warns on sessions set to WebRTC or both. Paired TVs
 (`webrtc_tv_clients.json`) are backed up with `sunshine_state.json`.
+
+---
+
+## Local seats
+
+A **seat** is a set of physical devices — a monitor, an audio output, and USB keyboards, mice and
+gamepads — linked to a session. While the seat is on, the session is shown on that monitor and
+controlled only by those devices, as if it were a separate computer. Seats are managed from the
+**Seats** tab of the dashboard.
+
+| | What happens |
+|---|---|
+| **Monitor** | Added to the desktop only while the seat is on (and placed so the console mouse can't wander into it). The session is captured inside its own RDP session and presented full-screen in ~2 ms, uncompressed, up to 125 Hz. The session is reconnected at the seat's resolution and refresh rate (fixed per seat or taken from the monitor) and restored when the seat turns off. |
+| **Keyboard & mouse** | Switched to Microsoft's inbox **WinUSB** driver while the seat is on and read directly, so the console never sees them and every mouse moves independently. No third-party drivers. They return to their normal driver when the seat turns off, and on the next service start if it crashed. |
+| **Gamepads** | Assigned by USB port and hidden from every other session with HidHide while the seat is on. |
+| **Audio** | The session's audio plays on the seat's output with ~70 ms of latency and a jitter buffer. |
+| **Identify** | In the seat editor, **Test** shows the OpenStreamMS logo on a monitor (turning it on for a few seconds if needed) or plays a chime on an audio output, and the keyboard, mouse or gamepad you press lights up in the device list. |
+
+**Exclusive and shared seats.** An *exclusive* seat pauses Moonlight/WebRTC for its session while it
+is on. A *shared* seat keeps streaming, so the same desktop can be used at the desk and on a TV.
+
+**Rules that keep a shared PC safe:**
+
+- An exclusive seat whose session uses a regular Windows account starts on the **lock screen**, so
+  the person at the seat must enter that account's password. Isolated/ephemeral users, shared seats
+  and the console's own account start unlocked.
+- A seat using the **console's own account** never auto-starts at boot; it only turns on when started
+  from the dashboard.
+- **Only the console can shut down or restart the PC.** Users of exclusive seats lose the shutdown
+  right and the power options; remote sessions and shared seats keep them.
+- While any seat is on, the console **can't be locked** (<kbd>Win</kbd>+<kbd>L</kbd>), because that
+  would black out every seat monitor.
+- **Disconnect** inside a seat turns the seat off until it is started again from OpenStreamMS, and the
+  session goes straight back to Moonlight.
+
+**Requirements and limits.** Each seat monitor must be on the same GPU as the sessions. On Windows
+Pro the monitor is added to and removed from the desktop by OpenStreamMS, so it shows the console's
+desktop when no seat uses it. A seat's keyboard and mouse don't work on the console while the seat is
+on, and keyboard LEDs (Caps Lock…) stay off. Input is injected, so some anti-cheat systems may reject
+it. DRM-protected video is black, as in Sunshine. A host-only console (a technical user with
+autologon) is recommended.
+
+Design notes and measurements (Spanish): [docs/puestos-locales.md](docs/puestos-locales.md).
 
 ---
 
@@ -177,6 +223,12 @@ OpenStreamMS.exe --install           Install and register the Windows service
 OpenStreamMS.exe --install --silent  Install without prompts (used by installer)
 OpenStreamMS.exe --uninstall         Stop and remove the Windows service
 OpenStreamMS.exe --tray              Show system tray icon
+
+Internal (launched by the service in the right Windows session):
+OpenStreamMS.exe --seat-agent <pipe> Seat capture/input agent inside the seat's session
+OpenStreamMS.exe --seat-host <pipe>  Seat presenter on the console
+OpenStreamMS.exe --display <cmd>     Monitor topology changes on the console
+OpenStreamMS.exe --identify <cmd>    Test a monitor, an audio output or input devices
 OpenStreamMS.exe --help              Show help
 ```
 
@@ -210,7 +262,17 @@ OpenStreamMS.exe  (Windows Service, SYSTEM)
 ├── TrayApp.cs              — WinForms ApplicationContext for the system tray icon
 ├── WTSSessionManager.cs    — WTS session enumeration helper
 ├── Logger.cs               — Per-session timestamped logger
+├── Seats/
+│   ├── SeatManager.cs       — Seats: inventory, validation, start/stop orchestration
+│   ├── SeatAgent.cs         — In-session capture (DDA), audio loopback and input injection
+│   ├── SeatHost.cs          — Console-side presenter, audio output and input routing
+│   ├── SeatUsbCapture.cs    — Switches seat keyboards/mice to WinUSB and reads them
+│   ├── SeatHid.cs           — HID report descriptor parser → mouse events and scancodes
+│   ├── SeatIdentify.cs      — Monitor logo, audio chime and pressed-device highlight
+│   ├── DisplayTopology.cs   — Turns seat monitors on/off (CCD)
+│   └── ConsoleLockGuard.cs  — Keeps the console from locking while seats are on
 └── Api/
+    ├── SeatEndpoints.cs         — REST endpoints (/api/seats/*)
     ├── SessionEndpoints.cs      — REST endpoints (/api/sessions/*)
     ├── StreamSessionService.cs  — Session CRUD + lifecycle (start/stop/monitor)
     ├── StreamSession.cs         — Session data model + state machine
@@ -233,6 +295,17 @@ OpenStreamMS.exe  (Windows Service, SYSTEM)
 | `PATCH` | `/api/sessions/{id}/enabled` | Toggle auto-start |
 | `GET` | `/api/sessions/{id}/logs` | Fetch session logs |
 | `POST` | `/api/sessions/test-credentials` | Validate Windows credentials |
+| `GET` | `/api/seats` | List seats and their state |
+| `GET` | `/api/seats/inventory` | Free monitors, audio outputs and USB input devices |
+| `POST` | `/api/seats` | Create a seat |
+| `PUT` | `/api/seats/{id}` | Edit a stopped seat |
+| `PATCH` | `/api/seats/{id}/autostart` | Toggle seat auto-start |
+| `DELETE` | `/api/seats/{id}` | Delete a seat |
+| `POST` | `/api/seats/{id}/start` | Turn a seat on |
+| `POST` | `/api/seats/{id}/stop` | Turn a seat off |
+| `POST` | `/api/seats/identify/monitor` | Show the logo on a monitor (`{ "id": "<device path>" }`) |
+| `POST` | `/api/seats/identify/audio` | Play a chime on an output (`{ "id": "<endpoint id>" }`) |
+| `GET` | `/api/seats/identify/input` | USB ports of the devices just pressed |
 
 Interactive docs: `http://localhost:5000/scalar/v1`
 

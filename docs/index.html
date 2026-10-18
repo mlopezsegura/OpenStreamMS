@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OpenStreamMS</title>
-<meta name="description" content="Windows service that runs multiple isolated Sunshine game-streaming sessions for Moonlight, each in its own RDP session, managed from a web dashboard.">
+<meta name="description" content="Windows service that runs multiple isolated Sunshine game-streaming sessions for Moonlight, each in its own RDP session, and turns one PC into several local seats with their own monitor, keyboard, mouse, gamepad and audio.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%237c3aed'/><path d='M12 9l11 7-11 7z' fill='white'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -190,6 +190,8 @@ td code { font-size: 12.5px; }
 .step h4 { margin: 0 0 2px; font-size: 15px; }
 .step p { margin: 0; color: var(--muted); font-size: 14px; }
 
+kbd { font: 600 12px "JetBrains Mono", monospace; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 5px; padding: 0 5px; background: var(--bg); }
+
 footer { padding: 40px 0 56px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--border); }
 footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space-between; }
 </style>
@@ -204,6 +206,7 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
     </a>
     <div class="links">
       <a href="#how"><span lang="en">How it works</span><span lang="es">Cómo funciona</span></a>
+      <a href="#seats"><span lang="en">Local seats</span><span lang="es">Puestos locales</span></a>
       <a href="#features"><span lang="en">Features</span><span lang="es">Características</span></a>
       <a href="#api">API</a>
       <a href="#install"><span lang="en">Install</span><span lang="es">Instalación</span></a>
@@ -227,8 +230,8 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
       <span lang="es">Varios jugadores.<br><span class="grad">Un solo PC con Windows.</span></span>
     </h1>
     <p class="lead">
-      <span lang="en">OpenStreamMS is a Windows service that runs several independent <strong>Sunshine</strong> game-streaming sessions at once — each one inside its own isolated RDP session, with its own user, desktop, audio and Moonlight clients — all managed from a web dashboard.</span>
-      <span lang="es">OpenStreamMS es un servicio de Windows que ejecuta varias sesiones de streaming de juegos con <strong>Sunshine</strong> a la vez, cada una dentro de su propia sesión RDP aislada, con su usuario, escritorio, audio y clientes Moonlight, y todo se gestiona desde un panel web.</span>
+      <span lang="en">OpenStreamMS is a Windows service that runs several independent <strong>Sunshine</strong> game-streaming sessions at once — each one inside its own isolated RDP session, with its own user, desktop, audio and Moonlight clients. Plug in extra monitors, keyboards, mice and gamepads and the same sessions become <strong>local seats</strong>: several people playing on one PC, in the same room. All managed from a web dashboard.</span>
+      <span lang="es">OpenStreamMS es un servicio de Windows que ejecuta varias sesiones de streaming de juegos con <strong>Sunshine</strong> a la vez, cada una dentro de su propia sesión RDP aislada, con su usuario, escritorio, audio y clientes Moonlight. Conecta más monitores, teclados, ratones y mandos y esas mismas sesiones se convierten en <strong>puestos locales</strong>: varias personas jugando en un solo PC, en la misma habitación. Todo se gestiona desde un panel web.</span>
     </p>
     <div class="cta">
       <a class="btn primary" href="https://github.com/mlopezsegura/OpenStreamMS/releases">
@@ -242,7 +245,7 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
     <div class="stats">
       <div class="stat"><b>4K · 60 fps</b><span lang="en">tuned RDP pipeline</span><span lang="es">pipeline RDP optimizado</span></div>
       <div class="stat"><b>N</b><span lang="en">parallel sessions</span><span lang="es">sesiones en paralelo</span></div>
-      <div class="stat"><b>5 s</b><span lang="en">health-check loop</span><span lang="es">ciclo de vigilancia</span></div>
+      <div class="stat"><b>~2 ms</b><span lang="en">session → seat monitor</span><span lang="es">de la sesión al monitor del puesto</span></div>
       <div class="stat"><b>4</b><span lang="en">UI languages</span><span lang="es">idiomas en el panel</span></div>
     </div>
   </div>
@@ -284,8 +287,112 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
   </div>
 </section>
 
+<!-- ───────────────────────── LOCAL SEATS ───────────────────────── -->
+<section id="seats">
+  <div class="wrap">
+    <div class="eyebrow"><span lang="en">Local seats</span><span lang="es">Puestos locales</span></div>
+    <h2><span lang="en">One PC, several people at the desk</span><span lang="es">Un PC, varias personas delante</span></h2>
+    <p class="sub">
+      <span lang="en">A seat is a set of physical devices — a monitor, a keyboard, a mouse, a gamepad and an audio output — linked to a session. The session shows on that monitor and only those devices control it, as if it were a separate computer. No extra hardware and no third-party drivers for keyboard and mouse: just Windows.</span>
+      <span lang="es">Un puesto es un conjunto de dispositivos físicos (un monitor, un teclado, un ratón, un mando y una salida de audio) unido a una sesión. La sesión se ve en ese monitor y solo esos dispositivos la controlan, como si fuera otro ordenador. Sin hardware extra ni drivers de terceros para teclado y ratón: solo Windows.</span>
+    </p>
+
+    <div class="flow">
+      <div class="clients">
+        <div class="node"><h4><span lang="en">Seat “Desk”</span><span lang="es">Puesto «Escritorio»</span></h4><p><span lang="en">2nd monitor · USB keyboard &amp; mouse · headphones</span><span lang="es">2.º monitor · teclado y ratón USB · auriculares</span></p></div>
+        <div class="node"><h4><span lang="en">Seat “Kids”</span><span lang="es">Puesto «Peques»</span></h4><p><span lang="en">TV over HDMI · gamepad · TV speakers</span><span lang="es">TV por HDMI · mando · altavoces de la TV</span></p></div>
+        <div class="node"><h4><span lang="en">Console</span><span lang="es">Consola</span></h4><p><span lang="en">Main monitor · the PC’s own desktop</span><span lang="es">Monitor principal · el escritorio del propio PC</span></p></div>
+      </div>
+      <div class="arrow" aria-hidden="true">→</div>
+      <div class="host">
+        <div class="label"><span lang="en">Same Windows PC, same GPU</span><span lang="es">El mismo PC con Windows y la misma GPU</span></div>
+        <div class="node svc">
+          <h4><span lang="en">Seat manager</span><span lang="es">Gestor de puestos</span></h4>
+          <p><span lang="en">Turns the monitor on · fits the session to its resolution · routes input, image and sound</span><span lang="es">Enciende el monitor · ajusta la sesión a su resolución · lleva entrada, imagen y sonido</span></p>
+        </div>
+        <div class="sessions">
+          <div class="session"><b><span lang="en">Session “Desk”</span><span lang="es">Sesión «Escritorio»</span></b>
+            <div><span lang="en">own Windows user<br>Moonlight paused</span><span lang="es">usuario de Windows propio<br>Moonlight en pausa</span></div></div>
+          <div class="session"><b><span lang="en">Session “Kids”</span><span lang="es">Sesión «Peques»</span></b>
+            <div><span lang="en">ephemeral user<br>clean on every start</span><span lang="es">usuario efímero<br>limpio en cada arranque</span></div></div>
+          <div class="session"><b><span lang="en">Console session</span><span lang="es">Sesión de consola</span></b>
+            <div><span lang="en">host only<br>sees no seat device</span><span lang="es">solo anfitriona<br>no ve los dispositivos de los puestos</span></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cat" style="margin-top:44px"><span lang="en">What each seat gets</span><span lang="es">Qué tiene cada puesto</span></div>
+    <div class="grid">
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+        <h3><span lang="en">Its own monitor</span><span lang="es">Su propio monitor</span></h3>
+        <p><span lang="en">The seat’s monitor joins the desktop only while the seat is on. The session is captured inside its own RDP session and shown full-screen in about 2 ms, uncompressed, at up to 125 Hz. Resolution and refresh rate can be set per seat.</span><span lang="es">El monitor del puesto se añade al escritorio solo mientras el puesto está encendido. La sesión se captura dentro de su propia sesión RDP y se muestra a pantalla completa en unos 2 ms, sin compresión y hasta a 125 Hz. Resolución y frecuencia se fijan por puesto.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg></div>
+        <h3><span lang="en">Fully separate keyboard &amp; mouse</span><span lang="es">Teclado y ratón totalmente separados</span></h3>
+        <p><span lang="en">While a seat is on, its USB keyboard and mouse switch to Microsoft’s own WinUSB driver and are read directly: the console never sees them and both mice move at the same time. They return to their normal driver when the seat turns off, even after a crash.</span><span lang="es">Mientras el puesto está encendido, su teclado y su ratón USB pasan al driver WinUSB del propio Microsoft y se leen directamente: la consola no los ve y los dos ratones se mueven a la vez. Vuelven a su driver normal al apagar el puesto, incluso tras un fallo.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="6"/><path d="M7 12h3M8.5 10.5v3M16 11h.01M18 13h.01"/></svg></div>
+        <h3><span lang="en">Gamepads by USB port</span><span lang="es">Mandos por puerto USB</span></h3>
+        <p><span lang="en">Assign the USB port a gamepad is plugged into: while the seat is on, only that seat’s session sees it. Other sessions, the console and Moonlight players can’t grab it.</span><span lang="es">Asigna el puerto USB donde está el mando: mientras el puesto está encendido, solo la sesión de ese puesto lo ve. Ni las demás sesiones, ni la consola, ni los jugadores de Moonlight pueden quedárselo.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M3 14v-2a9 9 0 0118 0v2"/><rect x="2" y="14" width="5" height="7" rx="2"/><rect x="17" y="14" width="5" height="7" rx="2"/></svg></div>
+        <h3><span lang="en">Its own sound</span><span lang="es">Su propio sonido</span></h3>
+        <p><span lang="en">The session’s audio plays on the seat’s output (headphones, speakers, the TV over HDMI) with about 70 ms of delay and a jitter buffer that prevents pops.</span><span lang="es">El audio de la sesión sale por la salida del puesto (auriculares, altavoces, la TV por HDMI) con unos 70 ms de retraso y un búfer que evita los chasquidos.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M11 8v6M8 11h6"/></svg></div>
+        <h3><span lang="en">Identify every device</span><span lang="es">Identifica cada dispositivo</span></h3>
+        <p><span lang="en">While editing a seat, <em>Test</em> shows the OpenStreamMS logo on a monitor or plays a chime on an audio output, and the name of the keyboard, mouse or gamepad you press lights up in the list. No more guessing which “USB Input Device” is which.</span><span lang="es">Al editar un puesto, <em>Probar</em> muestra el logo de OpenStreamMS en el monitor o hace sonar un aviso por la salida de audio, y el nombre del teclado, ratón o mando que pulsas se ilumina en la lista. Se acabó adivinar cuál es cada «Dispositivo de entrada USB».</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 11-12.8 0"/></svg></div>
+        <h3><span lang="en">On from the dashboard or at boot</span><span lang="es">Desde el panel o al arrancar</span></h3>
+        <p><span lang="en">Turn seats on and off from their card, or let them start with the PC. Pressing <em>Disconnect</em> on a seat turns it off until it is started again, and the session is right back on Moonlight.</span><span lang="es">Enciende y apaga los puestos desde su tarjeta, o deja que arranquen con el PC. Pulsar <em>Desconectar</em> en un puesto lo apaga hasta que se vuelva a encender, y la sesión vuelve enseguida a Moonlight.</span></p>
+      </div>
+    </div>
+
+    <div class="cat"><span lang="en">Safe to share</span><span lang="es">Seguro para compartir</span></div>
+    <div class="grid">
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg></div>
+        <h3><span lang="en">Password at the seat</span><span lang="es">Contraseña en el puesto</span></h3>
+        <p><span lang="en">An exclusive seat whose session uses a regular Windows account starts on the lock screen, so whoever sits there must type that account’s password. Isolated and ephemeral users go straight in.</span><span lang="es">Un puesto exclusivo cuya sesión usa una cuenta normal de Windows arranca en la pantalla de bloqueo, así que quien se siente ahí tiene que escribir la contraseña de esa cuenta. Los usuarios aislados y efímeros entran directamente.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M12 2v6M5.6 6.6a9 9 0 1012.8 0"/><path d="M3 3l18 18"/></svg></div>
+        <h3><span lang="en">Only the console powers off the PC</span><span lang="es">Solo la consola apaga el PC</span></h3>
+        <p><span lang="en">Exclusive seats can’t shut down or restart the computer, neither from the Start menu nor with <code>shutdown</code>. Remote sessions and shared seats keep that right.</span><span lang="es">Los puestos exclusivos no pueden apagar ni reiniciar el equipo, ni desde el menú Inicio ni con <code>shutdown</code>. Las sesiones remotas y los puestos compartidos lo conservan.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4M9 10.5l2 2 4-4"/></svg></div>
+        <h3><span lang="en">Seats never go dark</span><span lang="es">Los puestos no se quedan a oscuras</span></h3>
+        <p><span lang="en">Seat monitors belong to the console’s desktop, so locking it (<kbd>Win</kbd>+<kbd>L</kbd>) would hide them all. While a seat is on, the console can’t be locked.</span><span lang="es">Los monitores de los puestos son del escritorio de la consola, así que bloquearla (<kbd>Win</kbd>+<kbd>L</kbd>) los taparía todos. Mientras haya un puesto encendido, la consola no se puede bloquear.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="8" height="16" rx="2"/><rect x="13" y="4" width="8" height="16" rx="2"/></svg></div>
+        <h3><span lang="en">Exclusive or shared</span><span lang="es">Exclusivo o compartido</span></h3>
+        <p><span lang="en">An exclusive seat pauses Moonlight and WebRTC for its session while it is on, so nobody can stream into it. A shared seat keeps streaming on: the same desktop at the desk and on the TV.</span><span lang="es">Un puesto exclusivo pausa Moonlight y WebRTC para su sesión mientras está encendido, así que nadie puede entrar por streaming. Uno compartido mantiene el streaming: el mismo escritorio en la mesa y en la TV.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4z"/><path d="M3 12l9 4 9-4M3 17l9 4 9-4"/></svg></div>
+        <h3><span lang="en">Steam per seat</span><span lang="es">Steam por puesto</span></h3>
+        <p><span lang="en">Isolated sessions get a <em>Steam (isolated)</em> shortcut and open <code>steam://</code> links with it, so each seat can sign in to its own Steam account alongside yours.</span><span lang="es">Las sesiones aisladas tienen un acceso directo <em>Steam (aislado)</em> y abren con él los enlaces <code>steam://</code>, así que cada puesto puede iniciar su propia cuenta de Steam a la vez que la tuya.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></div>
+        <h3><span lang="en">Your account stays yours</span><span lang="es">Tu cuenta sigue siendo tuya</span></h3>
+        <p><span lang="en">A seat can use the console’s own Windows account without a password, but then it never starts by itself at boot: it only turns on when you start it.</span><span lang="es">Un puesto puede usar la propia cuenta de Windows de la consola sin contraseña, pero entonces nunca arranca solo al encender el PC: solo se enciende cuando lo enciendes tú.</span></p>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- ───────────────────────── FEATURES ───────────────────────── -->
-<section id="features">
+<section id="features" class="alt">
   <div class="wrap">
     <div class="eyebrow"><span lang="en">Features</span><span lang="es">Características</span></div>
     <h2><span lang="en">Everything a multi-seat streaming box needs</span><span lang="es">Todo lo que necesita un PC de streaming multipuesto</span></h2>
@@ -361,6 +468,14 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
       </div>
     </div>
 
+    <div class="grid" style="margin-top:16px">
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="13" rx="2"/><path d="M8 21h8M7 10l3 2-3 2M13 14h4"/></svg></div>
+        <h3><span lang="en">Moonlight, WebRTC or both</span><span lang="es">Moonlight, WebRTC o los dos</span></h3>
+        <p><span lang="en">With the bundled sunshine-webrtc build, each session serves Moonlight apps, Samsung TVs running Moonlight WebRTC, or both. Switch it live from the session card; only the ports of the active protocols are opened.</span><span lang="es">Con la versión sunshine-webrtc incluida, cada sesión sirve a las apps de Moonlight, a las TV Samsung con Moonlight WebRTC o a ambas. Se cambia en directo desde la tarjeta de la sesión y solo se abren los puertos de los protocolos activos.</span></p>
+      </div>
+    </div>
+
     <!-- Management -->
     <div class="cat"><span lang="en">Management</span><span lang="es">Gestión</span></div>
     <div class="grid">
@@ -399,7 +514,7 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
 </section>
 
 <!-- ───────────────────────── API & OPS ───────────────────────── -->
-<section id="api" class="alt">
+<section id="api">
   <div class="wrap">
     <div class="eyebrow"><span lang="en">Automation</span><span lang="es">Automatización</span></div>
     <h2><span lang="en">REST API, tray icon and CLI</span><span lang="es">API REST, icono de bandeja y CLI</span></h2>
@@ -419,6 +534,9 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
             <tr><td><span class="m get">GET</span></td><td><code>/{id}/logs</code></td><td><span lang="en">Session logs</span><span lang="es">Logs de la sesión</span></td></tr>
             <tr><td><span class="m del">DELETE</span></td><td><code>/{id}</code></td><td><span lang="en">Delete session</span><span lang="es">Borrar sesión</span></td></tr>
             <tr><td><span class="m post">POST</span></td><td><code>/api/power/shutdown · restart</code></td><td><span lang="en">Host power</span><span lang="es">Energía del host</span></td></tr>
+            <tr><td><span class="m get">GET</span></td><td><code>/api/seats · /inventory</code></td><td><span lang="en">Seats, free monitors and devices</span><span lang="es">Puestos, monitores y dispositivos libres</span></td></tr>
+            <tr><td><span class="m post">POST</span></td><td><code>/api/seats/{id}/start · stop</code></td><td><span lang="en">Turn a seat on or off</span><span lang="es">Encender o apagar un puesto</span></td></tr>
+            <tr><td><span class="m post">POST</span></td><td><code>/api/seats/identify/monitor · audio</code></td><td><span lang="en">Test a monitor or output</span><span lang="es">Probar un monitor o una salida</span></td></tr>
           </tbody>
         </table>
       </div>
@@ -446,7 +564,7 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
 </section>
 
 <!-- ───────────────────────── INSTALL ───────────────────────── -->
-<section id="install">
+<section id="install" class="alt">
   <div class="wrap">
     <div class="eyebrow"><span lang="en">Get started</span><span lang="es">Empezar</span></div>
     <h2><span lang="en">Up and running in minutes</span><span lang="es">Funcionando en minutos</span></h2>
@@ -468,6 +586,10 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
           <h4><span lang="en">Pair Moonlight and play</span><span lang="es">Empareja Moonlight y juega</span></h4>
           <p><span lang="en">Add the PC in Moonlight, type the PIN in the dashboard and start streaming.</span><span lang="es">Añade el PC en Moonlight, escribe el PIN en el panel y empieza a jugar.</span></p>
         </div>
+        <div class="step">
+          <h4><span lang="en">Or set up a local seat</span><span lang="es">O monta un puesto local</span></h4>
+          <p><span lang="en">In the <em>Seats</em> tab, pick a monitor, an audio output and the USB devices (<em>Test</em> tells them apart), assign the session and turn it on.</span><span lang="es">En la pestaña <em>Puestos</em>, elige un monitor, una salida de audio y los dispositivos USB (<em>Probar</em> te dice cuál es cuál), asigna la sesión y enciéndelo.</span></p>
+        </div>
       </div>
       <div>
         <h3 style="margin-top:0"><span lang="en">Requirements</span><span lang="es">Requisitos</span></h3>
@@ -477,6 +599,7 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
           <li><span lang="en">Administrator rights to install the service</span><span lang="es">Permisos de administrador para instalar el servicio</span></li>
           <li><span lang="en">Moonlight on each client device</span><span lang="es">Moonlight en cada dispositivo cliente</span></li>
           <li><span lang="en">Optional: TermWrap for more than one simultaneous session on Windows Home/Pro</span><span lang="es">Opcional: TermWrap para más de una sesión simultánea en Windows Home/Pro</span></li>
+          <li><span lang="en">For local seats: one extra monitor per seat on the same GPU, plus USB keyboards, mice or gamepads</span><span lang="es">Para puestos locales: un monitor más por puesto en la misma GPU, y teclados, ratones o mandos USB</span></li>
         </ul>
         <h3 style="margin-top:28px"><span lang="en">Build from source</span><span lang="es">Compilar desde el código</span></h3>
 <pre><span class="k">git</span> clone https://github.com/mlopezsegura/OpenStreamMS
