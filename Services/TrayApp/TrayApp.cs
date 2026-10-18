@@ -15,11 +15,13 @@ internal sealed class TrayApp : ApplicationContext
     // Firma del ultimo menu pintado: solo se reconstruye (handles GDI/USER) si cambia.
     private string? _menuSignature;
     private const string OfflineSignature = "<offline>";
+    private readonly IDisposable _seatHostClient;
 
     internal TrayApp(string baseUrl)
     {
         _baseUrl = baseUrl;
         _http    = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
+        _seatHostClient = OpenStreamMS.Services.Seats.SeatHostControl.StartClient();
 
         _icon = new NotifyIcon
         {
@@ -160,6 +162,7 @@ internal sealed class TrayApp : ApplicationContext
     {
         if (disposing)
         {
+            _seatHostClient.Dispose();
             _timer.Dispose();
             _icon.Visible = false;
             _icon.Dispose();

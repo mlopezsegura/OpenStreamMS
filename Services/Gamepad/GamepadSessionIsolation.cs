@@ -671,6 +671,8 @@ public sealed partial class GamepadSessionIsolation : BackgroundService
         private static string? ClassGuid(string deviceId) =>
             RegistryStrings(deviceId, CM_DRP_CLASSGUID).FirstOrDefault();
 
+        public static string? ClassGuidOf(string deviceId) => ClassGuid(deviceId);
+
         public static bool IsHidHideClass(string deviceId) =>
             ClassGuid(deviceId) is { } c &&
             (c.Equals(HidClass, StringComparison.OrdinalIgnoreCase) ||

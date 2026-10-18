@@ -52,6 +52,16 @@ namespace OpenStreamMS.Core.Helpers
         [DllImport("kernel32.dll", SetLastError = true)]
         static extern uint WaitForSingleObject(IntPtr hHandle, uint dwMilliseconds);
 
+        [DllImport("advapi32.dll", SetLastError = true)]
+        static extern bool DuplicateTokenEx(IntPtr existing, uint access, IntPtr attributes, int impersonationLevel,
+                                            int tokenType, out IntPtr newToken);
+
+        [DllImport("advapi32.dll", SetLastError = true)]
+        static extern bool SetTokenInformation(IntPtr token, int infoClass, ref uint info, int length);
+
+        const uint MAXIMUM_ALLOWED       = 0x02000000;
+        const int  SecurityImpersonation = 2, TokenPrimary = 1, TokenSessionId = 12;
+
         const uint WAIT_TIMEOUT               = 0x00000102;
         const uint CREATE_NO_WINDOW           = 0x08000000;
         const uint CREATE_UNICODE_ENVIRONMENT = 0x00000400;
@@ -135,14 +145,14 @@ namespace OpenStreamMS.Core.Helpers
                                    Dictionary<string, string>? envOverrides = null,
                                    bool waitForExit = false,
                                    uint waitTimeoutMs = 30_000,
-                                   uint priorityClass = 0)
+                                   uint priorityClass = 0,
+                                   bool asSystem = false)
         {
             EnablePrivilege("SeTcbPrivilege");
             EnablePrivilege("SeAssignPrimaryTokenPrivilege");
             EnablePrivilege("SeIncreaseQuotaPrivilege");
 
-            if (!WTSQueryUserToken(sessionId, out IntPtr token))
-                throw new Exception($"WTSQueryUserToken falló para sesión {sessionId}: error {Marshal.GetLastWin32Error()}");
+            IntPtr token = asSystem ? SystemTokenForSession(sessionId) : UserToken(sessionId);
 
             IntPtr envBlock     = IntPtr.Zero;
             bool   customBlock  = false;
@@ -217,6 +227,36 @@ namespace OpenStreamMS.Core.Helpers
                 }
                 CloseHandle(token);
             }
+        }
+
+        static IntPtr UserToken(uint sessionId) =>
+            WTSQueryUserToken(sessionId, out IntPtr token)
+                ? token
+                : throw new Exception($"WTSQueryUserToken falló para sesión {sessionId}: error {Marshal.GetLastWin32Error()}");
+
+        /// <summary>
+        /// Token de SYSTEM (el del servicio) trasladado a otra sesión: el proceso corre como SYSTEM
+        /// dentro de ella, como las herramientas de escritorio remoto, y puede pasar al escritorio
+        /// seguro (pantalla de bloqueo, UAC) para capturarlo e inyectarle entrada.
+        /// </summary>
+        static IntPtr SystemTokenForSession(uint sessionId)
+        {
+            if (!OpenProcessToken(GetCurrentProcess(), MAXIMUM_ALLOWED, out IntPtr own))
+                throw new Exception($"OpenProcessToken falló: error {Marshal.GetLastWin32Error()}");
+            try
+            {
+                if (!DuplicateTokenEx(own, MAXIMUM_ALLOWED, IntPtr.Zero, SecurityImpersonation, TokenPrimary, out IntPtr dup))
+                    throw new Exception($"DuplicateTokenEx falló: error {Marshal.GetLastWin32Error()}");
+                uint sid = sessionId;
+                if (!SetTokenInformation(dup, TokenSessionId, ref sid, sizeof(uint)))
+                {
+                    int err = Marshal.GetLastWin32Error();
+                    CloseHandle(dup);
+                    throw new Exception($"SetTokenInformation(TokenSessionId) falló: error {err}");
+                }
+                return dup;
+            }
+            finally { CloseHandle(own); }
         }
 
         /// <summary>

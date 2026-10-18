@@ -724,22 +724,43 @@ main {
 .tab:hover { color: var(--text); }
 .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
 
-.card {
-  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
-  padding: 1rem; display: flex; flex-direction: column; gap: .6rem;
-}
-.card-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
-.card-body { display: flex; flex-direction: column; gap: .3rem; }
-.card-row { display: flex; justify-content: space-between; gap: 1rem; font-size: .82rem; }
-.card-row > span:first-child { color: var(--muted); }
-.card-row > span:last-child { text-align: right; word-break: break-word; }
-.card-detail { color: var(--muted); font-style: italic; }
+.hidden { display: none !important; }
 
-.seat-devices { display: flex; flex-direction: column; gap: .35rem; max-height: 180px; overflow-y: auto; }
-.dev-check { display: flex; align-items: center; gap: .5rem; font-size: .85rem; }
+/* Las tarjetas de puesto reutilizan .session-card; solo añaden esto. */
+.card-detail { font-size: .78rem; color: var(--muted); font-style: italic; }
+.card-seat { margin-top: .3rem; font-size: .78rem; color: var(--muted); }
+.card-seat .seat-tag { margin-left: 0; }
+.card-seat.active { color: var(--text); }
+.seat-tag {
+  display: inline-block; margin-left: .35rem; padding: 0 .4rem; border-radius: 4px;
+  font-size: .68rem; text-transform: uppercase; letter-spacing: .03em; vertical-align: 1px;
+  background: rgba(59,130,246,.14); color: var(--blue); border: 1px solid rgba(59,130,246,.3);
+}
+
+.seat-devices-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .4rem; }
+.seat-devices-head label { margin-bottom: 0; }
+.seat-devices {
+  display: flex; flex-direction: column; gap: .6rem; max-height: 220px; overflow-y: auto;
+  padding: .6rem .75rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
+}
+.dev-group { display: flex; flex-direction: column; gap: .3rem; }
+.dev-group-title { font-size: .7rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+.seat-devices .dev-check {
+  display: flex; align-items: center; gap: .5rem; margin: 0;
+  font-size: .85rem; color: var(--text); cursor: pointer;
+}
+.seat-devices .dev-check input { accent-color: var(--accent); }
 .dev-kind {
   font-size: .7rem; text-transform: uppercase; letter-spacing: .03em;
   background: var(--border); color: var(--muted); padding: .1rem .4rem; border-radius: 4px;
 }
+#seat-input-warning { margin-top: .5rem; }
+.select-test { display: flex; gap: .5rem; align-items: center; }
+.select-test select { flex: 1; min-width: 0; }
+.seat-devices .dev-check span:not(.dev-kind) { transition: color .4s, text-shadow .4s; }
+.seat-devices .dev-check.dev-active span:not(.dev-kind) {
+  color: var(--accent); font-weight: 600; text-shadow: 0 0 10px rgba(124,58,237,.55); transition: none;
+}
+#seat-mode .port-range span { color: var(--muted); }
 .form-check label { display: flex; align-items: center; gap: .5rem; font-weight: normal; }
 .muted { color: var(--muted); font-size: .85rem; }

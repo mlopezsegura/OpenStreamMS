@@ -1,4 +1,4 @@
-; OpenStreamMS — Inno Setup Script
+﻿; OpenStreamMS — Inno Setup Script
 ; Requiere Inno Setup 6.3+ https://jrsoftware.org/isinfo.php
 ;
 ; Antes de compilar ejecuta: build-installer.bat
@@ -28,8 +28,12 @@ DefaultGroupName={#AppName}
 DisableProgramGroupPage=yes
 OutputDir=..\dist
 OutputBaseFilename=OpenStreamMS-Setup-{#AppVersion}
-Compression=lzma2/ultra64
-SolidCompression=yes
+; Cada archivo por separado y con diccionario moderado: con compresión sólida ultra64 un
+; solo byte mal leído al descomprimir tumba la instalación entera, y gasta mucha más memoria.
+Compression=lzma2/max
+SolidCompression=no
+; Log de la instalación en %TEMP%\Setup Log *.txt (para ver el error exacto si falla)
+SetupLogging=yes
 WizardStyle=modern
 PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible

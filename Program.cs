@@ -40,6 +40,31 @@ switch (command)
         // Puestos locales: operaciones de pantalla en la sesión de consola (lanzado por el servicio).
         Environment.Exit(OpenStreamMS.Services.Seats.ConsoleDisplay.RunCommand(args));
         break;
+    case "--identify":
+        // Puestos locales: identificar monitor, audio o dispositivos en la consola (lanzado por el servicio).
+        Environment.Exit(OpenStreamMS.Services.Seats.SeatIdentify.RunCommand(args));
+        break;
+    case "--seat-agent":
+        // Puestos locales: agente de captura en la sesión del puesto
+        if (args.Length < 2)
+        {
+            AttachParentConsole();
+            Console.Error.WriteLine("ERROR: Falta el nombre de la tubería para --seat-agent.");
+            Environment.Exit(1);
+        }
+        Environment.Exit(OpenStreamMS.Services.Seats.SeatAgent.Run(args[1]));
+        break;
+    case "--seat-host":
+        // Puestos locales: presentador en la sesión de consola
+        if (args.Length < 2)
+        {
+            AttachParentConsole();
+            Console.Error.WriteLine("ERROR: Falta el nombre de la tubería para --seat-host.");
+            Environment.Exit(1);
+        }
+        Guid hostSeatId = args.Length > 2 && Guid.TryParse(args[2], out var sid) ? sid : Guid.Empty;
+        Environment.Exit(OpenStreamMS.Services.Seats.SeatHost.RunStandalone(args[1], hostSeatId));
+        break;
     case "--setup":
         RunSetup(args);
         break;
@@ -379,6 +404,13 @@ static void Uninstall(bool silent = false)
     OpenStreamMS.Services.Gamepad.GamepadSessionIsolation.ClearJails();
     if (!silent) Console.WriteLine("[Uninstall] Aislamiento de mandos por sesión retirado de HidHide.");
 
+    // Lo que los puestos cambian en el sistema mientras están encendidos, por si el servicio
+    // se paró sin deshacerlo, y el derecho de apagar que se quitó al grupo Usuarios.
+    OpenStreamMS.Services.Seats.UsbCapture.RestoreAll();
+    OpenStreamMS.Services.Seats.ConsoleLockGuard.Release();
+    OpenStreamMS.Core.Helpers.ShutdownRight.Restore();
+    if (!silent) Console.WriteLine("[Uninstall] Ratones/teclados de los puestos, bloqueo de la consola y derecho de apagar restaurados.");
+
     const string RunKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
     using var key = Registry.LocalMachine.OpenSubKey(RunKey, writable: true);
     key?.DeleteValue("OpenStreamMSTray", throwOnMissingValue: false);
@@ -459,6 +491,8 @@ static void PrintHelp()
           OpenStreamMS.exe --install           Instalar y registrar el servicio de Windows
           OpenStreamMS.exe --uninstall         Detener y eliminar el servicio de Windows
           OpenStreamMS.exe --tray              Mostrar icono en la bandeja del sistema
+          OpenStreamMS.exe --seat-agent <pipe> Ejecutar agente de puesto en la sesión
+          OpenStreamMS.exe --seat-host <pipe>  Ejecutar presentador de puesto en la consola
           OpenStreamMS.exe --help              Mostrar esta ayuda
 
         Interfaz web:

@@ -57,16 +57,20 @@ public static class ConsoleDisplay
         }
     }
 
+    private static void EnsureDir() => SharedDir("display");
+
     /// <summary>Carpeta compartida: el servicio la crea y el usuario de la consola escribe en ella.</summary>
-    private static void EnsureDir()
+    internal static string SharedDir(string name)
     {
-        if (Directory.Exists(Dir)) return;
-        var di = Directory.CreateDirectory(Dir);
+        var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "OpenStreamMS", name);
+        if (Directory.Exists(dir)) return dir;
+        var di = Directory.CreateDirectory(dir);
         var sec = di.GetAccessControl();
         sec.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(WellKnownSidType.AuthenticatedUserSid, null),
             FileSystemRights.Modify, InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
             PropagationFlags.None, AccessControlType.Allow));
         di.SetAccessControl(sec);
+        return dir;
     }
 
     /// <summary>

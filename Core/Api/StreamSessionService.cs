@@ -769,6 +769,9 @@ public class StreamSessionService
             }
 
             StreamUserConfig user;
+            // Un puesto exclusivo no puede apagar ni reiniciar el equipo; una sesión remota sí.
+            bool canShutdown = !OpenStreamMS.Services.Seats.SeatStore.Load()
+                .Any(s => s.SessionId == session.Id && s.ExclusiveSession);
             if (session.Isolated)
             {
                 // Aislamiento nativo: usuario local dedicado con contraseña rotada.
@@ -778,6 +781,7 @@ public class StreamSessionService
                     IsolatedUserManager.TryDeleteProfile(session.Id, out _);
 
                 var creds = IsolatedUserManager.EnsureUser(session.Id, session.Name);
+                ShutdownRight.SetForUser(creds.Username, canShutdown);   // antes del inicio de sesión: va en el token
                 user = new StreamUserConfig
                 {
                     Username = creds.Username,
@@ -848,6 +852,11 @@ public class StreamSessionService
                 // El usuario dedicado ya tiene perfil/HKCU propios: la redirección
                 // de env vars es redundante y solo añade rutas raras. Omitida.
                 Logger.Log($"[{session.Name}] UseStreamProfile omitido: el aislamiento nativo ya proporciona perfil propio.", session.Id);
+            }
+            if (session.Isolated)
+            {
+                IsolatedSessionPolicy.Apply(user.Username, session.Id, canShutdown);
+                SteamIsolation.PrepareSession(rdpId, user.Username, session.Id);
             }
             else if (session.UseStreamProfile)
             {
@@ -1286,22 +1295,27 @@ public class StreamSessionService
                 ? username
                 : $"{domain}\\{username}";
 
+            // Sin redirigir la salida: con /T icacls escribe una línea por archivo y, si nadie la
+            // lee, llena el búfer de la tubería y se queda bloqueado (los permisos quedaban a medias).
             var psi = new System.Diagnostics.ProcessStartInfo
             {
-                FileName               = "icacls.exe",
-                UseShellExecute        = false,
-                CreateNoWindow         = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError  = true,
+                FileName        = "icacls.exe",
+                UseShellExecute = false,
+                CreateNoWindow  = true,
             };
             psi.ArgumentList.Add(dir);
             psi.ArgumentList.Add("/grant");
             psi.ArgumentList.Add($"{account}:(OI)(CI)(M)");
             psi.ArgumentList.Add("/T");
+            psi.ArgumentList.Add("/Q");
 
             using var p = System.Diagnostics.Process.Start(psi)
                 ?? throw new Exception("No se pudo lanzar icacls.exe");
-            p.WaitForExit(10_000);
+            if (!p.WaitForExit(120_000))
+            {
+                Logger.Warning($"[SessionService] icacls no terminó en 2 min para '{account}' en: {dir}", sessionId);
+                return;
+            }
 
             if (p.ExitCode == 0)
                 Logger.Log($"[SessionService] Permisos escritura concedidos a '{account}' en: {dir}", sessionId);

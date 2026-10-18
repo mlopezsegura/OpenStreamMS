@@ -116,22 +116,27 @@ internal static class SeatPipes
     /// Tubería del servicio para un proceso de puesto: solo SYSTEM y el usuario indicado
     /// pueden abrirla. El nombre es aleatorio y se pasa por línea de comandos.
     /// </summary>
-    public static NamedPipeServerStream CreateServer(string name, SecurityIdentifier client)
+    public static NamedPipeServerStream CreateServer(string name, SecurityIdentifier? client = null)
     {
         var security = new PipeSecurity();
         security.AddAccessRule(new PipeAccessRule(new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
             PipeAccessRights.FullControl, AccessControlType.Allow));
-        security.AddAccessRule(new PipeAccessRule(client, PipeAccessRights.ReadWrite, AccessControlType.Allow));
+        security.AddAccessRule(new PipeAccessRule(client ?? new SecurityIdentifier(WellKnownSidType.AuthenticatedUserSid, null),
+            PipeAccessRights.ReadWrite, AccessControlType.Allow));
         return NamedPipeServerStreamAcl.Create(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte,
             PipeOptions.Asynchronous, 1 << 20, 1 << 20, security);
     }
 
     public static string NewName(string kind) => $"OpenStreamMS.Seat.{kind}.{Guid.NewGuid():N}";
 
-    /// <summary>Lado del cliente (anfitrión o agente).</summary>
+    /// <summary>
+    /// Lado del cliente (anfitrión o agente). Asíncrona (overlapped) a la fuerza: con un handle
+    /// síncrono Windows serializa la E/S, y una lectura bloqueada esperando entrada impediría
+    /// escribir fotogramas/audio desde otro hilo (la imagen se congela y ambos lados se bloquean).
+    /// </summary>
     public static SeatChannel Connect(string name, int timeoutMs = 15000)
     {
-        var client = new NamedPipeClientStream(".", name, PipeDirection.InOut, PipeOptions.None);
+        var client = new NamedPipeClientStream(".", name, PipeDirection.InOut, PipeOptions.Asynchronous);
         client.Connect(timeoutMs);
         return new SeatChannel(client);
     }

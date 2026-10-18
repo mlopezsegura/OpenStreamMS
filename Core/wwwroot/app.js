@@ -83,9 +83,11 @@ async function api(method, path, body) {
 
 // ── Sesiones ───────────────────────────────────────────────────────────────
 async function loadSessions() {
-  const res = await api('GET', '/api/sessions');
+  // Los puestos también: la tarjeta de cada sesión dice a qué puesto está asociada.
+  const [res, seatRes] = await Promise.all([api('GET', '/api/sessions'), api('GET', '/api/seats')]);
   if (!res) return;
   sessions = await res.json();
+  if (seatRes && seatRes.ok) seats = await seatRes.json();
   renderSessions();
 }
 
@@ -142,6 +144,7 @@ function renderCard(s) {
           <div class="card-user">${s.local ? esc(t('card.localUser')) : s.isolated ? esc(t('card.isolatedUser')) : `${esc(s.username)}@${esc(s.domain)}`}</div>
           ${s.local ? '' : `<div class="card-meta">${s.rdpWidth}×${s.rdpHeight} · ${s.rdpFrameRate || 60} fps · ${s.rdpColorDepth || 32} bpp</div>`}
           <div class="card-meta">${esc(portSummary(s))}</div>
+          ${sessionSeatLine(s)}
         </div>
         ${badge(s.state)}
       </div>
@@ -167,6 +170,19 @@ function renderCard(s) {
           ${deleteBtn}
         </div>
       </div>
+    </div>`;
+}
+
+// Puesto local asociado a la sesión: su nombre y si ahora mismo la está usando.
+function sessionSeatLine(s) {
+  const seat = seats.find(x => x.sessionId === s.id);
+  if (!seat) return '';
+  const inUse = seat.state === 'Running' || seat.state === 'Starting';
+  const detail = inUse
+    ? t(seat.exclusiveSession ? 'card.seatInUseExclusive' : 'card.seatInUse')
+    : t('card.seatIdle');
+  return `<div class="card-seat${inUse ? ' active' : ''}" title="${esc(t('card.seat_title'))}">
+      <span class="seat-tag">${esc(t('card.seatTag'))}</span> ${esc(seat.name)} · ${esc(detail)}
     </div>`;
 }
 

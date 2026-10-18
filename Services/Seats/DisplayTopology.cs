@@ -108,10 +108,51 @@ public static class DisplayTopology
             int r = SetDisplayConfig((uint)combined.Length, combined, nma, modes, SDC_APPLY | SDC_USE_SUPPLIED_DISPLAY_CONFIG | SDC_ALLOW_CHANGES | SDC_SAVE_TO_DATABASE);
             if (r != 0) { Logger.Warning($"[Seats] SetDisplayConfig (activar) err={r}"); return false; }
             Logger.Log($"[Seats] Monitor activado: {target.FriendlyName}");
+            PlaceAtCorner(devicePath);
             return true;
         }
         catch (Exception ex) { Logger.Warning($"[Seats] No se pudo activar el monitor: {ex.Message}"); return false; }
         finally { Marshal.FreeHGlobal(modes); Marshal.FreeHGlobal(modesAll); }
+    }
+
+    /// <summary>
+    /// Coloca el monitor de modo que solo toque al primario por su esquina inferior derecha,
+    /// evitando que el cursor de la consola cruce involuntariamente.
+    /// </summary>
+    public static unsafe bool PlaceAtCorner(string devicePath)
+    {
+        var target = Enumerate().FirstOrDefault(d => d.DevicePath == devicePath);
+        if (target is null || !target.Active) return false;
+
+        GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, out var np, out var nm);
+        var paths = new PATH[np];
+        var modes = Marshal.AllocHGlobal((int)nm * 64);
+        try
+        {
+            if (QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS, ref np, paths, ref nm, modes, IntPtr.Zero) != 0) return false;
+            byte* m = (byte*)modes;
+            int primW = 0, primH = 0, seatMode = -1;
+            foreach (var p in paths.Take((int)np))
+            {
+                byte* sm = m + p.sMode * 64;
+                int x = *(int*)(sm + 28), y = *(int*)(sm + 32);
+                if (p.tLo == target.AdapterLow && p.tId == target.TargetId) seatMode = (int)p.sMode;
+                else if (x == 0 && y == 0) { primW = *(int*)(sm + 16); primH = *(int*)(sm + 20); }
+            }
+            if (seatMode < 0 || primW == 0) return false;
+            *(int*)(m + seatMode * 64 + 28) = primW;
+            *(int*)(m + seatMode * 64 + 32) = primH;
+            int r = SetDisplayConfig(np, paths.Take((int)np).ToArray(), nm, modes, SDC_APPLY | SDC_USE_SUPPLIED_DISPLAY_CONFIG | SDC_SAVE_TO_DATABASE);
+            if (r != 0) { Logger.Warning($"[Seats] SetDisplayConfig (colocar en esquina) err={r}"); return false; }
+            Logger.Log($"[Seats] Monitor '{target.FriendlyName}' colocado en la esquina ({primW},{primH}).");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"[Seats] No se pudo colocar el monitor en la esquina: {ex.Message}");
+            return false;
+        }
+        finally { Marshal.FreeHGlobal(modes); }
     }
 
     /// <summary>Saca el monitor del escritorio (queda libre para el siguiente puesto).</summary>
@@ -129,7 +170,16 @@ public static class DisplayTopology
             var keep = paths.Take((int)np).Where(p => !(p.tLo == target.AdapterLow && p.tId == target.TargetId)).ToArray();
             int r = SetDisplayConfig((uint)keep.Length, keep.Length == 0 ? null : keep, nm, modes,
                                      SDC_APPLY | SDC_USE_SUPPLIED_DISPLAY_CONFIG | SDC_ALLOW_CHANGES | SDC_SAVE_TO_DATABASE);
-            if (r != 0) { Logger.Warning($"[Seats] SetDisplayConfig (desactivar) err={r}"); return false; }
+            if (r != 0)
+            {
+                // Segunda vía (err 87 visto con el PIP): mismas rutas, con la del monitor marcada inactiva.
+                var all = paths.Take((int)np).ToArray();
+                for (int i = 0; i < all.Length; i++)
+                    if (all[i].tLo == target.AdapterLow && all[i].tId == target.TargetId) all[i].flags &= ~DISPLAYCONFIG_PATH_ACTIVE;
+                int r2 = SetDisplayConfig((uint)all.Length, all, nm, modes,
+                                          SDC_APPLY | SDC_USE_SUPPLIED_DISPLAY_CONFIG | SDC_ALLOW_CHANGES | SDC_SAVE_TO_DATABASE);
+                if (r2 != 0) { Logger.Warning($"[Seats] SetDisplayConfig (desactivar) err={r}/{r2}"); return false; }
+            }
             Logger.Log($"[Seats] Monitor sacado del escritorio: {target.FriendlyName}");
             return true;
         }

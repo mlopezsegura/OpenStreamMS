@@ -19,6 +19,7 @@ public record SeatUpsertRequest(
 public record MonitorDto(string DevicePath, string FriendlyName, bool Active, int Width, int Height);
 public record AudioOutputDto(string Id, string Name);
 public record InputDeviceDto(string Kind, string UsbPort, string Name);
+public record IdentifyRequest(string Id);
 public record InventoryResponse(List<MonitorDto> Monitors, List<AudioOutputDto> AudioOutputs, List<InputDeviceDto> Devices);
 
 /// <summary>Endpoints REST de los puestos locales. Mismo estilo que <see cref="SessionEndpoints"/>.</summary>
@@ -31,11 +32,23 @@ public static class SeatEndpoints
         group.MapGet("/", (SeatManager mgr) => TypedResults.Ok(mgr.GetAll().Select(ToDto)))
              .WithSummary("Lista los puestos locales.");
 
-        group.MapGet("/inventory", (SeatManager mgr) => TypedResults.Ok(new InventoryResponse(
+        group.MapGet("/inventory", (SeatManager mgr, Guid? seatId) => TypedResults.Ok(new InventoryResponse(
                 mgr.AvailableMonitors().Select(m => new MonitorDto(m.DevicePath, m.FriendlyName, m.Active, m.Width, m.Height)).ToList(),
                 mgr.AvailableAudioOutputs().Select(a => new AudioOutputDto(a.Id, a.Name)).ToList(),
-                mgr.AvailableInputDevices().Select(d => new InputDeviceDto(d.Kind.ToString(), d.UsbPort, d.Name)).ToList())))
-             .WithSummary("Monitores, salidas de audio y dispositivos USB libres para asignar a un puesto.");
+                mgr.AvailableInputDevices(seatId).Select(d => new InputDeviceDto(d.Kind.ToString(), d.UsbPort, d.Name)).ToList())))
+             .WithSummary("Monitores, salidas de audio y dispositivos USB libres para asignar a un puesto " +
+                          "(con ?seatId= se incluyen también los de ese puesto).");
+
+        // Identificar el hardware al configurar un puesto (ver SeatIdentify).
+        group.MapPost("/identify/monitor", (IdentifyRequest req, SeatManager mgr) =>
+                 Action(() => mgr.TestMonitor(req.Id)))
+             .WithSummary("Muestra el logo de OpenStreamMS unos segundos en ese monitor.");
+
+        group.MapPost("/identify/audio", (IdentifyRequest req) => Action(() => SeatIdentify.TestAudio(req.Id)))
+             .WithSummary("Hace sonar un aviso por esa salida de audio.");
+
+        group.MapGet("/identify/input", () => TypedResults.Ok(SeatIdentify.ActiveInputPorts()))
+             .WithSummary("Puertos USB de los dispositivos que se acaban de pulsar. Consultarlo mantiene la escucha.");
 
         group.MapPost("/", (SeatUpsertRequest req, SeatManager mgr) =>
              {
@@ -52,6 +65,14 @@ public static class SeatEndpoints
                  catch (ArgumentException ex) { return Results.BadRequest(ex.Message); }
              })
              .WithSummary("Edita un puesto (debe estar detenido).");
+
+        group.MapPatch("/{id:guid}/autostart", (Guid id, SetEnabledRequest req, SeatManager mgr) =>
+             {
+                 try { return Results.Ok(ToDto(mgr.SetAutoStart(id, req.Enabled))); }
+                 catch (KeyNotFoundException) { return Results.NotFound(); }
+                 catch (ArgumentException ex) { return Results.BadRequest(ex.Message); }
+             })
+             .WithSummary("Cambia el autoarranque del puesto (también con el puesto encendido).");
 
         group.MapDelete("/{id:guid}", (Guid id, SeatManager mgr) =>
              {

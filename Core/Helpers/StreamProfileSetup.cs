@@ -29,7 +29,9 @@ internal static class StreamProfileSetup
         "OPENSTREAMMS_STREAM_PROFILE_ROOT",
     };
 
-    [DllImport("wtsapi32.dll", SetLastError = true)]
+    // Unicode a la fuerza: sin CharSet, .NET enlaza WTSEnumerateProcessesA y pProcessName llega
+    // en ANSI; leído con PtrToStringUni no coincide con ningún nombre (Explorer nunca se cerraba).
+    [DllImport("wtsapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     static extern bool WTSEnumerateProcesses(
         IntPtr hServer, int Reserved, int Version,
         out IntPtr ppProcessInfo, out int pCount);
@@ -142,8 +144,13 @@ internal static class StreamProfileSetup
     /// </summary>
     internal static void RestartExplorer(uint sessionId, Dictionary<string, string> overrides)
     {
-        KillInSession(sessionId, "explorer.exe");
-        Thread.Sleep(400);
+        var killed = KillInSession(sessionId, "explorer.exe");
+        if (killed.Count == 0)
+            Logger.Warning($"[StreamProfile] No había Explorer que reiniciar en la sesión {sessionId}.");
+        // El nuevo Explorer solo hereda el entorno si es el shell: si el viejo sigue vivo, se le
+        // pasa el control y sale, y las apps de la sesión comparten perfil con la consola.
+        foreach (var pid in killed)
+            try { using var p = System.Diagnostics.Process.GetProcessById(pid); p.WaitForExit(3000); } catch { /* ya salió */ }
 
         // explorer.exe está en %windir%, no en System32
         var explorerPath = Path.Combine(
@@ -209,10 +216,15 @@ internal static class StreamProfileSetup
 
     // ── Privados ──────────────────────────────────────────────────────────────
 
-    static void KillInSession(uint sessionId, string processName)
+    /// <summary>Termina los procesos con ese nombre en la sesión y devuelve sus PID.</summary>
+    static List<int> KillInSession(uint sessionId, string processName)
     {
+        var killed = new List<int>();
         if (!WTSEnumerateProcesses(IntPtr.Zero, 0, 1, out IntPtr pProcs, out int count))
-            return;
+        {
+            Logger.Warning($"[StreamProfile] WTSEnumerateProcesses falló ({Marshal.GetLastWin32Error()})");
+            return killed;
+        }
 
         int    size = Marshal.SizeOf<WTS_PROCESS_INFO>();
         IntPtr cur  = pProcs;
@@ -229,15 +241,19 @@ internal static class StreamProfileSetup
                 if (!name.Equals(processName, StringComparison.OrdinalIgnoreCase)) continue;
 
                 IntPtr hProc = OpenProcess(PROCESS_TERMINATE, false, info.ProcessId);
-                if (hProc != IntPtr.Zero)
+                if (hProc == IntPtr.Zero)
                 {
-                    TerminateProcess(hProc, 1);
-                    CloseHandle(hProc);
-                    Logger.Log($"[StreamProfile] '{name}' (PID {info.ProcessId}) terminado en sesión {sessionId}.");
+                    Logger.Warning($"[StreamProfile] No se pudo abrir '{name}' (PID {info.ProcessId}): {Marshal.GetLastWin32Error()}");
+                    continue;
                 }
+                if (TerminateProcess(hProc, 1)) killed.Add(info.ProcessId);
+                else Logger.Warning($"[StreamProfile] No se pudo terminar '{name}' (PID {info.ProcessId}): {Marshal.GetLastWin32Error()}");
+                CloseHandle(hProc);
+                Logger.Log($"[StreamProfile] '{name}' (PID {info.ProcessId}) terminado en sesión {sessionId}.");
             }
         }
         finally { WTSFreeMemory(pProcs); }
+        return killed;
     }
 
     static string ResolveUserProfile(Dictionary<string, string> sessionVars, string localAppData)

@@ -14,6 +14,7 @@ namespace OpenStreamMS.Services
     {
         private static readonly string GlobalLogFile = Path.Combine(
             AppDomain.CurrentDomain.BaseDirectory, "openstream.log");
+        private static string _globalLogFile = GlobalLogFile;
 
         private static readonly object _lock = new();
 
@@ -46,7 +47,14 @@ namespace OpenStreamMS.Services
             {
                 lock (_lock)
                 {
-                    AppendWithRotation(GlobalLogFile, line + Environment.NewLine);
+                    try { AppendWithRotation(_globalLogFile, line + Environment.NewLine); }
+                    catch (UnauthorizedAccessException) when (_globalLogFile == GlobalLogFile)
+                    {
+                        // Procesos en sesiones de usuario (agente de puesto, bandeja): no pueden
+                        // escribir junto al exe en Program Files; usan el TEMP del usuario.
+                        _globalLogFile = Path.Combine(Path.GetTempPath(), "openstream.log");
+                        AppendWithRotation(_globalLogFile, line + Environment.NewLine);
+                    }
 
                     var effectiveId = sessionId ?? _sessionContext.Value;
                     if (effectiveId.HasValue)

@@ -104,15 +104,38 @@
         </div>
         <div class="form-row">
           <label data-i18n="seat.monitorLabel">Monitor</label>
-          <select name="Monitor" id="seat-monitor"></select>
+          <div class="select-test">
+            <select name="Monitor" id="seat-monitor" onchange="updateSeatModeFields()"></select>
+            <button type="button" class="btn btn-ghost btn-sm" id="seat-monitor-test" onclick="testSeatMonitor()" data-i18n="seat.test" data-i18n-title="seat.testMonitorTitle" title="Muestra el logo de OpenStreamMS en este monitor">Probar</button>
+          </div>
+        </div>
+        <div class="form-row hidden" id="seat-mode">
+          <label data-i18n="seat.modeLabel">Resolución y frecuencia</label>
+          <div class="port-range">
+            <input type="number" name="Width" min="640" max="7680" data-i18n-title="seat.widthTitle" title="Ancho">
+            <span>×</span>
+            <input type="number" name="Height" min="480" max="4320" data-i18n-title="seat.heightTitle" title="Alto">
+            <span>@</span>
+            <input type="number" name="RefreshHz" min="24" max="360" data-i18n-placeholder="seat.hzPlaceholder" placeholder="Hz" data-i18n-title="seat.hzTitle" title="Frecuencia (Hz)">
+          </div>
+          <div class="hint" data-i18n="seat.modeHint">Vacío = la resolución que Windows dé al monitor y la frecuencia de la sesión.</div>
         </div>
         <div class="form-row">
           <label data-i18n="seat.audioLabel">Salida de audio</label>
-          <select name="AudioOut" id="seat-audio"></select>
+          <div class="select-test">
+            <select name="AudioOut" id="seat-audio" onchange="updateSeatTestButtons()"></select>
+            <button type="button" class="btn btn-ghost btn-sm" id="seat-audio-test" onclick="testSeatAudio()" data-i18n="seat.test" data-i18n-title="seat.testAudioTitle" title="Hace sonar un aviso por esta salida">Probar</button>
+          </div>
         </div>
         <div class="form-row">
-          <label data-i18n="seat.devicesLabel">Dispositivos (teclado/ratón/mando)</label>
+          <div class="seat-devices-head">
+            <label data-i18n="seat.devicesLabel">Dispositivos (teclado/ratón/mando)</label>
+            <button type="button" class="btn btn-ghost btn-sm" id="seat-refresh" onclick="refreshSeatInventory()" data-i18n="seat.refreshDevices">Volver a buscar</button>
+          </div>
           <div id="seat-devices" class="seat-devices"></div>
+          <div class="hint" data-i18n="seat.devicesHint">Se asignan por puerto USB: si cambias el aparato de ese puerto, sigue en el puesto.</div>
+          <div class="hint" data-i18n="seat.identifyHint">Pulsa una tecla, un botón o mueve el ratón: su nombre se ilumina.</div>
+          <div class="card-warning hidden" id="seat-input-warning" data-i18n="seat.noInputWarning">Sin teclado, ratón ni mando el puesto solo mostrará la imagen.</div>
         </div>
         <div class="form-row form-check">
           <label><input type="checkbox" name="ExclusiveSession" checked> <span data-i18n="seat.exclusive">Uso exclusivo (pausa Moonlight/WebRTC mientras el puesto está activo)</span></label>
