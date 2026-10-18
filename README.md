@@ -311,6 +311,13 @@ Interactive docs: `http://localhost:5000/scalar/v1`
 
 ---
 
+## Roadmap
+
+Planned features, such as a per-session LAN IP for running LAN games in several sessions at once, are
+tracked in [ROADMAP.md](ROADMAP.md).
+
+---
+
 ## License
 
 OpenStreamMS is released under the [MIT License](LICENSE).
