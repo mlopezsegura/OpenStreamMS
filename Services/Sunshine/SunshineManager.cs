@@ -117,7 +117,7 @@ namespace OpenStreamMS.Services.Sunshine
                 {
                     try
                     {
-                        ProvisionCredentialsViaCli(_sunshineExe, _creds);
+                        ProvisionCredentialsViaCli(sessionId, _sunshineExe, _creds);
                     }
                     catch (Exception ex)
                     {
@@ -490,14 +490,55 @@ namespace OpenStreamMS.Services.Sunshine
         /// para que los dispositivos emparejados sobrevivan a cada arranque de la sesion.
         /// </para>
         /// </summary>
+        /// <summary>
+        /// Entrecomilla un argumento con las reglas de CommandLineToArgvW (las barras solo se
+        /// doblan delante de una comilla), igual que hace ProcessStartInfo.ArgumentList.
+        /// </summary>
+        private static string QuoteArg(string arg)
+        {
+            if (arg.Length > 0 && arg.IndexOfAny([' ', '\t', '"']) < 0) return arg;
+            var sb = new StringBuilder("\"");
+            int backslashes = 0;
+            foreach (char c in arg)
+            {
+                if (c == '\\') { backslashes++; continue; }
+                sb.Append('\\', c == '"' ? backslashes * 2 + 1 : backslashes).Append(c);
+                backslashes = 0;
+            }
+            return sb.Append('\\', backslashes * 2).Append('"').ToString();
+        }
+
         private static void ProvisionCredentialsViaCli(
-            string sunshineExe, SunshineConfigurator.SunshineCredentials creds)
+            uint sessionId, string sunshineExe, SunshineConfigurator.SunshineCredentials creds)
         {
             var configPath = Path.Combine(Path.GetDirectoryName(sunshineExe)!, "config", "sunshine.conf");
             var stateFile  = Path.Combine(Path.GetDirectoryName(sunshineExe)!, "config", "sunshine_state.json");
 
             JsonNode? preservedRoot = CaptureStateRoot(stateFile);
 
+            if (WindowsIdentity.GetCurrent().IsSystem)
+            {
+                // Como el usuario de la sesión, igual que Sunshine. Nunca como SYSTEM: el exe vive
+                // en la carpeta de la instancia, y un sunshine.exe o una DLL puestos ahí por otro
+                // ejecutarían código con todos los privilegios del equipo.
+                var launcher = new ProcessInSession();
+                int pid = launcher.LaunchInSession(sessionId, sunshineExe,
+                    $"{QuoteArg(configPath)} --creds {QuoteArg(creds.Username)} {QuoteArg(creds.PlainPassword)}",
+                    waitForExit: true, waitTimeoutMs: 15_000);
+                if (launcher.ExitCode is not { } code)
+                {
+                    try { KillProcessTree(pid); } catch { }
+                    throw new TimeoutException("sunshine.exe --creds no terminó en 15 s");
+                }
+                if (code != 0)
+                    throw new Exception($"sunshine.exe --creds devolvió exit code {code}");
+
+                RestoreStateRoot(stateFile, preservedRoot);
+                Logger.Log($"[Sunshine] Credenciales provisionadas vía --creds en la sesión {sessionId} (user={creds.Username})");
+                return;
+            }
+
+            // Debug (no SYSTEM): ya corre como un usuario normal.
             var psi = new ProcessStartInfo
             {
                 FileName               = sunshineExe,

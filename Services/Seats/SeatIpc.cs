@@ -130,6 +130,25 @@ internal static class SeatPipes
     public static string NewName(string kind) => $"OpenStreamMS.Seat.{kind}.{Guid.NewGuid():N}";
 
     /// <summary>
+    /// Espera a que se conecte el proceso esperado. El nombre de la tubería no es secreto
+    /// (cualquier usuario puede listar \\.\pipe\), así que otro usuario del equipo podría
+    /// adelantarse: se mira el PID del cliente y, si no es el esperado, se le desconecta y se
+    /// sigue esperando hasta que venza <paramref name="ct"/>. Devuelve el PID aceptado.
+    /// </summary>
+    public static int AcceptFrom(NamedPipeServerStream server, Func<int, bool> isExpected, string what, CancellationToken ct)
+    {
+        while (true)
+        {
+            server.WaitForConnectionAsync(ct).GetAwaiter().GetResult();
+            int pid = OpenStreamMS.Core.Helpers.LocalCaller.PipeClientPid(server);
+            if (pid > 0 && isExpected(pid)) return pid;
+
+            Logger.Warning($"[Seats] Tubería del {what}: rechazado el proceso {pid}, no es el esperado.");
+            server.Disconnect();
+        }
+    }
+
+    /// <summary>
     /// Lado del cliente (anfitrión o agente). Asíncrona (overlapped) a la fuerza: con un handle
     /// síncrono Windows serializa la E/S, y una lectura bloqueada esperando entrada impediría
     /// escribir fotogramas/audio desde otro hilo (la imagen se congela y ambos lados se bloquean).
@@ -138,7 +157,23 @@ internal static class SeatPipes
     {
         var client = new NamedPipeClientStream(".", name, PipeDirection.InOut, PipeOptions.Asynchronous);
         client.Connect(timeoutMs);
+        RequireServiceServer(client);
         return new SeatChannel(client);
+    }
+
+    /// <summary>
+    /// El otro extremo debe ser el servicio (sesión 0, donde no hay usuarios). Si otro usuario
+    /// hubiera creado antes una tubería con ese nombre, podría mandar órdenes falsas al
+    /// presentador de la consola (p. ej. qué teclados capturar) o al agente.
+    /// </summary>
+    public static void RequireServiceServer(NamedPipeClientStream client)
+    {
+        if (OpenStreamMS.Core.Helpers.LocalCaller.PipeServerSession(client) != 0)
+        {
+            int pid = OpenStreamMS.Core.Helpers.LocalCaller.PipeServerPid(client);
+            client.Dispose();
+            throw new UnauthorizedAccessException($"La tubería no es del servicio (proceso {pid}).");
+        }
     }
 
     public static byte[] GuidBytes(Guid id) => id.ToByteArray();

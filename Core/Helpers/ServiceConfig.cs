@@ -67,6 +67,7 @@ namespace OpenStreamMS.Core.Helpers
                     VddEnabled    = false,
                 };
                 File.WriteAllText(ConfigFile, JsonSerializer.Serialize(def, JsonOpts));
+                SecureFile.RestrictToAdmins(ConfigFile);
                 Console.WriteLine($"[Config] Creado config por defecto en: {ConfigFile}");
                 return def;
             }
@@ -86,6 +87,41 @@ namespace OpenStreamMS.Core.Helpers
         public void Save()
         {
             File.WriteAllText(ConfigFile, JsonSerializer.Serialize(this, JsonOpts));
+            SecureFile.RestrictToAdmins(ConfigFile);
+        }
+
+        public static string FilePath => ConfigFile;
+
+        private const string RegistryKey = @"SOFTWARE\OpenStreamMS";
+
+        /// <summary>
+        /// El puerto de la API para el icono de bandeja, que corre como usuario normal y ya no
+        /// puede leer service.config.json (lleva secretos). El servicio lo publica en el registro.
+        /// </summary>
+        public static void PublishApiPort(int port)
+        {
+            try
+            {
+                using var key = Microsoft.Win32.Registry.LocalMachine.CreateSubKey(RegistryKey);
+                key.SetValue("ApiPort", port, Microsoft.Win32.RegistryValueKind.DWord);
+            }
+            catch { /* el icono usará el puerto por defecto */ }
+        }
+
+        public static int ReadApiPort()
+        {
+            try
+            {
+                if (File.Exists(ConfigFile)) return Load().ApiPort;
+            }
+            catch (UnauthorizedAccessException) { }
+            try
+            {
+                using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(RegistryKey);
+                if (key?.GetValue("ApiPort") is int port and > 0) return port;
+            }
+            catch { }
+            return new ServiceConfig().ApiPort;
         }
     }
 }

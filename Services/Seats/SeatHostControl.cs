@@ -45,6 +45,18 @@ public static class SeatHostControl
                     PipeOptions.Asynchronous, 65536, 65536, security);
 
                 await server.WaitForConnectionAsync(ct);
+
+                // El icono de bandeja arranca en todas las sesiones (también en las de los
+                // puestos y las de streaming): solo el de la consola puede ser el presentador.
+                int clientPid = LocalCaller.PipeClientPid(server);
+                if (!LocalCaller.IsInConsoleSession(clientPid))
+                {
+                    server.Dispose();
+                    Logger.Warning($"[Seats] Canal de control de anfitrión: rechazado el proceso {clientPid}, no está en la consola.");
+                    await Task.Delay(500, ct);
+                    continue;
+                }
+
                 lock (_serverLock)
                 {
                     _serverPipe?.Dispose();
@@ -181,8 +193,17 @@ public static class SeatHostControl
         {
             try
             {
+                // Fuera de la consola el servicio rechazaría la conexión: ni se intenta, para no
+                // quitarle el turno (la tubería admite un solo cliente) al icono de la consola.
+                if (!LocalCaller.IsInConsoleSession(Environment.ProcessId))
+                {
+                    await Task.Delay(5000, ct);
+                    continue;
+                }
+
                 using var client = new NamedPipeClientStream(".", PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
                 await client.ConnectAsync(5000, ct);
+                SeatPipes.RequireServiceServer(client);
                 using var channel = new SeatChannel(client);
                 Logger.Log("[TrayApp] Conectado al canal de control de anfitrión de puestos.");
 

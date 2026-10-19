@@ -8,6 +8,12 @@ namespace OpenStreamMS.Services.TrayApp;
 
 internal sealed class TrayApp : ApplicationContext
 {
+    /// <summary>
+    /// Marca las peticiones del icono de bandeja. El servicio solo las acepta sin contraseña si
+    /// vienen de la sesión de la consola, y solo para listar, iniciar y detener sesiones.
+    /// </summary>
+    internal const string LocalHeader = "X-OpenStreamMS-Tray";
+
     private readonly string _baseUrl;
     private readonly NotifyIcon _icon;
     private readonly HttpClient _http;
@@ -21,6 +27,7 @@ internal sealed class TrayApp : ApplicationContext
     {
         _baseUrl = baseUrl;
         _http    = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
+        _http.DefaultRequestHeaders.Add(LocalHeader, "1");
         _seatHostClient = OpenStreamMS.Services.Seats.SeatHostControl.StartClient();
 
         _icon = new NotifyIcon

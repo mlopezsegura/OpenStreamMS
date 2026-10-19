@@ -261,7 +261,7 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
                 asSystem: requiresLogin);
 
             using var agentTimeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(25));
-            agentServer.WaitForConnectionAsync(agentTimeoutCts.Token).GetAwaiter().GetResult();
+            SeatPipes.AcceptFrom(agentServer, pid => pid == agentPid, "agente", agentTimeoutCts.Token);
             var agentChannel = new SeatChannel(agentServer);
 
             var texturesMsg = agentChannel.Receive();
@@ -286,16 +286,16 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
             Status(seat, "Iniciando presentador en la consola...");
             SeatHostControl.RequestOpenSeat(seat.Id, hostPipe, seat.Monitor, seat.AudioOutId, seat.Devices);
 
+            // El presentador (icono de bandeja o --seat-host) corre en la consola. Las texturas,
+            // que muestran el escritorio de la sesión, se duplican al proceso que está realmente
+            // al otro lado de la tubería, no al PID que diga el mensaje.
             using var hostTimeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(25));
-            hostServer.WaitForConnectionAsync(hostTimeoutCts.Token).GetAwaiter().GetResult();
+            int hostPid = SeatPipes.AcceptFrom(hostServer, LocalCaller.IsInConsoleSession, "presentador", hostTimeoutCts.Token);
             var hostChannel = new SeatChannel(hostServer);
 
             var hostReadyMsg = hostChannel.Receive();
             if (hostReadyMsg is null || hostReadyMsg.Value.Type != SeatMsg.Json)
                 throw new InvalidOperationException("El presentador no envió confirmación.");
-
-            var hostReadyJson = SeatChannel.ParseJson(hostReadyMsg.Value.Data);
-            int hostPid = hostReadyJson["pid"]?.GetValue<int>() ?? Environment.ProcessId;
 
             // Duplicar handles de textura: agentPid -> hostPid
             var dupHandles = new long[agentHandles.Length];

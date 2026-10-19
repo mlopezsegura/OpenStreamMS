@@ -23,13 +23,15 @@
     <p data-i18n="setup.subtitle">Primera ejecución. Crea un usuario administrador para acceder al panel de control y a la API.</p>
 
     <div id="alert-error" class="auth-alert error" style="display:none" data-i18n="setup.error">El usuario y la contraseña son obligatorios.</div>
+    <div id="alert-short" class="auth-alert error" style="display:none" data-i18n="setup.short">La contraseña debe tener al menos 8 caracteres.</div>
+    <div id="alert-remote" class="auth-alert error" style="display:none" data-i18n="setup.remote">Por seguridad, la cuenta de administrador solo se puede crear desde este mismo PC: abre http://localhost:5000 en su pantalla.</div>
 
     <form method="POST" action="/setup" onsubmit="return validate()">
       <label for="username" data-i18n="setup.user">Usuario administrador</label>
       <input type="text" id="username" name="username" autocomplete="username" autofocus required>
 
       <label for="password" data-i18n="setup.password">Contraseña</label>
-      <input type="password" id="password" name="password" autocomplete="new-password" required>
+      <input type="password" id="password" name="password" autocomplete="new-password" minlength="8" required>
 
       <label for="password2" data-i18n="setup.password2">Confirmar contraseña</label>
       <input type="password" id="password2" autocomplete="new-password" required>
@@ -44,7 +46,8 @@
 
   <script>
     const p = new URLSearchParams(location.search);
-    if (p.get('error')) document.getElementById('alert-error').style.display = '';
+    const alertId = { remote: 'alert-remote', short: 'alert-short' }[p.get('error')] || 'alert-error';
+    if (p.get('error')) document.getElementById(alertId).style.display = '';
 
     function validate() {
       const pw  = document.getElementById('password').value;

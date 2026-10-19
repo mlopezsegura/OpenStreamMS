@@ -15,10 +15,8 @@ const string ServiceName    = "OpenStreamMS";
 const string ServiceDisplay = "OpenStreamMS - Game Streaming Service";
 const string ServiceDesc    = "Crea una sesión RDP para el usuario de streaming y lanza Sunshine en ella.";
 
-// When double-clicked (no args) and not yet installed → show setup wizard
-var command = args.Length > 0
-    ? args[0].ToLowerInvariant()
-    : IsRunningFromProgramFiles() ? "--help" : "--setup";
+// Se instala y desinstala con OpenStreamMS-Setup.exe (Inno Setup), que llama a estos comandos.
+var command = args.Length > 0 ? args[0].ToLowerInvariant() : "--help";
 
 switch (command)
 {
@@ -32,6 +30,13 @@ switch (command)
     case "--uninstall":
         AttachParentConsole();
         Uninstall(silent: args.Contains("--silent"));
+        break;
+    case "--purge-data":
+        // Desinstalación con "borrar todos los datos": lo que queda fuera de la carpeta del programa.
+        AttachParentConsole();
+        RequireAdmin();
+        RunSc($"stop \"{ServiceName}\"");   // que no vuelva a crear lo que se borra
+        Environment.Exit(OpenStreamMS.Core.Helpers.DataPurge.Run());
         break;
     case "--tray":
         RunTray();
@@ -65,8 +70,11 @@ switch (command)
         Guid hostSeatId = args.Length > 2 && Guid.TryParse(args[2], out var sid) ? sid : Guid.Empty;
         Environment.Exit(OpenStreamMS.Services.Seats.SeatHost.RunStandalone(args[1], hostSeatId));
         break;
-    case "--setup":
-        RunSetup(args);
+    case "--remove-deps":
+        // Desinstalación con "quitar también las dependencias": RDP Wrapper, ViGEmBus y HidHide.
+        AttachParentConsole();
+        RequireAdmin();
+        RemoveDependencies();
         break;
     case "--help":
     case "-h":
@@ -87,6 +95,14 @@ static async Task RunService(string[] args)
 {
     var config = ServiceConfig.Load();
 
+    // Secretos fuera del alcance de los demás usuarios del equipo (puestos, sesiones de streaming).
+    SecureFile.RestrictToAdmins(ServiceConfig.FilePath);
+    SecureFile.RestrictToAdmins(StreamSessionService.SessionsFilePath);
+    var programData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "OpenStreamMS");
+    SecureFile.RestrictToAdmins(Path.Combine(programData, "state"));
+    SecureFile.RestrictToAdmins(Path.Combine(programData, "state-index"));
+    ServiceConfig.PublishApiPort(config.ApiPort);
+
     var builder = WebApplication.CreateBuilder(args);
 
     // Raíz del contenido = directorio del exe (para encontrar wwwroot correctamente)
@@ -98,7 +114,6 @@ static async Task RunService(string[] args)
     builder.Services.AddSingleton<StreamSessionService>();
     builder.Services.AddSingleton<SunshineProxy>();
     builder.Services.AddSingleton<RdpWrapperManager>();
-    builder.Services.AddSingleton<TermWrapManager>();
     builder.Services.AddSingleton<ViGEmBusManager>();
     builder.Services.AddSingleton<HidHideManager>();
     builder.Services.AddSingleton<OpenStreamMS.Services.Seats.SeatManager>();
@@ -123,6 +138,29 @@ static async Task RunService(string[] args)
 
     var app = builder.Build();
 
+    // ── Cabeceras de seguridad y freno a peticiones de otros sitios ───────────
+    app.Use(async (ctx, next) =>
+    {
+        var headers = ctx.Response.Headers;
+        headers["X-Content-Type-Options"]  = "nosniff";
+        headers["X-Frame-Options"]         = "DENY";
+        headers["Content-Security-Policy"] = "frame-ancestors 'none'";
+        // same-origin y no no-referrer: con no-referrer el navegador manda "Origin: null" en
+        // los formularios propios (login) y el freno de abajo los tomaría por ajenos.
+        headers["Referrer-Policy"]         = "same-origin";
+
+        // Una web cualquiera abierta en un navegador de la red podría lanzar POST contra el
+        // panel (apagar el PC, borrar sesiones…) aprovechando credenciales Basic recordadas.
+        // Los navegadores marcan esas peticiones con Origin / Sec-Fetch-Site.
+        if (!HttpMethods.IsGet(ctx.Request.Method) && !HttpMethods.IsHead(ctx.Request.Method) &&
+            IsCrossSite(ctx.Request))
+        {
+            ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return;
+        }
+        await next();
+    });
+
     // ── Middleware de autenticación (debe ir antes de static files) ───────────
     app.Use(async (ctx, next) =>
     {
@@ -132,23 +170,23 @@ static async Task RunService(string[] args)
         // Rutas públicas que no necesitan autenticación
         if (IsPublicPath(path)) { await next(); return; }
 
-        // Acceso local sin auth (tray app u otras herramientas locales)
-        if (path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase) &&
-            ctx.Connection.RemoteIpAddress is { } remoteIp &&
-            IPAddress.IsLoopback(remoteIp))
-        {
-            await next(); return;
-        }
+        // Icono de bandeja de la consola: solo lo que muestra su menú, sin contraseña.
+        // "Viene de este PC" no basta: los puestos y las sesiones de streaming también son
+        // este PC, con otros usuarios. Se exige que el proceso esté en la sesión de la consola.
+        if (IsTrayRequest(ctx) && IsConsoleLocal(ctx)) { await next(); return; }
 
         // Primera vez: aún no se han configurado credenciales → pantalla de setup
         if (string.IsNullOrEmpty(cfg.AdminUsername))
         {
-            ctx.Response.Redirect("/setup.html");
+            if (path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase))
+                ctx.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            else
+                ctx.Response.Redirect("/setup.html");
             return;
         }
 
         // ¿Autenticado? (cookie o Basic Auth)
-        if (AuthService.IsAuthenticated(ctx.Request, cfg)) { await next(); return; }
+        if (AuthService.IsAuthenticated(ctx, cfg)) { await next(); return; }
 
         // No autenticado
         if (path.StartsWith("/api/", StringComparison.OrdinalIgnoreCase))
@@ -182,8 +220,17 @@ static async Task RunService(string[] args)
         var username = form["username"].ToString().Trim();
         var password = form["password"].ToString();
 
-        if (!AuthService.VerifyPassword(cfg, username, password))
+        var ip = ctx.Connection.RemoteIpAddress;
+        if (AuthService.IsLockedOut(ip))
             return Results.Redirect("/login.html?error=1");
+
+        bool ok = AuthService.VerifyPassword(cfg, username, password);
+        AuthService.RecordAttempt(ip, ok);
+        if (!ok)
+        {
+            Logger.Warning($"[Auth] Login fallido desde {ip}: '{username}'");
+            return Results.Redirect("/login.html?error=1");
+        }
 
         AuthService.SetAuthCookie(ctx.Response, cfg, username);
         Logger.Log($"[Auth] Login correcto: {username}");
@@ -196,12 +243,22 @@ static async Task RunService(string[] args)
         if (!string.IsNullOrEmpty(cfg.AdminUsername))
             return Results.Redirect("/login.html");
 
+        // Mientras no hay administrador, el primero que llegue lo crea: solo desde la consola
+        // de este PC, no desde cualquier equipo de la red ni desde un puesto o sesión remota.
+        if (!IsConsoleLocal(ctx))
+        {
+            Logger.Warning($"[Auth] Intento de configuración inicial rechazado desde {ctx.Connection.RemoteIpAddress}.");
+            return Results.Redirect("/setup.html?error=remote");
+        }
+
         var form     = await ctx.Request.ReadFormAsync();
         var username = form["username"].ToString().Trim();
         var password = form["password"].ToString();
 
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
             return Results.Redirect("/setup.html?error=1");
+        if (password.Length < 8)
+            return Results.Redirect("/setup.html?error=short");
 
         AuthService.SetCredentials(cfg, username, password);
         Logger.Log($"[Auth] Credenciales configuradas para '{username}'.");
@@ -229,10 +286,7 @@ static async Task RunService(string[] args)
     // ── Seats API (puestos locales) ───────────────────────────────────────────
     app.MapSeatApi();
 
-    // ── TermWrap API (recomendado — auto-detecta offsets de termsrv.dll) ──────
-    app.MapTermWrapApi();
-
-    // ── RDP Wrapper API (fallback por si TermWrap se rompe en una build) ──────
+    // ── RDP Wrapper API (varias sesiones RDP simultáneas en Windows cliente) ──
     app.MapRdpWrapperApi();
 
     // ── Drivers (ViGEmBus, HidHide) API ───────────────────────────────────────
@@ -255,64 +309,55 @@ static void RunTray()
     if (!isNew)
         return; // already running
 
-    var config = ServiceConfig.Load();
     Application.EnableVisualStyles();
     Application.SetCompatibleTextRenderingDefault(false);
-    using var tray = new TrayApp($"http://localhost:{config.ApiPort}");
+    using var tray = new TrayApp($"http://localhost:{ServiceConfig.ReadApiPort()}");
     Application.Run(tray);
-}
-
-// ── setup wizard ─────────────────────────────────────────────────────────────
-
-static void RunSetup(string[] args)
-{
-    bool isUninstall = args.Contains("--uninstall");
-
-    if (!IsAdmin())
-    {
-        try
-        {
-            Process.Start(new ProcessStartInfo(Environment.ProcessPath!)
-            {
-                Verb            = "runas",
-                Arguments       = isUninstall ? "--setup --uninstall" : "--setup",
-                UseShellExecute = true,
-            });
-        }
-        catch { /* user cancelled UAC prompt */ }
-        return;
-    }
-
-    Application.EnableVisualStyles();
-    Application.SetCompatibleTextRenderingDefault(false);
-    Application.Run(new OpenStreamMS.SetupWizard(isUninstall));
-}
-
-static bool IsAdmin()
-{
-    using var id = WindowsIdentity.GetCurrent();
-    return new WindowsPrincipal(id).IsInRole(WindowsBuiltInRole.Administrator);
-}
-
-static bool IsRunningFromProgramFiles()
-{
-    var exe   = Environment.ProcessPath ?? "";
-    var pf    = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-    var pfx86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
-    return exe.StartsWith(pf,    StringComparison.OrdinalIgnoreCase)
-        || exe.StartsWith(pfx86, StringComparison.OrdinalIgnoreCase);
 }
 
 // ── Rutas públicas (sin autenticación) ───────────────────────────────────────
 
-static bool IsPublicPath(string path) =>
-    path.StartsWith("/login",   StringComparison.OrdinalIgnoreCase) ||
-    path.StartsWith("/setup",   StringComparison.OrdinalIgnoreCase) ||
-    path.StartsWith("/style",   StringComparison.OrdinalIgnoreCase) ||
-    path.StartsWith("/app.js",  StringComparison.OrdinalIgnoreCase) ||
-    path.StartsWith("/seats.js", StringComparison.OrdinalIgnoreCase) ||
-    path.StartsWith("/i18n.js", StringComparison.OrdinalIgnoreCase) ||
-    path.StartsWith("/favicon", StringComparison.OrdinalIgnoreCase);
+static bool IsPublicPath(string path) => path.ToLowerInvariant() is
+    "/login" or "/login.html" or "/setup" or "/setup.html" or "/style.css" or
+    "/app.js" or "/seats.js" or "/i18n.js" or "/favicon.svg" or "/favicon.ico";
+
+// ── Llamadas locales ─────────────────────────────────────────────────────────
+
+/// <summary>Cabecera que pone el icono de bandeja. Una web no puede añadirla a una petición a otro sitio.</summary>
+static bool IsTrayRequest(HttpContext ctx)
+{
+    if (!ctx.Request.Headers.ContainsKey(TrayApp.LocalHeader)) return false;
+    var segments = (ctx.Request.Path.Value ?? "").Trim('/').ToLowerInvariant().Split('/');
+    // GET /api/sessions  ·  POST /api/sessions/{id}/start|stop
+    return segments is ["api", "sessions"]
+        ? HttpMethods.IsGet(ctx.Request.Method)
+        : HttpMethods.IsPost(ctx.Request.Method) &&
+          segments is ["api", "sessions", var id, "start" or "stop"] && Guid.TryParse(id, out _);
+}
+
+/// <summary>
+/// La petición la hace un proceso de la sesión de la consola física, hacia localhost (el
+/// nombre del Host descarta el DNS rebinding: una web que resuelva su dominio a 127.0.0.1).
+/// </summary>
+static bool IsConsoleLocal(HttpContext ctx)
+{
+    var host = ctx.Request.Host.Host.ToLowerInvariant();
+    if (host is not ("localhost" or "127.0.0.1" or "[::1]" or "::1")) return false;
+    var conn = ctx.Connection;
+    int pid = LocalCaller.TcpClientPid(conn.RemoteIpAddress, conn.RemotePort, conn.LocalPort);
+    return pid > 0 && LocalCaller.IsInConsoleSession(pid);
+}
+
+/// <summary>Petición lanzada por un navegador desde una página de otro sitio.</summary>
+static bool IsCrossSite(HttpRequest req)
+{
+    var origin = req.Headers.Origin.ToString();
+    if (!string.IsNullOrEmpty(origin) && origin != "null")
+        return !Uri.TryCreate(origin, UriKind.Absolute, out var o) ||
+               !string.Equals(o.Authority, req.Host.Value, StringComparison.OrdinalIgnoreCase);
+    if (origin == "null") return true;
+    return req.Headers["Sec-Fetch-Site"].ToString() is "cross-site" or "same-site";
+}
 
 // ── helpers CLI ───────────────────────────────────────────────────────────────
 
@@ -348,6 +393,11 @@ static void Install(bool silent = false)
             ? $"[Install] {driver.Name} instalado ({st.InstalledVersion ?? "versión desconocida"}){(st.RebootRequired ? "; requiere reiniciar Windows" : "")}."
             : $"[Install] AVISO: no se pudo instalar {driver.Name}; puede instalarse desde el panel web.");
     }
+
+    // El asistente de instalación antiguo dejaba su propia entrada en "Aplicaciones": ahora solo
+    // existe la del instalador (Inno Setup), que es el que desinstala.
+    Registry.LocalMachine.DeleteSubKeyTree(
+        @"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\OpenStreamMS", throwOnMissingSubKey: false);
 
     // Registrar icono de bandeja en inicio automático (todos los usuarios)
     const string RunKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
@@ -398,7 +448,10 @@ static void Uninstall(bool silent = false)
     if (!silent) Console.WriteLine("[Uninstall] Servicio eliminado.");
 
     RemoveApiFirewallRule();
-    if (!silent) Console.WriteLine("[Uninstall] Regla de firewall de la API eliminada.");
+    // Las de cada sesión ("OpenStreamMS - Sunshine <nombre> ..."): netsh no admite comodines.
+    RunProcess("powershell.exe", "-NoProfile -NonInteractive -Command \"Get-NetFirewallRule -DisplayName 'OpenStreamMS - Sunshine *' " +
+                                 "-ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue\"");
+    if (!silent) Console.WriteLine("[Uninstall] Reglas de firewall de la API y de las sesiones eliminadas.");
 
     // Sin el servicio nadie las mantendría: los mandos quedarían ocultos a otras sesiones
     OpenStreamMS.Services.Gamepad.GamepadSessionIsolation.ClearJails();
@@ -415,6 +468,35 @@ static void Uninstall(bool silent = false)
     using var key = Registry.LocalMachine.OpenSubKey(RunKey, writable: true);
     key?.DeleteValue("OpenStreamMSTray", throwOnMissingValue: false);
     if (!silent) Console.WriteLine("[Uninstall] Icono de bandeja eliminado del inicio automático.");
+}
+
+static void RemoveDependencies()
+{
+    // RDP Wrapper: su instalador restaura la termsrv.dll original con -u.
+    var rdpDir  = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "RDP Wrapper");
+    var rdpInst = Path.Combine(rdpDir, "RDPWInst.exe");
+    if (File.Exists(rdpInst))
+    {
+        RunProcess(rdpInst, "-u");
+        try { Directory.Delete(rdpDir, recursive: true); } catch { /* algún fichero bloqueado */ }
+        Console.WriteLine("[Uninstall] RDP Wrapper desinstalado.");
+    }
+
+    foreach (NefariusDriverManager driver in new NefariusDriverManager[] { new ViGEmBusManager(), new HidHideManager() })
+    {
+        try
+        {
+            driver.UninstallAsync().GetAwaiter().GetResult();
+            Console.WriteLine($"[Uninstall] {driver.Name} desinstalado.");
+        }
+        catch (Exception ex) { Console.WriteLine($"[Uninstall] {driver.Name}: {ex.Message}"); }
+    }
+}
+
+static void RunProcess(string exe, string args)
+{
+    using var p = Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = false, CreateNoWindow = true })!;
+    p.WaitForExit(120_000);
 }
 
 static void AddApiFirewallRule(int port)
@@ -486,10 +568,11 @@ static void PrintHelp()
 
         Uso:
           OpenStreamMS.exe --run               Ejecutar el servicio con web y API REST
-          OpenStreamMS.exe --setup             Abrir el asistente gráfico de instalación
-          OpenStreamMS.exe --setup --uninstall Abrir el asistente gráfico de desinstalación
           OpenStreamMS.exe --install           Instalar y registrar el servicio de Windows
           OpenStreamMS.exe --uninstall         Detener y eliminar el servicio de Windows
+          OpenStreamMS.exe --remove-deps       Desinstalar RDP Wrapper, ViGEmBus y HidHide
+          OpenStreamMS.exe --purge-data        Borrar los datos fuera de la carpeta del programa
+                                               (ProgramData, usuarios osms-, perfiles de stream, temporales)
           OpenStreamMS.exe --tray              Mostrar icono en la bandeja del sistema
           OpenStreamMS.exe --seat-agent <pipe> Ejecutar agente de puesto en la sesión
           OpenStreamMS.exe --seat-host <pipe>  Ejecutar presentador de puesto en la consola

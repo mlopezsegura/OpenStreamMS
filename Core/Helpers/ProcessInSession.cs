@@ -52,6 +52,12 @@ namespace OpenStreamMS.Core.Helpers
         [DllImport("kernel32.dll", SetLastError = true)]
         static extern uint WaitForSingleObject(IntPtr hHandle, uint dwMilliseconds);
 
+        [DllImport("kernel32.dll", SetLastError = true)]
+        static extern bool GetExitCodeProcess(IntPtr hProcess, out uint exitCode);
+
+        /// <summary>Con <c>waitForExit</c>: código de salida del proceso, o null si no terminó a tiempo.</summary>
+        public uint? ExitCode { get; private set; }
+
         [DllImport("advapi32.dll", SetLastError = true)]
         static extern bool DuplicateTokenEx(IntPtr existing, uint access, IntPtr attributes, int impersonationLevel,
                                             int tokenType, out IntPtr newToken);
@@ -213,6 +219,8 @@ namespace OpenStreamMS.Core.Helpers
                     var result = WaitForSingleObject(pi.hProcess, waitTimeoutMs);
                     if (result == WAIT_TIMEOUT)
                         Logger.Warning($"[ProcessInSession] WaitForSingleObject timeout ({waitTimeoutMs}ms) para '{exe}'");
+                    else if (GetExitCodeProcess(pi.hProcess, out uint code))
+                        ExitCode = code;
                 }
 
                 CloseHandle(pi.hProcess);

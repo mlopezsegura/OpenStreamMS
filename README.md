@@ -34,7 +34,12 @@ Manages the full lifecycle of isolated RDP streaming sessions — creation, moni
 2. Run it as Administrator and follow the wizard
 3. The installer registers the Windows service, adds the tray icon to Windows startup, and optionally starts everything immediately
 
-To uninstall, use **Apps & Features** → *OpenStreamMS* → Uninstall.
+To uninstall, use **Apps & Features** → *OpenStreamMS* → Uninstall. It asks two questions:
+
+- **Delete all data?** Yes removes sessions, seats and settings, the isolated `osms-…` users with their profiles (including games and settings stored in them), stream profiles, `%ProgramData%\OpenStreamMS` and temporary files. No keeps sessions and settings for a reinstall.
+- **Also uninstall RDP Wrapper, ViGEmBus and HidHide?** Answer No if other applications use them.
+
+Silent uninstall: `unins000.exe /VERYSILENT [/PURGEDATA] [/REMOVEDEPS]`.
 
 ### Option B — Manual (from source)
 

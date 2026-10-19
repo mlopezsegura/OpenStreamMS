@@ -103,7 +103,7 @@ namespace OpenStreamMS.Core.Helpers
         {
             freeRdpPid = 0;
 
-            // Escritorio Remoto habilitado de forma NATIVA (sin RDPWrapper/TermWrap ni
+            // Escritorio Remoto habilitado de forma NATIVA (sin RDPWrapper ni
             // ningun binario externo). Basta para UNA sesion RDP simultanea, que es lo
             // que Windows cliente permite de fabrica: la sesion de stream toma esa unica
             // sesion. Idempotente; se ejecuta antes de cada creacion/reutilizacion.
@@ -1112,7 +1112,7 @@ $dmVerify.dmSize = [System.Runtime.InteropServices.Marshal]::SizeOf($dmVerify)
         // ── Escritorio Remoto nativo (reemplazo casero de RDPWrapper) ─────────────
 
         /// <summary>
-        /// Habilita Escritorio Remoto de forma NATIVA, sin RDPWrapper/TermWrap ni ningun
+        /// Habilita Escritorio Remoto de forma NATIVA, sin RDPWrapper ni ningun
         /// programa externo. Suficiente para UNA sesion RDP simultanea (el limite de
         /// Windows cliente): la sesion de stream toma la unica sesion disponible. Si hay
         /// un usuario en la consola fisica, Windows lo desconecta — limitacion aceptada
@@ -1128,7 +1128,7 @@ $dmVerify.dmSize = [System.Runtime.InteropServices.Marshal]::SizeOf($dmVerify)
         /// NO se abre el puerto 3389 en el firewall: la conexion es loopback (127.0.0.2)
         /// y el loopback no atraviesa Windows Firewall, asi que RDP no queda expuesto a la
         /// red. NO se toca el nivel NLA: mstsc y FreeRDP negocian CredSSP con las opciones
-        /// del .rdp. Es NO destructivo: si RDPWrapper/TermWrap siguen instalados, estos
+        /// del .rdp. Es NO destructivo: si RDPWrapper sigue instalado, estos
         /// cambios son inocuos y su parche de multi-sesion se conserva intacto.
         /// </summary>
         public static void EnsureRemoteDesktopEnabled()

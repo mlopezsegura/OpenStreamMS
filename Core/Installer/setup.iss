@@ -88,11 +88,18 @@ Filename: "{app}\{#AppExeName}"; Parameters: "--uninstall --silent"; \
   Flags: runhidden waituntilterminated; \
   RunOnceId: "UninstallService"
 
+; Respuestas a las preguntas del principio de la desinstalación (InitializeUninstall).
+Filename: "{app}\{#AppExeName}"; Parameters: "--purge-data"; \
+  Flags: runhidden waituntilterminated; \
+  RunOnceId: "PurgeData"; Check: ShouldPurgeData
+Filename: "{app}\{#AppExeName}"; Parameters: "--remove-deps"; \
+  Flags: runhidden waituntilterminated; \
+  RunOnceId: "RemoveDeps"; Check: ShouldRemoveDeps
+
 [UninstallDelete]
-; Eliminar logs y archivos generados en tiempo de ejecución
+; Logs siempre. Sesiones, puestos y configuración solo si se pidió borrar los datos
+; (CurUninstallStepChanged); si no, se conservan para una reinstalación.
 Type: files;     Name: "{app}\openstream*.log"
-Type: files;     Name: "{app}\sessions.json"
-Type: filesandordirs; Name: "{app}"
 
 [Code]
 // Detiene el servicio y mata todo proceso que se ejecute desde {app} (bandeja,
@@ -123,8 +130,53 @@ begin
   Result := '';
 end;
 
+var
+  PurgeData:  Boolean;
+  RemoveDeps: Boolean;
+
+// Dos preguntas al empezar. En silencioso: /PURGEDATA y /REMOVEDEPS.
+//  - Borrar todos los datos: sesiones, puestos y configuración de {app}, y lo que OpenStreamMS
+//    deja fuera (usuarios osms- y sus perfiles, carpetas _OpenStreamMS_Stream,
+//    %ProgramData%\OpenStreamMS, registro y temporales). Si no, se conservan para reinstalar.
+//  - Quitar también RDP Wrapper, ViGEmBus y HidHide (otras aplicaciones pueden usarlos).
+function InitializeUninstall(): Boolean;
+begin
+  if UninstallSilent then
+  begin
+    PurgeData  := Pos('/PURGEDATA',  Uppercase(GetCmdTail)) > 0;
+    RemoveDeps := Pos('/REMOVEDEPS', Uppercase(GetCmdTail)) > 0;
+  end
+  else
+  begin
+    PurgeData := MsgBox('¿Borrar también todos los datos de OpenStreamMS?' + #13#10#13#10 +
+      'Sesiones, puestos y configuración; los usuarios osms- de las sesiones aisladas y sus ' +
+      'perfiles (incluidos juegos y ajustes guardados en ellos); perfiles de stream, ' +
+      '%ProgramData%\OpenStreamMS y ficheros temporales.' + #13#10#13#10 +
+      'Si respondes No, se conservan las sesiones y la configuración para una reinstalación.',
+      mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES;
+    RemoveDeps := MsgBox('¿Desinstalar también RDP Wrapper, ViGEmBus y HidHide?' + #13#10#13#10 +
+      'Responde No si otras aplicaciones los usan.',
+      mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES;
+  end;
+  Result := True;
+end;
+
+function ShouldPurgeData(): Boolean;
+begin
+  Result := PurgeData;
+end;
+
+function ShouldRemoveDeps(): Boolean;
+begin
+  Result := RemoveDeps;
+end;
+
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep = usUninstall then
     StopAppProcesses(ExpandConstant('{app}'));
+  // Lo que generó el programa (sessions\, sessions.json, seats.json, service.config.json…)
+  // no lo instaló el setup y Inno no lo borra solo.
+  if (CurUninstallStep = usPostUninstall) and PurgeData then
+    DelTree(ExpandConstant('{app}'), True, True, True);
 end;

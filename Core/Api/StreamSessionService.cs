@@ -4,6 +4,8 @@ using OpenStreamMS.Services.OpenStream;
 using OpenStreamMS.Services.Session;
 using OpenStreamMS.Services.Sunshine;
 using System.Collections.Concurrent;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -25,6 +27,9 @@ public class StreamSessionService
 
     private static readonly string SessionsFile =
         Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "sessions.json");
+
+    /// <summary>Lleva las contraseñas de los usuarios de las sesiones: solo SYSTEM y Administradores.</summary>
+    public static string SessionsFilePath => SessionsFile;
 
     private static readonly JsonSerializerOptions JsonOpts =
         new() { WriteIndented = true };
@@ -669,6 +674,7 @@ public class StreamSessionService
                 WebRtcMediaPortMax: s.WebRtcMediaPortMax,
                 Local: s.Local));
             File.WriteAllText(SessionsFile, JsonSerializer.Serialize(data, JsonOpts));
+            SecureFile.RestrictToAdmins(SessionsFile);
         }
         catch (Exception ex)
         {
@@ -1286,45 +1292,84 @@ public class StreamSessionService
         }
     }
 
+    /// <summary>
+    /// Permisos de la instancia de Sunshine de una sesión:
+    /// <list type="bullet">
+    /// <item>Sin herencia de Program Files (Usuarios=RX): <c>config\</c> guarda la clave TLS de
+    /// Sunshine, los certificados de los clientes pareados y las credenciales del panel, y los
+    /// usuarios de otras sesiones o puestos no deben poder leerlos.</item>
+    /// <item>El usuario de la sesión lee y ejecuta los binarios pero solo escribe en
+    /// <c>config\</c>, que es donde Sunshine deja estado, log y credenciales. Si pudiera
+    /// cambiar sunshine.exe o sus DLL, el código que pusiera ahí lo acabaría ejecutando otro.</item>
+    /// </list>
+    /// Se hace de arriba abajo y sin seguir puntos de reanálisis (junctions): cuando se toca
+    /// una carpeta, la de encima ya no deja al usuario cambiar lo que contiene. Lo que haya
+    /// dentro de <c>config\</c> no se toca: hereda de ella.
+    /// </summary>
     private static void GrantSunshineInstanceWriteAccess(
         string dir, string domain, string username, Guid sessionId)
     {
+        var account = string.IsNullOrWhiteSpace(domain) || domain == "."
+            ? username
+            : $"{domain}\\{username}";
         try
         {
-            var account = string.IsNullOrWhiteSpace(domain) || domain == "."
-                ? username
-                : $"{domain}\\{username}";
+            var user = (SecurityIdentifier)new NTAccount(account).Translate(typeof(SecurityIdentifier));
+            const InheritanceFlags all = InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit;
 
-            // Sin redirigir la salida: con /T icacls escribe una línea por archivo y, si nadie la
-            // lee, llena el búfer de la tubería y se queda bloqueado (los permisos quedaban a medias).
-            var psi = new System.Diagnostics.ProcessStartInfo
-            {
-                FileName        = "icacls.exe",
-                UseShellExecute = false,
-                CreateNoWindow  = true,
-            };
-            psi.ArgumentList.Add(dir);
-            psi.ArgumentList.Add("/grant");
-            psi.ArgumentList.Add($"{account}:(OI)(CI)(M)");
-            psi.ArgumentList.Add("/T");
-            psi.ArgumentList.Add("/Q");
+            var top = new DirectorySecurity();
+            top.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+            top.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
+                FileSystemRights.FullControl, all, PropagationFlags.None, AccessControlType.Allow));
+            top.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null),
+                FileSystemRights.FullControl, all, PropagationFlags.None, AccessControlType.Allow));
+            top.AddAccessRule(new FileSystemAccessRule(user,
+                FileSystemRights.ReadAndExecute, all, PropagationFlags.None, AccessControlType.Allow));
+            new DirectoryInfo(dir).SetAccessControl(top);
 
-            using var p = System.Diagnostics.Process.Start(psi)
-                ?? throw new Exception("No se pudo lanzar icacls.exe");
-            if (!p.WaitForExit(120_000))
-            {
-                Logger.Warning($"[SessionService] icacls no terminó en 2 min para '{account}' en: {dir}", sessionId);
-                return;
-            }
+            var configDir = Path.Combine(dir, "config");
+            ResetToInherited(new DirectoryInfo(dir), configDir);
 
-            if (p.ExitCode == 0)
-                Logger.Log($"[SessionService] Permisos escritura concedidos a '{account}' en: {dir}", sessionId);
-            else
-                Logger.Warning($"[SessionService] icacls /grant falló (exit={p.ExitCode}) para '{account}'", sessionId);
+            var config = Directory.CreateDirectory(configDir);
+            var cs = new DirectorySecurity();
+            cs.SetAccessRuleProtection(isProtected: false, preserveInheritance: true);
+            cs.AddAccessRule(new FileSystemAccessRule(user,
+                FileSystemRights.Modify, all, PropagationFlags.None, AccessControlType.Allow));
+            config.SetAccessControl(cs);
+
+            Logger.Log($"[SessionService] Permisos de la instancia ajustados para '{account}' (escritura solo en config): {dir}", sessionId);
         }
         catch (Exception ex)
         {
-            Logger.Warning($"[SessionService] No se pudieron conceder permisos a '{username}': {ex.Message}", sessionId);
+            Logger.Warning($"[SessionService] No se pudieron ajustar los permisos de '{account}' en {dir}: {ex.Message}", sessionId);
+        }
+    }
+
+    /// <summary>
+    /// Quita los permisos explícitos (p. ej. el Modificar que se daba antes al usuario en todo
+    /// el árbol) para que cada elemento herede de su carpeta. No entra en <paramref name="skipDir"/>
+    /// ni sigue junctions o enlaces.
+    /// </summary>
+    private static void ResetToInherited(DirectoryInfo parent, string skipDir)
+    {
+        foreach (var entry in parent.EnumerateFileSystemInfos())
+        {
+            if (entry.Attributes.HasFlag(FileAttributes.ReparsePoint)) continue;
+            if (entry is DirectoryInfo sub)
+            {
+                if (string.Equals(sub.FullName.TrimEnd('\\'), skipDir.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase))
+                    continue;
+                var ds = new DirectorySecurity();
+                ds.SetAccessRuleProtection(isProtected: false, preserveInheritance: true);
+                sub.SetAccessControl(ds);
+                ResetToInherited(sub, skipDir);
+            }
+            else if (entry is FileInfo file)
+            {
+                var fs = new FileSecurity();
+                fs.SetAccessRuleProtection(isProtected: false, preserveInheritance: true);
+                file.SetAccessControl(fs);
+            }
         }
     }
 
