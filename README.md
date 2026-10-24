@@ -147,6 +147,10 @@ The bundled `Sunshine\` is a sunshine-webrtc build. To use another Sunshine, rep
 ignores the protocol and the dashboard warns on sessions set to WebRTC or both. Paired TVs
 (`webrtc_tv_clients.json`) are backed up with `sunshine_state.json`.
 
+The bundled build streams to TVs with zero playout delay: each frame is shown the moment it is
+decoded, with no jitter buffer, and the picture no longer waits for the audio. Screen to screen,
+1080p60 went from 54 to 38 ms and 2160p60 from 73 to about 50 ms in Sunshine-Web-RTC's latency test.
+
 ---
 
 ## Local seats
