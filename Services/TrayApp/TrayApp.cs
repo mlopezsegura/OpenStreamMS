@@ -22,9 +22,20 @@ internal sealed class TrayApp : ApplicationContext
     private string? _menuSignature;
     private const string OfflineSignature = "<offline>";
     private readonly IDisposable _seatHostClient;
+    private AppWindow? _window;
 
-    internal TrayApp(string baseUrl)
+    /// <summary>
+    /// Evento con nombre de la sesión: otro "OpenStreamMS.exe --open" lo señala para que el
+    /// icono que ya está corriendo muestre la ventana, en vez de abrir una segunda bandeja.
+    /// </summary>
+    internal const string ShowWindowEvent = @"Local\OpenStreamMS_ShowWindow";
+    private readonly EventWaitHandle _showEvent;
+    private readonly RegisteredWaitHandle _showWait;
+    private readonly Control _ui = new();
+
+    internal TrayApp(string baseUrl, bool showWindow = false)
     {
+        _ui.CreateControl();   // para volver al hilo de la UI desde el evento
         _baseUrl = baseUrl;
         _http    = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
         _http.DefaultRequestHeaders.Add(LocalHeader, "1");
@@ -44,12 +55,32 @@ internal sealed class TrayApp : ApplicationContext
         _timer.Start();
 
         _ = RefreshAsync();
+
+        _showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ShowWindowEvent);
+        _showWait  = ThreadPool.RegisterWaitForSingleObject(_showEvent,
+            (_, _) => _ui.BeginInvoke(OpenWeb), null, Timeout.Infinite, executeOnlyOnce: false);
+
+        if (showWindow) OpenWeb();
     }
 
     // ── web ──────────────────────────────────────────────────────────────────────
 
-    private void OpenWeb() =>
-        Process.Start(new ProcessStartInfo(_baseUrl) { UseShellExecute = true });
+    /// <summary>Muestra el panel en su ventana; sin WebView2, en el navegador.</summary>
+    private void OpenWeb()
+    {
+        if (!AppWindow.RuntimeAvailable())
+        {
+            Process.Start(new ProcessStartInfo(_baseUrl) { UseShellExecute = true });
+            return;
+        }
+        if (_window is null || _window.IsDisposed)
+        {
+            // Se crea al abrirla y se libera al cerrarla: WebView2 son varios procesos de Edge.
+            _window = new AppWindow(_baseUrl);
+            _window.FormClosed += (_, _) => { _window?.Dispose(); _window = null; };
+        }
+        _window.ShowAndActivate();
+    }
 
     // ── refresh ──────────────────────────────────────────────────────────────────
 
@@ -134,7 +165,7 @@ internal sealed class TrayApp : ApplicationContext
 
     private void AddWebItem(ContextMenuStrip menu)
     {
-        var item = new ToolStripMenuItem("Abrir interfaz web...");
+        var item = new ToolStripMenuItem("Abrir OpenStreamMS");
         item.Click += (_, _) => OpenWeb();
         menu.Items.Add(item);
     }
@@ -169,6 +200,10 @@ internal sealed class TrayApp : ApplicationContext
     {
         if (disposing)
         {
+            _showWait.Unregister(null);
+            _showEvent.Dispose();
+            _window?.Dispose();
+            _ui.Dispose();
             _seatHostClient.Dispose();
             _timer.Dispose();
             _icon.Visible = false;

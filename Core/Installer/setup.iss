@@ -59,10 +59,10 @@ Source: "publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs creat
 Source: "publish\service.config.json"; DestDir: "{app}"; Flags: onlyifdoesntexist uninsneveruninstall
 
 [Icons]
-Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Parameters: "--tray"; \
+Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Parameters: "--open"; \
   Comment: "Panel de control de OpenStreamMS"
 Name: "{group}\Desinstalar {#AppName}"; Filename: "{uninstallexe}"
-Name: "{commondesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Parameters: "--tray"; \
+Name: "{commondesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; Parameters: "--open"; \
   Tasks: desktopicon
 
 [Run]
@@ -78,7 +78,7 @@ Filename: "net.exe"; Parameters: "start ""{#AppService}"""; \
   StatusMsg: "Iniciando servicio..."
 
 ; 3. Ofrecer arrancar el icono de bandeja al terminar
-Filename: "{app}\{#AppExeName}"; Parameters: "--tray"; \
+Filename: "{app}\{#AppExeName}"; Parameters: "--open"; \
   Flags: nowait postinstall skipifsilent; \
   Description: "Iniciar {#AppName} ahora"
 
