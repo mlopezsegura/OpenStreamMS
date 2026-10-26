@@ -190,4 +190,6 @@ Pendiente: que `install.ps1` firme en el PC y en la VM solo instale (la VM no ti
 - `install.ps1` para VM (firmar en el PC, instalar en la VM).
 - HDR (IddCx 1.10+) y cursor por hardware: no implementados; el cursor va compuesto en el
   frame y el backend de Sunshine rechaza HDR.
-- Sin commits todavía en OpenStreamMS ni en sunshine-webrtc (ramas propias por crear).
+- Ramas: `feature/remote-idd` en OpenStreamMS y en sunshine-webrtc (commits locales, sin
+  push ni PR). El `Sunshine/sunshine.exe` de OpenStreamMS se compiló desde el árbol de
+  sunshine-webrtc, que incluye también el limitador por llegada (aún sin commit allí).
