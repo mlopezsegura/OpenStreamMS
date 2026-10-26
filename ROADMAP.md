@@ -95,3 +95,31 @@ so LAN game discovery keeps working.
 
 **Ruled out:** WFP redirection (needs a kernel callout driver), Winsock LSPs (removed from current
 Windows) and network compartments (undocumented, container-only).
+
+## Experimental
+
+### Remote-session IddCx display (clean alternative to the DuoStream hook)
+
+**Idea:** give each seat its own display through a Windows-documented *remote-session* IddCx
+driver instead of hooking Microsoft's `RdpIdd.dll` the way DuoStream does. Frames leave the
+driver's swapchain to Sunshine over shared memory, bypassing RDP's own video path.
+
+**Status: implemented and tested without installing; real-seat test pending.** Everything lives in
+`Native/RemoteIdd/` — start with `GUIA.md`. `build.cmd` builds against the official WDK NuGet
+package (no WDK install) and runs the tests: frame hand-off contract, cross-process GPU
+performance (4K240 present→pixel p99 ≈ 0.6 ms) and the protocol provider with fakes.
+
+**How the blocker was solved, with documented APIs only:** an RDS protocol provider
+(`OsmsRdsProvider.dll`) wraps Microsoft's own RDP protocol (`rdpcorets`) and answers only
+`IWRdsWddmIddProps`: Windows then loads our IddCx for the session, and the provider hands the
+session id and client resolution to the driver by IOCTL. It is registered on a separate
+`OSMS-Seat` listener (port 3390); RDP-Tcp is untouched. Sunshine reads frames with
+`capture = remoteidd`; OpenStreamMS opens the seat session against that listener when a
+session uses that capture.
+
+**Open risk:** `rdpcorets` may refuse a session whose display is not its own `RdpIdd`. Only the
+real-seat test (`Provider/install.ps1` + `test/verify-seat.ps1`, needs test signing) answers it.
+
+**Ruled out for this item:** injecting a DLL into Microsoft's `RdpIdd` and hooking its internal
+functions by offset (DuoStream's actual mechanism) — fragile across Windows updates, exactly the
+third-party/hack dependency the project avoids.

@@ -90,6 +90,28 @@ namespace OpenStreamMS.Core.Helpers
         /// </summary>
         const string LoopbackHost = "127.0.0.2";
 
+        /// <summary>
+        /// Listener de puestos de RemoteIdd (Native/RemoteIdd/Provider/install.ps1): copia de
+        /// RDP-Tcp en otro puerto con el proveedor que carga el driver RemoteIdd en la sesión.
+        /// </summary>
+        const string RemoteIddListenerKey =
+            @"SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\OSMS-Seat";
+
+        /// <summary>
+        /// Dirección a la que conecta el cliente RDP: el loopback de siempre (RDP-Tcp) o, con
+        /// captura RemoteIdd, el puerto del listener OSMS-Seat. Sin listener instalado falla en
+        /// vez de abrir la sesión por RDP-Tcp, donde Sunshine no encontraría frames.
+        /// </summary>
+        static string RdpAddress(bool remoteIdd)
+        {
+            if (!remoteIdd) return LoopbackHost;
+            using var key = Registry.LocalMachine.OpenSubKey(RemoteIddListenerKey)
+                ?? throw new InvalidOperationException(
+                    "[RDP] Captura RemoteIdd sin listener OSMS-Seat: instálalo con Native/RemoteIdd/Provider/install.ps1.");
+            int port = key.GetValue("PortNumber") is int p && p > 0 ? p : 3390;
+            return $"{LoopbackHost}:{port}";
+        }
+
         // ── Public API ────────────────────────────────────────────────────────────
 
         /// <summary>
@@ -99,9 +121,11 @@ namespace OpenStreamMS.Core.Helpers
                                               int rdpWidth, int rdpHeight,
                                               int rdpFrameRate, int rdpColorDepth,
                                               out int freeRdpPid,
-                                              bool preferMstsc = true)
+                                              bool preferMstsc = true,
+                                              bool remoteIdd = false)
         {
             freeRdpPid = 0;
+            string address = RdpAddress(remoteIdd);
 
             // Escritorio Remoto habilitado de forma NATIVA (sin RDPWrapper ni
             // ningun binario externo). Basta para UNA sesion RDP simultanea, que es lo
@@ -130,7 +154,7 @@ namespace OpenStreamMS.Core.Helpers
                 try
                 {
                     Logger.Log($"[RDP] Sin sesion para '{user.Username}', creando via mstsc (AVC444 hw)...");
-                    return CreateSessionWithMstsc(user, rdpWidth, rdpHeight,
+                    return CreateSessionWithMstsc(user, address, rdpWidth, rdpHeight,
                                                   rdpFrameRate, rdpColorDepth, out freeRdpPid);
                 }
                 catch (Exception ex)
@@ -140,7 +164,7 @@ namespace OpenStreamMS.Core.Helpers
             }
 
             Logger.Log($"[RDP] Sin sesion para '{user.Username}', creando via FreeRDP...");
-            return CreateSessionWithFreeRdp(user, rdpWidth, rdpHeight,
+            return CreateSessionWithFreeRdp(user, address, rdpWidth, rdpHeight,
                                             rdpFrameRate, rdpColorDepth, out freeRdpPid);
         }
 
@@ -157,9 +181,11 @@ namespace OpenStreamMS.Core.Helpers
                                      int rdpWidth, int rdpHeight,
                                      int rdpFrameRate, int rdpColorDepth,
                                      out int clientPid,
-                                     bool preferMstsc = true)
+                                     bool preferMstsc = true,
+                                     bool remoteIdd = false)
         {
             clientPid = 0;
+            string address = RdpAddress(remoteIdd);
             Logger.Log($"[RDP] Reconectando la sesión {sessionId} a {rdpWidth}x{rdpHeight} @ {rdpFrameRate} fps...");
 
             if (!WTSDisconnectSession(IntPtr.Zero, (int)sessionId, true))
@@ -173,16 +199,16 @@ namespace OpenStreamMS.Core.Helpers
             uint id;
             if (preferMstsc)
             {
-                try { id = CreateSessionWithMstsc(user, rdpWidth, rdpHeight, rdpFrameRate, rdpColorDepth, out clientPid); }
+                try { id = CreateSessionWithMstsc(user, address, rdpWidth, rdpHeight, rdpFrameRate, rdpColorDepth, out clientPid); }
                 catch (Exception ex)
                 {
                     Logger.Warning($"[RDP] mstsc falló al reconectar ({ex.Message}); reintentando con FreeRDP...");
-                    id = CreateSessionWithFreeRdp(user, rdpWidth, rdpHeight, rdpFrameRate, rdpColorDepth, out clientPid);
+                    id = CreateSessionWithFreeRdp(user, address, rdpWidth, rdpHeight, rdpFrameRate, rdpColorDepth, out clientPid);
                 }
             }
             else
             {
-                id = CreateSessionWithFreeRdp(user, rdpWidth, rdpHeight, rdpFrameRate, rdpColorDepth, out clientPid);
+                id = CreateSessionWithFreeRdp(user, address, rdpWidth, rdpHeight, rdpFrameRate, rdpColorDepth, out clientPid);
             }
 
             if (id != sessionId)
@@ -237,7 +263,7 @@ namespace OpenStreamMS.Core.Helpers
 
         // ── Creacion de sesion ────────────────────────────────────────────────────
 
-        static uint CreateSessionWithFreeRdp(StreamUserConfig user, int rdpWidth, int rdpHeight,
+        static uint CreateSessionWithFreeRdp(StreamUserConfig user, string address, int rdpWidth, int rdpHeight,
                                              int rdpFrameRate, int rdpColorDepth, out int freeRdpPid)
         {
             freeRdpPid = 0;
@@ -268,7 +294,7 @@ namespace OpenStreamMS.Core.Helpers
             };
 
             // ── Conexion ──────────────────────────────────────────────────────────
-            psi.ArgumentList.Add($"/v:{LoopbackHost}");
+            psi.ArgumentList.Add($"/v:{address}");
             psi.ArgumentList.Add($"/u:{user.Username}");
             psi.ArgumentList.Add($"/d:{domain}");
             psi.ArgumentList.Add($"/p:{user.Password}");
@@ -348,7 +374,7 @@ namespace OpenStreamMS.Core.Helpers
         /// Session 0 → colgaria la conexion).
         /// </para>
         /// </summary>
-        static uint CreateSessionWithMstsc(StreamUserConfig user, int rdpWidth, int rdpHeight,
+        static uint CreateSessionWithMstsc(StreamUserConfig user, string address, int rdpWidth, int rdpHeight,
                                            int rdpFrameRate, int rdpColorDepth, out int clientPid)
         {
             clientPid = 0;
@@ -379,7 +405,7 @@ namespace OpenStreamMS.Core.Helpers
             // Sin redirecciones de dispositivos: evita el dialogo de publisher.
             File.WriteAllLines(rdpFile, new[]
             {
-                $"full address:s:{LoopbackHost}",
+                $"full address:s:{address}",
                 $"username:s:{principal}",
                 $"desktopwidth:i:{rdpWidth}",
                 $"desktopheight:i:{rdpHeight}",
