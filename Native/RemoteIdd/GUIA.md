@@ -36,7 +36,9 @@ Quién carga el driver: Terminal Services, a petición del **proveedor de protoc
 `OsmsRdsProvider.dll`, registrado en RDP-Tcp. Solo las conexiones de puesto, es decir, las
 RDP desde el propio equipo (OpenStreamMS conecta a `127.0.0.2`; el origen puede declararse
 `127.0.0.1`), reciben RemoteIdd. Cualquier conexión que llegue por la red sigue entera con
-el protocolo y el RdpIdd de Microsoft.
+el protocolo y el RdpIdd de Microsoft, salvo que se instale con `-AllConnections`: entonces
+también las sesiones RDP que llegan por la red reciben RemoteIdd (valor
+`OsmsRemoteIddAllConnections` en `WinStations\RDP-Tcp`).
 
 ## 2. Decisiones de diseño (no reabrir sin motivo)
 

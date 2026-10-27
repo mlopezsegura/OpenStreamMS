@@ -53,8 +53,8 @@ class Connection final : public RefCounted, public IWRdsProtocolConnection,
                          public IWRdsWddmIddProps, public IWRdsWddmIddProps1
 {
 public:
-    Connection(IWRdsProtocolConnection* inner, SessionSink& sink, ULONG refreshHz)
-        : m_inner(inner), m_sink(sink), m_refreshHz(refreshHz)
+    Connection(IWRdsProtocolConnection* inner, SessionSink& sink, const ListenerSettings& settings)
+        : m_inner(inner), m_sink(sink), m_settings(settings)
     {
         m_inner->AddRef();
     }
@@ -175,7 +175,7 @@ private:
 
     void Remember(const WRDS_CLIENT_DATA& d)
     {
-        m_seat = IsSeatClient(d) ? SeatState::Yes : SeatState::No;
+        m_seat = (m_settings.AllConnections || IsSeatClient(d)) ? SeatState::Yes : SeatState::No;
         m_width = d.HRes;
         m_height = d.VRes;
     }
@@ -203,7 +203,7 @@ private:
         seat.SessionId = sessionId;
         seat.Width = m_width;
         seat.Height = m_height;
-        seat.RefreshHz = m_refreshHz;
+        seat.RefreshHz = m_settings.RefreshHz;
         return seat;
     }
 
@@ -211,7 +211,7 @@ private:
 
     IWRdsProtocolConnection* m_inner;
     SessionSink& m_sink;
-    ULONG m_refreshHz;
+    ListenerSettings m_settings;
     SeatState m_seat = SeatState::Unknown;
     ULONG m_width = 0, m_height = 0;    // del cliente, al pasar por GetClientData
 };
@@ -221,8 +221,8 @@ private:
 class ListenerCallback final : public RefCounted, public IWRdsProtocolListenerCallback
 {
 public:
-    ListenerCallback(IWRdsProtocolListenerCallback* outer, SessionSink& sink, ULONG refreshHz)
-        : m_outer(outer), m_sink(sink), m_refreshHz(refreshHz)
+    ListenerCallback(IWRdsProtocolListenerCallback* outer, SessionSink& sink, const ListenerSettings& settings)
+        : m_outer(outer), m_sink(sink), m_settings(settings)
     {
         m_outer->AddRef();
     }
@@ -246,7 +246,7 @@ public:
                                           IWRdsProtocolConnectionCallback** callback) override
     {
         if (!connection) return E_INVALIDARG;
-        auto* wrapped = new (std::nothrow) Connection(connection, m_sink, m_refreshHz);
+        auto* wrapped = new (std::nothrow) Connection(connection, m_sink, m_settings);
         if (!wrapped) return E_OUTOFMEMORY;
         HRESULT hr = m_outer->OnConnected(wrapped, settings, callback);
         wrapped->Release();
@@ -256,15 +256,15 @@ public:
 private:
     IWRdsProtocolListenerCallback* m_outer;
     SessionSink& m_sink;
-    ULONG m_refreshHz;
+    ListenerSettings m_settings;
 };
 
 // ============================================================ listener
 class Listener final : public RefCounted, public IWRdsProtocolListener
 {
 public:
-    Listener(IWRdsProtocolListener* inner, SessionSink& sink, ULONG refreshHz)
-        : m_inner(inner), m_sink(sink), m_refreshHz(refreshHz) { m_inner->AddRef(); }
+    Listener(IWRdsProtocolListener* inner, SessionSink& sink, const ListenerSettings& settings)
+        : m_inner(inner), m_sink(sink), m_settings(settings) { m_inner->AddRef(); }
     ~Listener() override { m_inner->Release(); }
 
     HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void** ppv) override
@@ -287,7 +287,7 @@ public:
     HRESULT STDMETHODCALLTYPE StartListen(IWRdsProtocolListenerCallback* callback) override
     {
         if (!callback) return E_INVALIDARG;
-        auto* wrapped = new (std::nothrow) ListenerCallback(callback, m_sink, m_refreshHz);
+        auto* wrapped = new (std::nothrow) ListenerCallback(callback, m_sink, m_settings);
         if (!wrapped) return E_OUTOFMEMORY;
         HRESULT hr = m_inner->StartListen(wrapped);
         wrapped->Release();
@@ -298,14 +298,18 @@ public:
 private:
     IWRdsProtocolListener* m_inner;
     SessionSink& m_sink;
-    ULONG m_refreshHz;
+    ListenerSettings m_settings;
 };
 
 // ============================================================ gestor
 class ProtocolManager final : public RefCounted, public IWRdsProtocolManager
 {
 public:
-    ProtocolManager(IWRdsProtocolManager* inner, SessionSink& sink) : m_inner(inner), m_sink(sink) { m_inner->AddRef(); }
+    ProtocolManager(IWRdsProtocolManager* inner, SessionSink& sink, const ListenerSettings* fixed)
+        : m_inner(inner), m_sink(sink), m_hasFixed(fixed != nullptr), m_fixed(fixed ? *fixed : ListenerSettings{})
+    {
+        m_inner->AddRef();
+    }
     ~ProtocolManager() override { m_inner->Release(); }
 
     HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void** ppv) override
@@ -329,11 +333,13 @@ public:
         IWRdsProtocolListener* inner = nullptr;
         HRESULT hr = m_inner->CreateListener(name, &inner);
         if (FAILED(hr)) return hr;
-        auto* wrapped = new (std::nothrow) Listener(inner, m_sink, ReadListenerRefreshHz(name));
+        ListenerSettings settings = m_hasFixed ? m_fixed : ReadListenerSettings(name);
+        auto* wrapped = new (std::nothrow) Listener(inner, m_sink, settings);
         inner->Release();
         if (!wrapped) return E_OUTOFMEMORY;
         *listener = wrapped;
-        Log(L"OsmsRds: listener %ls\n", name ? name : L"?");
+        Log(L"OsmsRds: listener %ls (RemoteIdd en %ls, %lu Hz)\n", name ? name : L"?",
+            settings.AllConnections ? L"todas las conexiones" : L"conexiones locales", settings.RefreshHz);
         return S_OK;
     }
     HRESULT STDMETHODCALLTYPE NotifyServiceStateChange(WRDS_SERVICE_STATE* s) override { return m_inner->NotifyServiceStateChange(s); }
@@ -346,6 +352,8 @@ public:
 private:
     IWRdsProtocolManager* m_inner;
     SessionSink& m_sink;
+    bool m_hasFixed;
+    ListenerSettings m_fixed;
 };
 
 // ============================================================ sesión -> driver
@@ -393,15 +401,19 @@ public:
     }
 };
 
-ULONG ReadListenerRefreshHz(LPCWSTR listenerName)
+ListenerSettings ReadListenerSettings(LPCWSTR listenerName)
 {
-    if (!listenerName || !*listenerName) return 0;
+    ListenerSettings settings;
+    if (!listenerName || !*listenerName) return settings;
     wchar_t key[160];
     swprintf_s(key, L"SYSTEM\\CurrentControlSet\\Control\\Terminal Server\\WinStations\\%ls", listenerName);
-    DWORD hz = 0, size = sizeof(hz);
-    if (RegGetValueW(HKEY_LOCAL_MACHINE, key, L"OsmsRefreshHz", RRF_RT_REG_DWORD, nullptr, &hz, &size) != ERROR_SUCCESS)
-        return 0;
-    return hz;
+    DWORD value = 0, size = sizeof(value);
+    if (RegGetValueW(HKEY_LOCAL_MACHINE, key, L"OsmsRefreshHz", RRF_RT_REG_DWORD, nullptr, &value, &size) == ERROR_SUCCESS)
+        settings.RefreshHz = value;
+    value = 0; size = sizeof(value);
+    if (RegGetValueW(HKEY_LOCAL_MACHINE, key, L"OsmsRemoteIddAllConnections", RRF_RT_REG_DWORD, nullptr, &value, &size) == ERROR_SUCCESS)
+        settings.AllConnections = value != 0;
+    return settings;
 }
 
 SessionSink& DefaultSessionSink()
@@ -410,10 +422,11 @@ SessionSink& DefaultSessionSink()
     return sink;
 }
 
-HRESULT CreateProtocolManager(IWRdsProtocolManager* inner, SessionSink& sink, REFIID riid, void** ppv)
+HRESULT CreateProtocolManager(IWRdsProtocolManager* inner, SessionSink& sink, REFIID riid, void** ppv,
+                              const ListenerSettings* fixed)
 {
     if (!inner || !ppv) return E_POINTER;
-    auto* mgr = new (std::nothrow) ProtocolManager(inner, sink);
+    auto* mgr = new (std::nothrow) ProtocolManager(inner, sink, fixed);
     if (!mgr) return E_OUTOFMEMORY;
     HRESULT hr = mgr->QueryInterface(riid, ppv);
     mgr->Release();

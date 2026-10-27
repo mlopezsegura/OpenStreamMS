@@ -13,11 +13,14 @@
 # hace DuoStream. Solo las conexiones de puesto (cliente 127.0.0.2) reciben RemoteIdd; el
 # resto de conexiones RDP siguen enteras con el protocolo y el RdpIdd de Microsoft.
 #
-# Uso (administrador):  .\install.ps1 -Bin <salida de build.cmd> [-RefreshHz 120] [-RestartTermService]
+# Uso (administrador):  .\install.ps1 -Bin <salida de build.cmd> [-RefreshHz 120] [-AllConnections] [-RestartTermService]
+# -AllConnections: RemoteIdd también en las sesiones RDP que llegan por la red, no solo en los
+#                  puestos locales. Por defecto, solo conexiones desde el propio equipo.
 # -RefreshHz: Hz de la pantalla del puesto (RDP no los transmite). Por defecto, 60.
 param(
     [Parameter(Mandatory)] [string] $Bin,
     [ValidateRange(24, 500)] [int] $RefreshHz = 60,
+    [switch] $AllConnections,
     [switch] $RestartTermService
 )
 $ErrorActionPreference = 'Stop'
@@ -97,6 +100,7 @@ $done.ProviderDir = $dir; Save
 $done.OriginalProtocol = $original; Save
 Set-ItemProperty $rdpTcp OsmsInnerProtocol_Object $original
 Set-ItemProperty $rdpTcp OsmsRefreshHz $RefreshHz -Type DWord
+Set-ItemProperty $rdpTcp OsmsRemoteIddAllConnections ([int][bool]$AllConnections) -Type DWord
 Set-ItemProperty $rdpTcp LoadableProtocol_Object $clsid
 $done.RdpTcpPatched = $true; Save
 

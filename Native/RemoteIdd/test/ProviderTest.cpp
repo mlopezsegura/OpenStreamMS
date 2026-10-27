@@ -190,7 +190,10 @@ int main()
 
     {
         IWRdsProtocolManager* mgr = nullptr;
-        Check(SUCCEEDED(CreateProtocolManager(&inner, sink, __uuidof(IWRdsProtocolManager), reinterpret_cast<void**>(&mgr))) && mgr,
+        // Ajustes fijos: el test no depende de lo que haya en el registro de este equipo.
+        ListenerSettings localOnly;
+        localOnly.RefreshHz = 120;
+        Check(SUCCEEDED(CreateProtocolManager(&inner, sink, __uuidof(IWRdsProtocolManager), reinterpret_cast<void**>(&mgr), &localOnly)) && mgr,
               "se crea el gestor envolviendo al de Microsoft");
         mgr->Initialize(nullptr, nullptr);
         mgr->NotifySettingsChange(nullptr);
@@ -336,7 +339,37 @@ int main()
     REMOTEIDD_SET_SESSION seat = { REMOTEIDD_SET_SESSION_VERSION, 9 };
     Check(FAILED(DefaultSessionSink().ToDriverHandle(seat, INVALID_HANDLE_VALUE)), "el IOCTL real rechaza un handle inválido");
     Check(FAILED(DefaultSessionSink().ToDeviceInstance(seat, L"SWD\\NoExiste\\0")), "sin dispositivo, la ruta por instancia falla limpio");
-    Check(ReadListenerRefreshHz(L"NoExisteOsms") == 0, "sin OsmsRefreshHz en el listener, Hz del driver (0)");
+    ListenerSettings none = ReadListenerSettings(L"NoExisteOsms");
+    Check(none.RefreshHz == 0 && !none.AllConnections, "sin ajustes en el registro: Hz del driver y solo conexiones locales");
+
+    // -AllConnections: también una conexión que llega por la red recibe RemoteIdd.
+    {
+        FakeManager inner2;
+        FakeConnection remote(L"192.168.1.60");
+        FakeTermService termsrv2;
+        ListenerSettings all;
+        all.AllConnections = true;
+        IWRdsProtocolManager* mgr = nullptr;
+        CreateProtocolManager(&inner2, sink, __uuidof(IWRdsProtocolManager), reinterpret_cast<void**>(&mgr), &all);
+        wchar_t name[] = L"RDP-Tcp";
+        IWRdsProtocolListener* listener = nullptr;
+        mgr->CreateListener(name, &listener);
+        listener->StartListen(&termsrv2);
+        inner2.listener.callback->OnConnected(&remote, nullptr, nullptr);
+        wchar_t hwid[128] = {};
+        if (IWRdsProtocolConnection* c = termsrv2.received)
+        {
+            IWRdsWddmIddProps* props = nullptr;
+            c->QueryInterface(__uuidof(IWRdsWddmIddProps), reinterpret_cast<void**>(&props));
+            if (props) { props->GetHardwareId(hwid, ARRAYSIZE(hwid)); props->Release(); }
+            c->Release();
+        }
+        Check(wcscmp(hwid, REMOTEIDD_HARDWARE_ID) == 0, "con AllConnections, una sesión remota de la red también recibe RemoteIdd");
+        listener->StopListen();
+        listener->Release();
+        mgr->Release();
+        Check(inner2.refs == 1 && remote.refs == 1 && termsrv2.refs == 1, "y sin referencias colgando");
+    }
 
     std::printf("\nRESULTADO: %s\n", g_fail ? "FALLO" : "OK");
     return g_fail;

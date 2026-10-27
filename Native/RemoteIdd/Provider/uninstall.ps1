@@ -15,6 +15,7 @@ if ($s.OriginalProtocol) {
     Set-ItemProperty $rdpTcp LoadableProtocol_Object $s.OriginalProtocol
     Remove-ItemProperty $rdpTcp OsmsInnerProtocol_Object -ErrorAction SilentlyContinue
     Remove-ItemProperty $rdpTcp OsmsRefreshHz -ErrorAction SilentlyContinue
+    Remove-ItemProperty $rdpTcp OsmsRemoteIddAllConnections -ErrorAction SilentlyContinue
     Write-Host "RDP-Tcp restaurado a $($s.OriginalProtocol)."
 }
 # Instalaciones anteriores, con listener aparte.

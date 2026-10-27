@@ -36,14 +36,23 @@ namespace osms::rds
         virtual HRESULT ToDeviceInstance(const REMOTEIDD_SET_SESSION& seat, LPCWSTR deviceInstance) = 0;
     };
 
-    // Hz del puesto: valor DWORD opcional OsmsRefreshHz en WinStations\<listener>. RDP no
-    // transmite la frecuencia del cliente; 0 = la del driver (60).
-    ULONG ReadListenerRefreshHz(LPCWSTR listenerName);
+    // Ajustes del listener, valores DWORD opcionales en WinStations\<listener>:
+    //   OsmsRefreshHz: Hz de la pantalla RemoteIdd (RDP no transmite la frecuencia del
+    //                  cliente); 0 = la del driver (60).
+    //   OsmsRemoteIddAllConnections: 1 = todas las conexiones RDP reciben RemoteIdd, no solo
+    //                  las del propio equipo (puestos).
+    struct ListenerSettings
+    {
+        ULONG RefreshHz = 0;
+        bool  AllConnections = false;
+    };
+    ListenerSettings ReadListenerSettings(LPCWSTR listenerName);
     SessionSink& DefaultSessionSink();
 
     // Crea el gestor que envuelve a `inner`. Usado por la fábrica COM y por los tests.
+    // `fixed` sustituye a los ajustes del registro (tests); nullptr = leerlos del listener.
     HRESULT CreateProtocolManager(IWRdsProtocolManager* inner, SessionSink& sink,
-                                  REFIID riid, void** ppv);
+                                  REFIID riid, void** ppv, const ListenerSettings* fixed = nullptr);
     // Crea el gestor de Microsoft (CLSID leído de RDP-Tcp, o rdpcorets por defecto).
     HRESULT CreateInnerProtocolManager(IWRdsProtocolManager** inner);
 
