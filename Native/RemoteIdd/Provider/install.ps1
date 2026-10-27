@@ -95,6 +95,12 @@ Sign "$dir\OsmsRdsProvider.dll"
 RegSvr "/s `"$dir\OsmsRdsProvider.dll`""
 $done.ProviderDir = $dir; Save
 
+# Log del proveedor (lo escribe TermService, que corre como NETWORK SERVICE; *S-1-5-20).
+$log = Join-Path $env:ProgramData 'OpenStreamMS\remoteidd-provider.log'
+New-Item -ItemType File -Force $log | Out-Null
+icacls $log /grant '*S-1-5-20:(M)' /grant '*S-1-5-32-545:(R)' | Out-Null
+$done.ProviderLog = $log; Save
+
 # 4) RDP-Tcp: este proveedor delante del de Microsoft. El original primero en el estado,
 #    para que uninstall.ps1 lo restaure aunque algo falle a continuación.
 $done.OriginalProtocol = $original; Save

@@ -8,14 +8,34 @@
 
 namespace osms::rds {
 
-static void Log(const wchar_t* fmt, ...)
+// Además de OutputDebugString, se añade a %ProgramData%\OpenStreamMS\remoteidd-provider.log si
+// existe: lo crea install.ps1 con permiso de escritura para NETWORK SERVICE (la cuenta de
+// TermService). Así se puede diagnosticar sin DebugView. Si no existe, no se crea.
+void Log(const wchar_t* fmt, ...)
 {
-    wchar_t buf[256];
+    wchar_t buf[320];
     va_list args;
     va_start(args, fmt);
     _vsnwprintf_s(buf, _TRUNCATE, fmt, args);
     va_end(args);
     OutputDebugStringW(buf);
+
+    wchar_t path[MAX_PATH];
+    if (!ExpandEnvironmentStringsW(L"%ProgramData%\\OpenStreamMS\\remoteidd-provider.log", path, MAX_PATH))
+        return;
+    HANDLE f = CreateFileW(path, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                           OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (f == INVALID_HANDLE_VALUE) return;
+    SYSTEMTIME t;
+    GetLocalTime(&t);
+    wchar_t line[400];
+    int n = swprintf_s(line, L"%02u:%02u:%02u.%03u [%lu] %ls", t.wHour, t.wMinute, t.wSecond,
+                       t.wMilliseconds, GetCurrentProcessId(), buf);
+    char utf8[1200];
+    int len = n > 0 ? WideCharToMultiByte(CP_UTF8, 0, line, n, utf8, sizeof(utf8), nullptr, nullptr) : 0;
+    DWORD written = 0;
+    if (len > 0) WriteFile(f, utf8, static_cast<DWORD>(len), &written, nullptr);
+    CloseHandle(f);
 }
 
 #define OSMS_IUNKNOWN                                                         \
@@ -290,6 +310,7 @@ public:
         auto* wrapped = new (std::nothrow) ListenerCallback(callback, m_sink, m_settings);
         if (!wrapped) return E_OUTOFMEMORY;
         HRESULT hr = m_inner->StartListen(wrapped);
+        Log(L"OsmsRds: StartListen 0x%08X\n", hr);
         wrapped->Release();
         return hr;
     }
@@ -325,13 +346,19 @@ public:
     }
     OSMS_IUNKNOWN
 
-    HRESULT STDMETHODCALLTYPE Initialize(IWRdsProtocolSettings* s, PWRDS_SETTINGS w) override { return m_inner->Initialize(s, w); }
+    HRESULT STDMETHODCALLTYPE Initialize(IWRdsProtocolSettings* s, PWRDS_SETTINGS w) override
+    {
+        HRESULT hr = m_inner->Initialize(s, w);
+        Log(L"OsmsRds: Initialize 0x%08X\n", hr);
+        return hr;
+    }
     HRESULT STDMETHODCALLTYPE CreateListener(WCHAR* name, IWRdsProtocolListener** listener) override
     {
         if (!listener) return E_POINTER;
         *listener = nullptr;
         IWRdsProtocolListener* inner = nullptr;
         HRESULT hr = m_inner->CreateListener(name, &inner);
+        Log(L"OsmsRds: CreateListener(%ls) 0x%08X\n", name ? name : L"?", hr);
         if (FAILED(hr)) return hr;
         ListenerSettings settings = m_hasFixed ? m_fixed : ReadListenerSettings(name);
         auto* wrapped = new (std::nothrow) Listener(inner, m_sink, settings);
@@ -487,6 +514,7 @@ public:
             return hr;
         }
         hr = CreateProtocolManager(inner, DefaultSessionSink(), riid, ppv);
+        Log(L"OsmsRds: gestor creado 0x%08X\n", hr);
         inner->Release();
         if (SUCCEEDED(hr)) ++g_objects;
         return hr;
@@ -515,6 +543,7 @@ BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID)
 
 STDAPI DllGetClassObject(REFCLSID clsid, REFIID riid, LPVOID* ppv)
 {
+    osms::rds::Log(L"OsmsRds: DllGetClassObject (DLL cargada en el proceso de TermService)\n");
     static osms::rds::ClassFactory factory;
     if (clsid != osms::rds::CLSID_OsmsRdsProtocolManager) return CLASS_E_CLASSNOTAVAILABLE;
     return factory.QueryInterface(riid, ppv);
