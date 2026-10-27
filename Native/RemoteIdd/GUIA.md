@@ -33,9 +33,10 @@ DDA/WGC ni por la codificación RDP.
 ```
 
 Quién carga el driver: Terminal Services, a petición del **proveedor de protocolo**
-`OsmsRdsProvider.dll`, registrado en RDP-Tcp. Solo las conexiones de puesto (cliente
-`127.0.0.2`, el loopback que usa solo OpenStreamMS) reciben RemoteIdd; cualquier otra
-conexión RDP sigue entera con el protocolo y el RdpIdd de Microsoft.
+`OsmsRdsProvider.dll`, registrado en RDP-Tcp. Solo las conexiones de puesto, es decir, las
+RDP desde el propio equipo (OpenStreamMS conecta a `127.0.0.2`; el origen puede declararse
+`127.0.0.1`), reciben RemoteIdd. Cualquier conexión que llegue por la red sigue entera con
+el protocolo y el RdpIdd de Microsoft.
 
 ## 2. Decisiones de diseño (no reabrir sin motivo)
 
@@ -50,8 +51,9 @@ conexión RDP sigue entera con el protocolo y el RdpIdd de Microsoft.
 - **En RDP-Tcp, no en un listener aparte.** Windows cliente (Pro) solo levanta el listener
   RDP-Tcp: un listener propio (`OSMS-Seat`) se probó el 2026-10-27 y Terminal Services no lo
   arranca (evento 1136, sin rol de Host de sesión). DuoStream hace lo mismo: su `DuoRds.dll`
-  agrega el listener de RDP-Tcp. La decisión es por conexión: solo `127.0.0.2` recibe
-  RemoteIdd; en el resto, hasta las interfaces del IDD se delegan en Microsoft.
+  agrega el listener de RDP-Tcp. La decisión es por conexión: solo las que vienen del propio
+  equipo (loopback) reciben RemoteIdd; en el resto, hasta las interfaces del IDD se delegan
+  en Microsoft.
 - **Mínima invasión**: un solo valor de RDP-Tcp cambiado (el original se guarda y se
   restaura), sin dispositivo raíz (el dispositivo lo crea Terminal Services por sesión),
   driver solo en el Driver Store, objetos efímeros con DACL mínima (SYSTEM, LocalService,
@@ -142,8 +144,9 @@ cd E:\Workspace\OpenStreamMS\Native\RemoteIdd
 .\Provider\install.ps1 -Bin .\bin -RefreshHz 120 -RestartTermService
 ```
 
-**3. Abrir una sesión de puesto** con un usuario de puesto y **desde `127.0.0.2`** (solo esas
-conexiones reciben RemoteIdd; no con el propio usuario, que está en la consola). Dejar algo
+**3. Abrir una sesión de puesto** con un usuario de puesto y **desde el propio equipo**
+(`127.0.0.2`; solo las conexiones locales reciben RemoteIdd; no con el propio usuario, que
+está en la consola). Dejar algo
 moviéndose: IddCx solo presenta cuando cambia la pantalla.
 ```powershell
 mstsc /v:127.0.0.2

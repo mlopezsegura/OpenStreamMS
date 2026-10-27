@@ -23,16 +23,26 @@ static void Log(const wchar_t* fmt, ...)
     ULONG STDMETHODCALLTYPE Release() override { return ReleaseImpl(); }
 
 // ============================================================ conexión
-// ¿Conexión de puesto? OpenStreamMS conecta sus puestos desde 127.0.0.2, un loopback
-// alternativo que no usa nada más. Cualquier otra conexión RDP sigue entera con Microsoft.
+// ¿Conexión de puesto? Los puestos de OpenStreamMS son conexiones RDP desde el propio equipo
+// (a 127.0.0.2; Windows puede declarar 127.0.0.1 como origen). Cualquier conexión que llegue
+// por la red sigue entera con Microsoft.
 static bool IsSeatClient(const WRDS_CLIENT_DATA& d)
 {
-    if (wcsncmp(d.ClientAddress, REMOTEIDD_SEAT_CLIENT_ADDRESS, ARRAYSIZE(d.ClientAddress)) == 0)
+    // Dirección en texto, tal como la declara el cliente.
+    if (wcsncmp(d.ClientAddress, L"127.", 4) == 0 || wcsncmp(d.ClientAddress, L"::1", 4) == 0)
         return true;
-    if (d.ClientSockAddress.sin_family == 2 /* AF_INET */)
+    const auto& sa = d.ClientSockAddress;
+    if (sa.sin_family == 2 /* AF_INET */)
     {
-        ULONG a = d.ClientSockAddress.u.ipv4.in_addr;
-        return a == 0x0200007F || a == 0x7F000002;   // 127.0.0.2 en orden de red o de host
+        ULONG a = sa.u.ipv4.in_addr;
+        return (a & 0xFF) == 127 || (a >> 24) == 127;   // 127.x.x.x en orden de red o de host
+    }
+    if (sa.sin_family == 23 /* AF_INET6 */)
+    {
+        for (int i = 0; i < 7; ++i)
+            if (sa.u.ipv6.sin6_addr[i]) return false;
+        USHORT last = sa.u.ipv6.sin6_addr[7];
+        return last == 0x0100 || last == 0x0001;        // ::1 en orden de red o de host
     }
     return false;
 }

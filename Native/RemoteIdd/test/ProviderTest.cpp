@@ -184,6 +184,7 @@ int main()
     FakeConnection rdpConnection(REMOTEIDD_SEAT_CLIENT_ADDRESS);   // puesto de OpenStreamMS
     FakeConnection lanConnection(L"192.168.1.50");                 // RDP normal desde la red
     FakeConnection noIddConnection(L"192.168.1.51", false);        // rdpcorets sin interfaces de IDD
+    FakeConnection loopbackConnection(L"127.0.0.1");               // puesto con origen 127.0.0.1
     FakeTermService termsrv;
     RecordingSink sink;
 
@@ -295,6 +296,19 @@ int main()
         else
             Check(false, "la conexión normal llega a Terminal Services");
 
+        // Windows puede declarar 127.0.0.1 como origen al conectar a 127.0.0.2: sigue siendo puesto.
+        inner.listener.callback->OnConnected(&loopbackConnection, nullptr, nullptr);
+        if (IWRdsProtocolConnection* c = termsrv.received)
+        {
+            IWRdsWddmIddProps* props = nullptr;
+            c->QueryInterface(__uuidof(IWRdsWddmIddProps), reinterpret_cast<void**>(&props));
+            wchar_t hwid[128] = {};
+            if (props) { props->GetHardwareId(hwid, ARRAYSIZE(hwid)); props->Release(); }
+            Check(wcscmp(hwid, REMOTEIDD_HARDWARE_ID) == 0, "una conexión desde 127.0.0.1 también es un puesto");
+            termsrv.received = nullptr;
+            c->Release();
+        }
+
         // Si rdpcorets no tiene interfaces de IDD, el envoltorio tampoco las ofrece.
         inner.listener.callback->OnConnected(&noIddConnection, nullptr, nullptr);
         if (IWRdsProtocolConnection* c = termsrv.received)
@@ -315,7 +329,7 @@ int main()
     }
 
     Check(inner.refs == 1 && inner.listener.refs == 1 && rdpConnection.refs == 1 && termsrv.refs == 1 &&
-          lanConnection.refs == 1 && noIddConnection.refs == 1,
+          lanConnection.refs == 1 && noIddConnection.refs == 1 && loopbackConnection.refs == 1,
           "sin referencias colgando al soltarlo todo");
 
     // El sink real con un handle inválido falla limpio (sin driver no hay a quién avisar).

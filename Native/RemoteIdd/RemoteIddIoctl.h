@@ -13,8 +13,9 @@
 // Mismo formato que el de Microsoft (RdpIdd_IndirectDisplay).
 #define REMOTEIDD_HARDWARE_ID L"OsmsRemoteIdd_IndirectDisplay"
 
-// Dirección desde la que OpenStreamMS conecta sus puestos (RdpSessionCreator.LoopbackHost).
-// Solo esas conexiones de RDP-Tcp reciben RemoteIdd; las demás siguen con RdpIdd.
+// Dirección a la que OpenStreamMS conecta sus puestos (RdpSessionCreator.LoopbackHost). El
+// proveedor trata como puesto toda conexión RDP desde el propio equipo (127.x, ::1); las que
+// llegan por la red siguen con RdpIdd.
 #define REMOTEIDD_SEAT_CLIENT_ADDRESS L"127.0.0.2"
 
 // Interfaz de dispositivo que registra el driver para recibir el IOCTL cuando el
