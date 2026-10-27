@@ -15,6 +15,8 @@
 param(
     [Parameter(Mandatory)] [string] $Bin,
     [int] $Port = 3390,
+    [int] $WebSocketPort = 3394,
+    [int] $WebSocketTlsPort = 3395,
     [ValidateRange(24, 500)] [int] $RefreshHz = 60,
     [switch] $RestartTermService
 )
@@ -39,6 +41,9 @@ foreach ($f in 'RemoteIdd.dll', 'RemoteIdd.inf', 'OsmsRdsProvider.dll') {
     if (-not (Test-Path (Join-Path $Bin $f))) { throw "Falta $f en $Bin (ejecuta build.cmd)." }
 }
 if (Test-Path "$ws\OSMS-Seat") { throw 'Ya existe WinStations\OSMS-Seat.' }
+foreach ($p in $Port, $WebSocketPort, $WebSocketTlsPort) {
+    if (Get-NetTCPConnection -State Listen -LocalPort $p -ErrorAction SilentlyContinue) { throw "El puerto $p ya está en uso." }
+}
 
 $done = [ordered]@{ Port = $Port }
 
@@ -91,6 +96,10 @@ $done.ProviderDir = $dir; Save
 reg copy "HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" `
          "HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\OSMS-Seat" /s /f | Out-Null
 Set-ItemProperty "$ws\OSMS-Seat" PortNumber $Port -Type DWord
+# RDP-Tcp también abre puertos de transporte WebSocket (3387/3392): con los copiados, los
+# dos listeners chocan y OSMS-Seat queda inactivo (evento 1035, socket ya en uso).
+Set-ItemProperty "$ws\OSMS-Seat" WebSocketListenerPort $WebSocketPort -Type DWord
+Set-ItemProperty "$ws\OSMS-Seat" WebSocketTlsListenerPort $WebSocketTlsPort -Type DWord
 Set-ItemProperty "$ws\OSMS-Seat" LoadableProtocol_Object $clsid
 Set-ItemProperty "$ws\OSMS-Seat" OsmsRefreshHz $RefreshHz -Type DWord
 $done.WinStation = 'OSMS-Seat'; Save
