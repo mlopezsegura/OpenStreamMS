@@ -315,6 +315,8 @@ namespace OpenStreamMS.Core.Helpers
             // git bisect (01c44bc..70bd9df) senala el commit "Mejoras rdp" (0ad97d6)
             // que anadio /gfx + /rfx + /dynamic-resolution como la regresion exacta.
             // network:lan = desactiva throttle de ancho de banda (inofensivo, se queda).
+            // No usar "modem" ni -wallpaper/-themes/-fonts: Sunshine captura esta misma
+            // pantalla y el puesto se queda sin fondo, temas ni suavizado de fuentes.
             psi.ArgumentList.Add("/network:lan");
 
             // ── Audio ─────────────────────────────────────────────────────────────
@@ -544,20 +546,22 @@ namespace OpenStreamMS.Core.Helpers
         /// incluida la key per-connection RDP-Tcp que termsrv lee al aceptar cada conexion.
         /// <para>
         /// La pantalla virtual de la sesion RDP toma su frecuencia de DWMFRAMEINTERVAL
-        /// (ms enteros): 17 → Sunshine ve 58 Hz, 15 → 66 Hz (medido). Con 15 Sunshine
-        /// descartaba ~1 de cada 10 frames para bajar a los 60 fps de Moonlight y el
-        /// stream daba tirones claramente peores; se mantiene el redondeo (60 → 17).
+        /// (ms enteros): 17 → Sunshine ve 58 Hz, 15 → 66 Hz (medido). Con 17 la tele
+        /// recibe 58,8 fps y repite un frame cada ~0,85 s; con 15 Sunshine descartaba
+        /// ~1 de cada 10 frames y los tirones eran peores. Ver CompositionIntervalMs.
         /// </para>
         /// </summary>
         static void ApplyFrameRatePolicy(int frameRate)
         {
-            var frameIntervalMs = Math.Max(1, (int)Math.Round(1000.0 / frameRate));
+            var frameIntervalMs = CompositionIntervalMs(frameRate);
+            var compositionHz   = 1000 / frameIntervalMs;
 
             var entries = new (string Path, string Name, int Value, RegistryValueKind Kind)[]
             {
-                // fps directo — la key mas efectiva en Win10 1903+
+                // fps directo — la key mas efectiva en Win10 1903+. Se iguala a la
+                // composicion para que no la limite por debajo.
                 (@"SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services",
-                    "MaxFrameRate",     frameRate,       RegistryValueKind.DWord),
+                    "MaxFrameRate",     compositionHz,   RegistryValueKind.DWord),
 
                 // DWMFRAMEINTERVAL en milisegundos — todas las rutas usan la misma unidad
                 (@"SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services",
@@ -575,7 +579,28 @@ namespace OpenStreamMS.Core.Helpers
             foreach (var (path, name, value, kind) in entries)
                 WriteRegistry(path, name, value, kind);
 
-            Logger.Log($"[RDP] FrameRate={frameRate} fps | interval={frameIntervalMs} ms");
+            Logger.Log($"[RDP] FrameRate={frameRate} fps | interval={frameIntervalMs} ms (composicion {compositionHz} Hz)");
+        }
+
+        /// <summary>
+        /// Intervalo de composicion DWM (ms enteros) para un fps pedido.
+        /// <para>
+        /// Si 1000/fps es entero (50, 100, 125...) se usa tal cual: la composicion coincide.
+        /// Si no (60, 120, 144...), ningun entero da la frecuencia exacta, asi que se compone
+        /// mucho mas rapido (60 → 4 ms, 250 Hz) y el ritmo lo marca Sunshine, que manda cada
+        /// frame al llegar con tope de fps (display_base.cpp). Cada frame del juego sale en el
+        /// siguiente tic de composicion: con 8 ms (125 Hz) salian a 16/24 ms y Moonlight
+        /// descartaba hasta un 10 % por jitter; con 4 ms el desfase maximo es la mitad. No se
+        /// baja de 4 ms (500 Hz con 120 fps): el coste de componer y de RDP crece con el ritmo.
+        /// Windows ignora intervalos por debajo de 2 ms.
+        /// </para>
+        /// </summary>
+        internal static int CompositionIntervalMs(int frameRate)
+        {
+            frameRate = NormalizeFrameRate(frameRate);
+            if (1000 % frameRate == 0)
+                return Math.Max(2, 1000 / frameRate);
+            return Math.Max(4, 1000 / (4 * frameRate));
         }
 
         /// <summary>
