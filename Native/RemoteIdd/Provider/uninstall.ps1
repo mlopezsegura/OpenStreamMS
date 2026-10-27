@@ -1,4 +1,4 @@
-# uninstall.ps1 — deshace install.ps1 paso a paso según el fichero de estado.
+﻿# uninstall.ps1 — deshace install.ps1 paso a paso según el fichero de estado.
 # Uso (administrador):  .\uninstall.ps1 [-RestartTermService]
 param([switch] $RestartTermService)
 $ErrorActionPreference = 'Continue'

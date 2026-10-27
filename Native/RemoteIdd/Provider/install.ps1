@@ -1,4 +1,4 @@
-# install.ps1 — instala RemoteIdd + proveedor RDS para PRUEBAS (firma de test).
+﻿# install.ps1 — instala RemoteIdd + proveedor RDS para PRUEBAS (firma de test).
 #
 # ⚠️ Pensado para una VM o un equipo de pruebas, no para el PC de los puestos:
 #   - exige testsigning activado (bcdedit /set testsigning on + reinicio; con arranque

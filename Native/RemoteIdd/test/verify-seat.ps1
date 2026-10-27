@@ -1,4 +1,4 @@
-# verify-seat.ps1 — comprueba con un puesto REAL que RemoteIdd entrega frames.
+﻿# verify-seat.ps1 — comprueba con un puesto REAL que RemoteIdd entrega frames.
 #
 # Requisitos: install.ps1 hecho y la sesión del puesto abierta desde 127.0.0.2 (OpenStreamMS
 # o mstsc /v:127.0.0.2 con el usuario del puesto). Ejecutar como administrador.
