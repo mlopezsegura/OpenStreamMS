@@ -389,7 +389,8 @@ public class StreamSessionService
         var user = ResolveUser(session);
         var rdpId = RdpSessionCreator.Reconnect(user, session.RdpSessionId, width, height,
                                                 frameRate, session.RdpColorDepth, out int clientPid,
-                                                preferMstsc: !string.Equals(_defaultConfig.RdpClient, "freerdp", StringComparison.OrdinalIgnoreCase));
+                                                preferMstsc: !string.Equals(_defaultConfig.RdpClient, "freerdp", StringComparison.OrdinalIgnoreCase),
+                                                remoteIdd: UsesRemoteIdd(session));
         session.RdpSessionId = rdpId;
         session.FreeRdpPid   = clientPid;
         // El audio sale por el cliente RDP del host: el nuevo cliente también se silencia.
@@ -815,7 +816,8 @@ public class StreamSessionService
                                                               out int freeRdpPid,
                                                               preferMstsc: !string.Equals(
                                                                   _defaultConfig.RdpClient, "freerdp",
-                                                                  StringComparison.OrdinalIgnoreCase));
+                                                                  StringComparison.OrdinalIgnoreCase),
+                                                              remoteIdd: UsesRemoteIdd(session));
 
             // Stop() pudo haber sido llamado mientras esperábamos la sesión RDP
             if (session.State != SessionState.Starting)
@@ -968,7 +970,8 @@ public class StreamSessionService
                 new SunshineConfigurator.SunshineCredentials(session.SunshineAuthUser, session.SunshineAuthPass),
                 profileOverrides,
                 GetSunshineStatePersistPath(session.Id),
-                GetSunshineStateAliasPath(session));
+                GetSunshineStateAliasPath(session),
+                runAsSystem: UsesRemoteIdd(session));
         });
 
     /// <summary>
@@ -1067,7 +1070,7 @@ public class StreamSessionService
         new(
             StreamPort:               s.SunshineStreamPort,
             Name:                     string.IsNullOrWhiteSpace(s.SunshineName) ? s.Name : s.SunshineName,
-            Capture:                  s.Capture,
+            Capture:                  EffectiveCapture(s),
             Encoder:                  s.Encoder,
             OutputName:               s.OutputName,
             OriginWebUiAllowed:       s.OriginWebUiAllowed,
@@ -1169,6 +1172,25 @@ public class StreamSessionService
 
     private static string? NullIfBlank(string? s) =>
         string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
+    /// <summary>
+    /// Captura RemoteIdd: el proveedor de RDP-Tcp da a la sesión del puesto el driver propio
+    /// de pantalla y Sunshine lee sus frames con capture = remoteidd. Si el proveedor no está
+    /// en RDP-Tcp (no instalado, o se volvió a asmtron porque TermWrap falló), el puesto usa la
+    /// captura por defecto.
+    /// </summary>
+    private static bool UsesRemoteIdd(StreamSession session) =>
+        WantsRemoteIdd(session) && RdpWrapperManager.IsRemoteIddActive();
+
+    private static bool WantsRemoteIdd(StreamSession session) =>
+        string.Equals(session.Capture, "remoteidd", StringComparison.OrdinalIgnoreCase);
+
+    private static string? EffectiveCapture(StreamSession session)
+    {
+        if (!WantsRemoteIdd(session) || UsesRemoteIdd(session)) return session.Capture;
+        Logger.Warning($"[{session.Name}] Captura remoteidd sin RemoteIdd activo en RDP-Tcp: se usa la captura por defecto.", session.Id);
+        return null;
+    }
 
     private static int NormalizeRdpFrameRate(int frameRate) =>
         Math.Clamp(frameRate > 0 ? frameRate : 60, 1, 240);

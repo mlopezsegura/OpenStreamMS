@@ -15,7 +15,7 @@ public static class RdpWrapperEndpoints
                 TypedResults.Ok(mgr.GetStatus()))
              .WithName("GetRdpWrapperStatus")
              .WithSummary("Estado del RDP Wrapper")
-             .WithDescription("Devuelve si RDP Wrapper está instalado y activo, versión del bundle de asmtron, versión de termsrv.dll y destino actual de ServiceDll.");
+             .WithDescription("Devuelve qué wrapper usa TermService (asmtron o TermWrap), si está cargado de verdad en el proceso, su versión, la de termsrv.dll y el destino actual de ServiceDll.");
 
         group.MapGet("/log", (RdpWrapperManager mgr) =>
                 TypedResults.Ok(new RdpWrapperLogResponse(mgr.GetLog(), mgr.IsBusy, mgr.GetStatus().LastAction)))

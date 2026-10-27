@@ -90,6 +90,30 @@ namespace OpenStreamMS.Core.Helpers
         /// </summary>
         const string LoopbackHost = "127.0.0.2";
 
+        /// <summary>
+        /// Proveedor de protocolo de RemoteIdd (Native/RemoteIdd/Provider/install.ps1). Va en
+        /// RDP-Tcp, el único listener que levanta Windows cliente, y solo da la pantalla
+        /// RemoteIdd a las conexiones que llegan desde <see cref="LoopbackHost"/>.
+        /// </summary>
+        const string RemoteIddProviderClsid = "{8B0F3C51-2D7A-4F6E-A1C9-5E4D2B7F0A36}";
+
+        /// <summary>
+        /// Dirección a la que conecta el cliente RDP: siempre el loopback de los puestos. Con
+        /// captura RemoteIdd se comprueba antes que el proveedor esté instalado: sin él, la
+        /// sesión tendría la pantalla RDP normal y Sunshine no encontraría frames.
+        /// </summary>
+        static string RdpAddress(bool remoteIdd)
+        {
+            if (!remoteIdd) return LoopbackHost;
+            using var key = Registry.LocalMachine.OpenSubKey(
+                @"SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp");
+            if (!string.Equals(key?.GetValue("LoadableProtocol_Object") as string, RemoteIddProviderClsid,
+                               StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException(
+                    "[RDP] Captura RemoteIdd sin su proveedor en RDP-Tcp: instálalo con Native/RemoteIdd/Provider/install.ps1.");
+            return LoopbackHost;
+        }
+
         // ── Public API ────────────────────────────────────────────────────────────
 
         /// <summary>
@@ -99,9 +123,11 @@ namespace OpenStreamMS.Core.Helpers
                                               int rdpWidth, int rdpHeight,
                                               int rdpFrameRate, int rdpColorDepth,
                                               out int freeRdpPid,
-                                              bool preferMstsc = true)
+                                              bool preferMstsc = true,
+                                              bool remoteIdd = false)
         {
             freeRdpPid = 0;
+            string address = RdpAddress(remoteIdd);
 
             // Escritorio Remoto habilitado de forma NATIVA (sin RDPWrapper ni
             // ningun binario externo). Basta para UNA sesion RDP simultanea, que es lo
@@ -130,7 +156,7 @@ namespace OpenStreamMS.Core.Helpers
                 try
                 {
                     Logger.Log($"[RDP] Sin sesion para '{user.Username}', creando via mstsc (AVC444 hw)...");
-                    return CreateSessionWithMstsc(user, rdpWidth, rdpHeight,
+                    return CreateSessionWithMstsc(user, address, rdpWidth, rdpHeight,
                                                   rdpFrameRate, rdpColorDepth, out freeRdpPid);
                 }
                 catch (Exception ex)
@@ -140,7 +166,7 @@ namespace OpenStreamMS.Core.Helpers
             }
 
             Logger.Log($"[RDP] Sin sesion para '{user.Username}', creando via FreeRDP...");
-            return CreateSessionWithFreeRdp(user, rdpWidth, rdpHeight,
+            return CreateSessionWithFreeRdp(user, address, rdpWidth, rdpHeight,
                                             rdpFrameRate, rdpColorDepth, out freeRdpPid);
         }
 
@@ -157,9 +183,11 @@ namespace OpenStreamMS.Core.Helpers
                                      int rdpWidth, int rdpHeight,
                                      int rdpFrameRate, int rdpColorDepth,
                                      out int clientPid,
-                                     bool preferMstsc = true)
+                                     bool preferMstsc = true,
+                                     bool remoteIdd = false)
         {
             clientPid = 0;
+            string address = RdpAddress(remoteIdd);
             Logger.Log($"[RDP] Reconectando la sesión {sessionId} a {rdpWidth}x{rdpHeight} @ {rdpFrameRate} fps...");
 
             if (!WTSDisconnectSession(IntPtr.Zero, (int)sessionId, true))
@@ -173,16 +201,16 @@ namespace OpenStreamMS.Core.Helpers
             uint id;
             if (preferMstsc)
             {
-                try { id = CreateSessionWithMstsc(user, rdpWidth, rdpHeight, rdpFrameRate, rdpColorDepth, out clientPid); }
+                try { id = CreateSessionWithMstsc(user, address, rdpWidth, rdpHeight, rdpFrameRate, rdpColorDepth, out clientPid); }
                 catch (Exception ex)
                 {
                     Logger.Warning($"[RDP] mstsc falló al reconectar ({ex.Message}); reintentando con FreeRDP...");
-                    id = CreateSessionWithFreeRdp(user, rdpWidth, rdpHeight, rdpFrameRate, rdpColorDepth, out clientPid);
+                    id = CreateSessionWithFreeRdp(user, address, rdpWidth, rdpHeight, rdpFrameRate, rdpColorDepth, out clientPid);
                 }
             }
             else
             {
-                id = CreateSessionWithFreeRdp(user, rdpWidth, rdpHeight, rdpFrameRate, rdpColorDepth, out clientPid);
+                id = CreateSessionWithFreeRdp(user, address, rdpWidth, rdpHeight, rdpFrameRate, rdpColorDepth, out clientPid);
             }
 
             if (id != sessionId)
@@ -237,7 +265,7 @@ namespace OpenStreamMS.Core.Helpers
 
         // ── Creacion de sesion ────────────────────────────────────────────────────
 
-        static uint CreateSessionWithFreeRdp(StreamUserConfig user, int rdpWidth, int rdpHeight,
+        static uint CreateSessionWithFreeRdp(StreamUserConfig user, string address, int rdpWidth, int rdpHeight,
                                              int rdpFrameRate, int rdpColorDepth, out int freeRdpPid)
         {
             freeRdpPid = 0;
@@ -268,7 +296,7 @@ namespace OpenStreamMS.Core.Helpers
             };
 
             // ── Conexion ──────────────────────────────────────────────────────────
-            psi.ArgumentList.Add($"/v:{LoopbackHost}");
+            psi.ArgumentList.Add($"/v:{address}");
             psi.ArgumentList.Add($"/u:{user.Username}");
             psi.ArgumentList.Add($"/d:{domain}");
             psi.ArgumentList.Add($"/p:{user.Password}");
@@ -287,6 +315,8 @@ namespace OpenStreamMS.Core.Helpers
             // git bisect (01c44bc..70bd9df) senala el commit "Mejoras rdp" (0ad97d6)
             // que anadio /gfx + /rfx + /dynamic-resolution como la regresion exacta.
             // network:lan = desactiva throttle de ancho de banda (inofensivo, se queda).
+            // No usar "modem" ni -wallpaper/-themes/-fonts: Sunshine captura esta misma
+            // pantalla y el puesto se queda sin fondo, temas ni suavizado de fuentes.
             psi.ArgumentList.Add("/network:lan");
 
             // ── Audio ─────────────────────────────────────────────────────────────
@@ -348,7 +378,7 @@ namespace OpenStreamMS.Core.Helpers
         /// Session 0 → colgaria la conexion).
         /// </para>
         /// </summary>
-        static uint CreateSessionWithMstsc(StreamUserConfig user, int rdpWidth, int rdpHeight,
+        static uint CreateSessionWithMstsc(StreamUserConfig user, string address, int rdpWidth, int rdpHeight,
                                            int rdpFrameRate, int rdpColorDepth, out int clientPid)
         {
             clientPid = 0;
@@ -379,7 +409,7 @@ namespace OpenStreamMS.Core.Helpers
             // Sin redirecciones de dispositivos: evita el dialogo de publisher.
             File.WriteAllLines(rdpFile, new[]
             {
-                $"full address:s:{LoopbackHost}",
+                $"full address:s:{address}",
                 $"username:s:{principal}",
                 $"desktopwidth:i:{rdpWidth}",
                 $"desktopheight:i:{rdpHeight}",
@@ -516,20 +546,22 @@ namespace OpenStreamMS.Core.Helpers
         /// incluida la key per-connection RDP-Tcp que termsrv lee al aceptar cada conexion.
         /// <para>
         /// La pantalla virtual de la sesion RDP toma su frecuencia de DWMFRAMEINTERVAL
-        /// (ms enteros): 17 → Sunshine ve 58 Hz, 15 → 66 Hz (medido). Con 15 Sunshine
-        /// descartaba ~1 de cada 10 frames para bajar a los 60 fps de Moonlight y el
-        /// stream daba tirones claramente peores; se mantiene el redondeo (60 → 17).
+        /// (ms enteros): 17 → Sunshine ve 58 Hz, 15 → 66 Hz (medido). Con 17 la tele
+        /// recibe 58,8 fps y repite un frame cada ~0,85 s; con 15 Sunshine descartaba
+        /// ~1 de cada 10 frames y los tirones eran peores. Ver CompositionIntervalMs.
         /// </para>
         /// </summary>
         static void ApplyFrameRatePolicy(int frameRate)
         {
-            var frameIntervalMs = Math.Max(1, (int)Math.Round(1000.0 / frameRate));
+            var frameIntervalMs = CompositionIntervalMs(frameRate);
+            var compositionHz   = 1000 / frameIntervalMs;
 
             var entries = new (string Path, string Name, int Value, RegistryValueKind Kind)[]
             {
-                // fps directo — la key mas efectiva en Win10 1903+
+                // fps directo — la key mas efectiva en Win10 1903+. Se iguala a la
+                // composicion para que no la limite por debajo.
                 (@"SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services",
-                    "MaxFrameRate",     frameRate,       RegistryValueKind.DWord),
+                    "MaxFrameRate",     compositionHz,   RegistryValueKind.DWord),
 
                 // DWMFRAMEINTERVAL en milisegundos — todas las rutas usan la misma unidad
                 (@"SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services",
@@ -547,7 +579,28 @@ namespace OpenStreamMS.Core.Helpers
             foreach (var (path, name, value, kind) in entries)
                 WriteRegistry(path, name, value, kind);
 
-            Logger.Log($"[RDP] FrameRate={frameRate} fps | interval={frameIntervalMs} ms");
+            Logger.Log($"[RDP] FrameRate={frameRate} fps | interval={frameIntervalMs} ms (composicion {compositionHz} Hz)");
+        }
+
+        /// <summary>
+        /// Intervalo de composicion DWM (ms enteros) para un fps pedido.
+        /// <para>
+        /// Si 1000/fps es entero (50, 100, 125...) se usa tal cual: la composicion coincide.
+        /// Si no (60, 120, 144...), ningun entero da la frecuencia exacta, asi que se compone
+        /// mucho mas rapido (60 → 4 ms, 250 Hz) y el ritmo lo marca Sunshine, que manda cada
+        /// frame al llegar con tope de fps (display_base.cpp). Cada frame del juego sale en el
+        /// siguiente tic de composicion: con 8 ms (125 Hz) salian a 16/24 ms y Moonlight
+        /// descartaba hasta un 10 % por jitter; con 4 ms el desfase maximo es la mitad. No se
+        /// baja de 4 ms (500 Hz con 120 fps): el coste de componer y de RDP crece con el ritmo.
+        /// Windows ignora intervalos por debajo de 2 ms.
+        /// </para>
+        /// </summary>
+        internal static int CompositionIntervalMs(int frameRate)
+        {
+            frameRate = NormalizeFrameRate(frameRate);
+            if (1000 % frameRate == 0)
+                return Math.Max(2, 1000 / frameRate);
+            return Math.Max(4, 1000 / (4 * frameRate));
         }
 
         /// <summary>

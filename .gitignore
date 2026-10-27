@@ -371,3 +371,7 @@ Native/SteamHook/bin/
 # Instaladores generados: se publican como GitHub Releases
 Core/dist/
 Core/Installer/publish/
+
+# Runtime de Sunshine: credenciales, logs y estado de cada instancia
+Sunshine/config/
+Sunshine/*.bak-*

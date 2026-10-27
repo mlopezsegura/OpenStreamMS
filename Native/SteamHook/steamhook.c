@@ -1,4 +1,5 @@
-// OpenStreamMS SteamHook — se inyecta en steam.exe (x64) dentro de las sesiones aisladas.
+// OpenStreamMS SteamHook — se inyecta en steam.exe (x64) en las sesiones de stream y puestos
+// (cualquier sesión que no sea la consola, sea cual sea el usuario).
 //
 // steam.exe detecta "otra instancia" con objetos de ámbito máquina:
 //   - el evento Global\Valve_SteamIPC_Class (visible desde todas las sesiones), y
@@ -6,12 +7,14 @@
 // Si existe, escribe su línea de órdenes en TempAppCmdLine y despierta al Steam ya abierto,
 // aunque esté en otra sesión de Windows: así steam://close/bigpicture lanzado en la tele
 // cerraba el Steam del escritorio. Este hook vuelve esos objetos locales a la sesión/usuario:
-// el evento pasa a Local\ y esos valores se leen/escriben en HKCU del usuario aislado.
+// el evento pasa a Local\ y esos valores se leen/escriben en HKCU del usuario, en una
+// subclave de la sesión.
 // Solo se parchea la IAT de steam.exe (es quien importa esas funciones).
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <wchar.h>
+#include <psapi.h>
 
 #define OVERLAY_KEY L"Software\\OpenStreamMS\\SteamInstance"
 
@@ -91,8 +94,14 @@ static HKEY OverlayKey(void)
     static HKEY cached;
     if (!cached)
     {
+        // Una subclave por sesión de Windows: el mismo usuario puede tener Steam en la consola y
+        // en una sesión de stream, y sus HKCU son la misma.
+        DWORD session = 0;
+        ProcessIdToSessionId(GetCurrentProcessId(), &session);
+        WCHAR path[128];
+        swprintf_s(path, ARRAYSIZE(path), L"%s\\Session%lu", OVERLAY_KEY, session);
         HKEY k;
-        if (RegCreateKeyExW(HKEY_CURRENT_USER, OVERLAY_KEY, 0, NULL, 0, KEY_READ | KEY_WRITE, NULL, &k, NULL) == ERROR_SUCCESS)
+        if (RegCreateKeyExW(HKEY_CURRENT_USER, path, 0, NULL, 0, KEY_READ | KEY_WRITE, NULL, &k, NULL) == ERROR_SUCCESS)
             if (InterlockedCompareExchangePointer((PVOID*)&cached, k, NULL) != NULL) RegCloseKey(k);
     }
     return cached;
@@ -155,7 +164,14 @@ BOOL WINAPI OsmsInject(HANDLE process, LPCWSTR dllPath)
     return ok;
 }
 
+static BOOL TargetsExe(LPCWSTR app, LPCWSTR cmd, LPCWSTR exeName);
+
 static BOOL TargetsSteamExe(LPCWSTR app, LPCWSTR cmd)
+{
+    return TargetsExe(app, cmd, L"steam.exe");
+}
+
+static BOOL TargetsExe(LPCWSTR app, LPCWSTR cmd, LPCWSTR exeName)
 {
     WCHAR buf[MAX_PATH * 2];
     LPCWSTR src = app ? app : cmd;
@@ -169,13 +185,52 @@ static BOOL TargetsSteamExe(LPCWSTR app, LPCWSTR cmd)
         memmove(buf, p, (wcslen(p) + 1) * sizeof(WCHAR));
     }
     WCHAR* slash = wcsrchr(buf, L'\\');
-    return _wcsicmp(slash ? slash + 1 : buf, L"steam.exe") == 0;
+    return _wcsicmp(slash ? slash + 1 : buf, exeName) == 0;
+}
+
+// ── Caché de la interfaz (steamwebhelper) por sesión ──────────────────────────
+// steamwebhelper es un Chromium con su perfil en %LOCALAPPDATA%\Steam\htmlcache y un candado de
+// instancia única: si el mismo usuario de Windows tiene Steam en la consola y en una sesión de
+// stream, el segundo webhelper no puede abrir el perfil ("Lock file can not be created", error 32)
+// y ese Steam se queda sin ventana. Aquí se le da a esta sesión su propio htmlcache_s<sesión>.
+static LPWSTR WithSessionCache(LPCWSTR cmd)
+{
+    static const WCHAR kCache[] = L"\\htmlcache";
+    const size_t kLen = ARRAYSIZE(kCache) - 1;
+    if (!cmd) return NULL;
+
+    LPCWSTR hit = NULL;
+    for (LPCWSTR p = cmd; *p; p++)
+        if (_wcsnicmp(p, kCache, kLen) == 0) { hit = p; break; }
+    if (!hit || hit[kLen] == L'_') return NULL;   // sin caché o ya redirigida
+
+    DWORD session = 0;
+    ProcessIdToSessionId(GetCurrentProcessId(), &session);
+    WCHAR suffix[24];
+    swprintf_s(suffix, ARRAYSIZE(suffix), L"_s%lu", session);
+
+    size_t total = wcslen(cmd) + wcslen(suffix) + 1;
+    LPWSTR out = (LPWSTR)HeapAlloc(GetProcessHeap(), 0, total * sizeof(WCHAR));
+    if (!out) return NULL;
+    size_t head = (size_t)(hit - cmd) + kLen;
+    wcsncpy_s(out, total, cmd, head);
+    wcscat_s(out, total, suffix);
+    wcscat_s(out, total, cmd + head);
+    return out;
 }
 
 static BOOL WINAPI h_CreateProcessW(LPCWSTR app, LPWSTR cmd, LPSECURITY_ATTRIBUTES pa, LPSECURITY_ATTRIBUTES ta,
                                     BOOL inherit, DWORD flags, LPVOID env, LPCWSTR dir,
                                     LPSTARTUPINFOW si, LPPROCESS_INFORMATION pi)
 {
+    if (TargetsExe(app, cmd, L"steamwebhelper.exe"))
+    {
+        LPWSTR rewritten = WithSessionCache(cmd);
+        BOOL ok = o_CreateProcessW(app, rewritten ? rewritten : cmd, pa, ta, inherit, flags, env, dir, si, pi);
+        if (rewritten) HeapFree(GetProcessHeap(), 0, rewritten);
+        return ok;
+    }
+
     if (!TargetsSteamExe(app, cmd))
         return o_CreateProcessW(app, cmd, pa, ta, inherit, flags, env, dir, si, pi);
 
@@ -230,6 +285,55 @@ static void PatchImports(HMODULE module, Hook* hooks, int count)
     }
 }
 
+// steamwebhelper no lo lanza steam.exe sino un módulo que Steam carga después (steamui.dll…):
+// CreateProcessW se engancha en todos los módulos, y LoadLibrary* vuelve a pasar por todos tras
+// cada carga para alcanzar los nuevos. Los ganchos de registro y del evento siguen solo en
+// steam.exe.
+typedef HMODULE (WINAPI *LoadLibraryW_t)(LPCWSTR);
+typedef HMODULE (WINAPI *LoadLibraryA_t)(LPCSTR);
+typedef HMODULE (WINAPI *LoadLibraryExW_t)(LPCWSTR, HANDLE, DWORD);
+typedef HMODULE (WINAPI *LoadLibraryExA_t)(LPCSTR, HANDLE, DWORD);
+static LoadLibraryW_t   o_LoadLibraryW;
+static LoadLibraryA_t   o_LoadLibraryA;
+static LoadLibraryExW_t o_LoadLibraryExW;
+static LoadLibraryExA_t o_LoadLibraryExA;
+
+static void PatchAllModules(void);
+
+static HMODULE WINAPI h_LoadLibraryW(LPCWSTR name)                    { HMODULE m = o_LoadLibraryW(name);          PatchAllModules(); return m; }
+static HMODULE WINAPI h_LoadLibraryA(LPCSTR name)                     { HMODULE m = o_LoadLibraryA(name);          PatchAllModules(); return m; }
+static HMODULE WINAPI h_LoadLibraryExW(LPCWSTR name, HANDLE f, DWORD fl) { HMODULE m = o_LoadLibraryExW(name, f, fl); PatchAllModules(); return m; }
+static HMODULE WINAPI h_LoadLibraryExA(LPCSTR name, HANDLE f, DWORD fl)  { HMODULE m = o_LoadLibraryExA(name, f, fl); PatchAllModules(); return m; }
+
+static void PatchAllModules(void)
+{
+    Hook hooks[] = {
+        { "CreateProcessW", (void*)h_CreateProcessW, (void**)&o_CreateProcessW },
+        { "LoadLibraryW",   (void*)h_LoadLibraryW,   (void**)&o_LoadLibraryW },
+        { "LoadLibraryA",   (void*)h_LoadLibraryA,   (void**)&o_LoadLibraryA },
+        { "LoadLibraryExW", (void*)h_LoadLibraryExW, (void**)&o_LoadLibraryExW },
+        { "LoadLibraryExA", (void*)h_LoadLibraryExA, (void**)&o_LoadLibraryExA },
+    };
+    // Solo los módulos de Steam, nunca los de Windows: kernel32!LoadLibraryW no es más que un
+    // salto por su propia IAT a kernelbase, y engancharlo ahí hacía que el gancho se llamara a
+    // sí mismo hasta desbordar la pila.
+    WCHAR windows[MAX_PATH];
+    UINT winLen = GetWindowsDirectoryW(windows, MAX_PATH);
+
+    HMODULE modules[1024];
+    DWORD needed = 0;
+    if (!K32EnumProcessModules(GetCurrentProcess(), modules, sizeof modules, &needed)) return;
+    DWORD count = needed / sizeof(HMODULE);
+    if (count > ARRAYSIZE(modules)) count = ARRAYSIZE(modules);
+    for (DWORD i = 0; i < count; i++)
+    {
+        WCHAR path[MAX_PATH];
+        if (modules[i] == g_self || !GetModuleFileNameW(modules[i], path, MAX_PATH)) continue;
+        if (winLen && _wcsnicmp(path, windows, winLen) == 0) continue;
+        PatchImports(modules[i], hooks, ARRAYSIZE(hooks));
+    }
+}
+
 BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved)
 {
     (void)reserved;
@@ -252,8 +356,8 @@ BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved)
         { "RegSetValueExA",   (void*)h_RegSetValueExA,   (void**)&o_RegSetValueExA },
         { "RegSetValueExW",   (void*)h_RegSetValueExW,   (void**)&o_RegSetValueExW },
         { "RegDeleteValueA",  (void*)h_RegDeleteValueA,  (void**)&o_RegDeleteValueA },
-        { "CreateProcessW",   (void*)h_CreateProcessW,   (void**)&o_CreateProcessW },
     };
     PatchImports(GetModuleHandleW(NULL), hooks, ARRAYSIZE(hooks));
+    PatchAllModules();
     return TRUE;
 }

@@ -1,4 +1,4 @@
-using Microsoft.Win32;
+﻿using Microsoft.Win32;
 using OpenStreamMS.Core.Api;
 using OpenStreamMS.Core.Helpers;
 using OpenStreamMS.Services;
@@ -40,6 +40,10 @@ switch (command)
         break;
     case "--tray":
         RunTray();
+        break;
+    case "--open":
+        // Menú Inicio y escritorio: el panel en su ventana (y el icono de bandeja si no estaba).
+        RunTray(showWindow: true);
         break;
     case "--display":
         // Puestos locales: operaciones de pantalla en la sesión de consola (lanzado por el servicio).
@@ -303,15 +307,20 @@ static async Task RunService(string[] args)
 
 // ── tray runner ──────────────────────────────────────────────────────────────
 
-static void RunTray()
+static void RunTray(bool showWindow = false)
 {
     using var mutex = new Mutex(true, "OpenStreamMS_Tray", out var isNew);
     if (!isNew)
-        return; // already running
+    {
+        // Ya hay icono en esta sesión: que abra él la ventana.
+        if (showWindow && EventWaitHandle.TryOpenExisting(TrayApp.ShowWindowEvent, out var show))
+            using (show) show.Set();
+        return;
+    }
 
     Application.EnableVisualStyles();
     Application.SetCompatibleTextRenderingDefault(false);
-    using var tray = new TrayApp($"http://localhost:{ServiceConfig.ReadApiPort()}");
+    using var tray = new TrayApp($"http://localhost:{ServiceConfig.ReadApiPort()}", showWindow);
     Application.Run(tray);
 }
 
@@ -574,6 +583,7 @@ static void PrintHelp()
           OpenStreamMS.exe --purge-data        Borrar los datos fuera de la carpeta del programa
                                                (ProgramData, usuarios osms-, perfiles de stream, temporales)
           OpenStreamMS.exe --tray              Mostrar icono en la bandeja del sistema
+          OpenStreamMS.exe --open              Abrir el panel en su ventana (y la bandeja)
           OpenStreamMS.exe --seat-agent <pipe> Ejecutar agente de puesto en la sesión
           OpenStreamMS.exe --seat-host <pipe>  Ejecutar presentador de puesto en la consola
           OpenStreamMS.exe --help              Mostrar esta ayuda

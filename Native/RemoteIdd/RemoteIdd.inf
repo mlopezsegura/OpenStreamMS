@@ -1,0 +1,77 @@
+; RemoteIdd.inf — driver IddCx de sesión remota para los puestos de OpenStreamMS (experimental).
+; Lo carga Terminal Services para cada sesión de puesto: el proveedor de protocolo
+; (Provider/) devuelve REMOTEIDD_HARDWARE_ID en IWRdsWddmIddProps::GetHardwareId.
+;
+; Mínima invasión: no hay dispositivo raíz ni se toca ningún driver de Windows; el
+; dispositivo existe solo mientras vive la sesión del puesto. Se desinstala del todo con:
+;   pnputil /delete-driver oemNN.inf /uninstall
+
+[Version]
+Signature   = "$WINDOWS NT$"
+Class       = Display
+ClassGuid   = {4d36e968-e325-11ce-bfc1-08002be10318}
+Provider    = %ManufacturerName%
+CatalogFile = RemoteIdd.cat
+DriverVer   = 10/26/2026,0.1.0.0 ; stampinf la sobrescribe al empaquetar
+PnpLockdown = 1
+
+[Manufacturer]
+%ManufacturerName% = Standard,NT$ARCH$.10.0...18362
+
+[Standard.NT$ARCH$.10.0...18362]
+%DeviceName% = RemoteIdd_Install, OsmsRemoteIdd_IndirectDisplay
+
+[SourceDisksFiles]
+RemoteIdd.dll = 1
+
+[SourceDisksNames]
+1 = %DiskName%
+
+[DestinationDirs]
+UMDriverCopy = 13 ; package-relative (Driver Store): nada se copia a System32
+
+; ---- UMDF / IddCx ----
+[RemoteIdd_Install.NT]
+CopyFiles = UMDriverCopy
+Include   = WUDFRD.inf
+Needs     = WUDFRD.NT
+
+[RemoteIdd_Install.NT.hw]
+Include = WUDFRD.inf
+Needs   = WUDFRD.NT.HW
+AddReg  = RemoteIdd_HardwareDeviceSettings
+
+; IndirectKmd es el filtro de modo kernel que exige todo IDD (lo pone también RdpIdd).
+; Security: SYSTEM, LocalService, NetworkService (TermService, que manda la sesión por IOCTL
+; desde el proveedor) y administradores; RdpIdd abre a todos (WD), aquí no.
+[RemoteIdd_HardwareDeviceSettings]
+HKR,, "UpperFilters", %REG_MULTI_SZ%, "IndirectKmd"
+HKR,, Security,, "D:P(A;;GA;;;SY)(A;;GA;;;LS)(A;;GA;;;NS)(A;;GA;;;BA)"
+
+[RemoteIdd_Install.NT.Services]
+Include = WUDFRD.inf
+Needs   = WUDFRD.NT.Services
+
+[RemoteIdd_Install.NT.Wdf]
+UmdfService              = RemoteIdd, RemoteIdd_Service
+UmdfServiceOrder         = RemoteIdd
+UmdfKernelModeClientPolicy = AllowKernelModeClients
+; Un host UMDF por sesión: recomendado por Microsoft para IDD remotos (lo usa también DuoIdd).
+UmdfHostProcessSharing   = ProcessSharingDisabled
+
+; UmdfExtensions va en la sección del servicio, como en rdpidd.inf y en el sample IddSample:
+; en la sección .Wdf se ignora (infverif no avisa), el host no carga IddCx y el dispositivo
+; acaba en CM_PROB_FAILED_ADD (0xC0000001).
+[RemoteIdd_Service]
+UmdfLibraryVersion = $UMDFVERSION$
+ServiceBinary      = %13%\RemoteIdd.dll
+UmdfExtensions     = IddCx0102
+
+[UMDriverCopy]
+RemoteIdd.dll
+
+[Strings]
+ManufacturerName = "OpenStreamMS"
+DeviceName       = "OpenStreamMS Remote Seat Display (experimental)"
+DiskName         = "OpenStreamMS RemoteIdd Install Disk"
+REG_MULTI_SZ     = 0x00010000

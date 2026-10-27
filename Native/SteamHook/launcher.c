@@ -1,10 +1,12 @@
-// OpenStreamMS SteamLauncher — sustituye a "steam://..." en las sesiones aisladas.
+// OpenStreamMS SteamLauncher — sustituye a "steam://..." en las sesiones de stream y puestos.
 //
 // Uso: osms-steam.exe [argumentos de steam.exe]   (p. ej. steam://open/bigpicture)
-// Si el usuario actual es una cuenta aislada (osms-*), arranca steam.exe suspendido, le inyecta
-// osms-steamhook.dll y lo reanuda; además registra el protocolo steam:// en HKCU de ese usuario
-// para que cualquier otro steam:// de la sesión (p. ej. el "undo" de Sunshine) pase por aquí.
-// Con cualquier otro usuario lanza steam.exe tal cual.
+// Fuera de la sesión de la consola (o con una cuenta aislada osms-*), arranca steam.exe
+// suspendido, le inyecta osms-steamhook.dll y lo reanuda: así no se cruza con el Steam de la
+// consola aunque sea el mismo usuario de Windows. Solo en las cuentas aisladas registra además
+// el protocolo steam:// en su HKCU, para que cualquier otro steam:// de la sesión (p. ej. el
+// "undo" de Sunshine) pase por aquí; con un usuario compartido ese HKCU es también el de la
+// consola y no se toca. En la consola lanza steam.exe tal cual.
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -17,6 +19,12 @@ static BOOL IsIsolatedUser(void)
     WCHAR user[257];
     DWORD len = ARRAYSIZE(user);
     return GetUserNameW(user, &len) && _wcsnicmp(user, L"osms-", 5) == 0;
+}
+
+static BOOL IsConsoleSession(void)
+{
+    DWORD session;
+    return ProcessIdToSessionId(GetCurrentProcessId(), &session) && session == WTSGetActiveConsoleSessionId();
 }
 
 static BOOL FindSteamExe(WCHAR* out, DWORD cch)
@@ -73,14 +81,15 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE prev, LPWSTR cmdLine, int show
     WCHAR* slash = wcsrchr(steamDir, L'\\');
     if (slash) *slash = 0;
 
-    BOOL isolated = IsIsolatedUser();
+    BOOL isolatedUser = IsIsolatedUser();
+    BOOL hooked = isolatedUser || !IsConsoleSession();
     STARTUPINFOW si = { sizeof si };
     PROCESS_INFORMATION pi;
-    if (!CreateProcessW(steamExe, commandLine, NULL, NULL, FALSE, isolated ? CREATE_SUSPENDED : 0, NULL, steamDir, &si, &pi))
+    if (!CreateProcessW(steamExe, commandLine, NULL, NULL, FALSE, hooked ? CREATE_SUSPENDED : 0, NULL, steamDir, &si, &pi))
         return 3;
 
     int rc = 0;
-    if (isolated)
+    if (hooked)
     {
         WCHAR self[MAX_PATH], dll[MAX_PATH];
         GetModuleFileNameW(NULL, self, MAX_PATH);
@@ -88,7 +97,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE prev, LPWSTR cmdLine, int show
         slash = wcsrchr(dll, L'\\');
         wcscpy_s(slash ? slash + 1 : dll, MAX_PATH - (slash ? (slash + 1 - dll) : 0), L"osms-steamhook.dll");
 
-        RegisterSteamProtocol(self);
+        if (isolatedUser) RegisterSteamProtocol(self);
 
         HMODULE hook = LoadLibraryW(dll);   // en este proceso no hace nada: solo exporta el inyector
         OsmsInject_t inject = hook ? (OsmsInject_t)GetProcAddress(hook, "OsmsInject") : NULL;
