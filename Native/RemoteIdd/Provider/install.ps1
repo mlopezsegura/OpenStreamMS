@@ -26,11 +26,13 @@ $ws    = 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations'
 $wdk   = Join-Path $env:LOCALAPPDATA 'OpenStreamMS\wdk-nuget\10.0.26100.6584\c'
 $sdk   = "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.0.26100.0\x64"
 
-if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole('Administrators')) {
+# Rol integrado y no el nombre del grupo: en Windows en español es "Administradores".
+if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     throw 'Hay que ejecutarlo como administrador.'
 }
 if (Test-Path $state) { throw "Ya instalado (ver $state). Ejecuta antes uninstall.ps1." }
-if (-not ((bcdedit /enum '{current}') -match 'testsigning\s+Yes')) {
+# Opciones de arranque en vigor (no depende del idioma, a diferencia de la salida de bcdedit).
+if ((Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control').SystemStartOptions -notmatch 'TESTSIGNING') {
     throw 'testsigning no está activo. Solo para pruebas: bcdedit /set testsigning on y reiniciar (en una VM).'
 }
 foreach ($f in 'RemoteIdd.dll', 'RemoteIdd.inf', 'OsmsRdsProvider.dll') {
@@ -39,6 +41,17 @@ foreach ($f in 'RemoteIdd.dll', 'RemoteIdd.inf', 'OsmsRdsProvider.dll') {
 if (Test-Path "$ws\OSMS-Seat") { throw 'Ya existe WinStations\OSMS-Seat.' }
 
 $done = [ordered]@{ Port = $Port }
+
+# signtool: parar si falla (si no, el error saldría después como "driver sin firmar").
+function Sign($file) {
+    & "$sdk\signtool.exe" sign /fd sha256 /sm /s My /sha1 $cert.Thumbprint $file | Out-Null
+    if ($LASTEXITCODE) { throw "signtool falló al firmar $file." }
+}
+# regsvr32 es una aplicación gráfica: PowerShell no la espera ni recoge su código.
+function RegSvr($arguments) {
+    $p = Start-Process regsvr32.exe -ArgumentList $arguments -Wait -PassThru
+    if ($p.ExitCode) { throw "regsvr32 $arguments falló ($($p.ExitCode))." }
+}
 function Save { New-Item -ItemType Directory -Force (Split-Path $state) | Out-Null; $done | ConvertTo-Json | Set-Content -Encoding utf8 $state }
 
 # 1) certificado de test
@@ -56,10 +69,10 @@ $pkg = Join-Path $env:TEMP 'osms-remoteidd-pkg'
 Remove-Item -Recurse -Force $pkg -ErrorAction SilentlyContinue
 New-Item -ItemType Directory $pkg | Out-Null
 Copy-Item (Join-Path $Bin 'RemoteIdd.dll'), (Join-Path $Bin 'RemoteIdd.inf') $pkg
-& "$sdk\signtool.exe" sign /fd sha256 /sm /s My /sha1 $cert.Thumbprint "$pkg\RemoteIdd.dll" | Out-Null
+Sign "$pkg\RemoteIdd.dll"
 & "$wdk\bin\10.0.26100.0\x86\Inf2Cat.exe" /driver:$pkg /os:10_X64 | Out-Null
 if ($LASTEXITCODE) { throw 'Inf2Cat falló.' }
-& "$sdk\signtool.exe" sign /fd sha256 /sm /s My /sha1 $cert.Thumbprint "$pkg\RemoteIdd.cat" | Out-Null
+Sign "$pkg\RemoteIdd.cat"
 $out = pnputil /add-driver "$pkg\RemoteIdd.inf" /install
 # 3010 = requiere reinicio; 259 = añadido al Driver Store sin dispositivo aún (lo crea
 # Terminal Services al abrir la sesión del puesto). Ambos son éxito aquí.
@@ -70,9 +83,8 @@ $done.DriverInf = ([regex]::Match(($out -join "`n"), 'oem\d+\.inf')).Value; Save
 $dir = Join-Path $env:ProgramFiles 'OpenStreamMS\RemoteIdd'
 New-Item -ItemType Directory -Force $dir | Out-Null
 Copy-Item (Join-Path $Bin 'OsmsRdsProvider.dll') $dir -Force
-& "$sdk\signtool.exe" sign /fd sha256 /sm /s My /sha1 $cert.Thumbprint "$dir\OsmsRdsProvider.dll" | Out-Null
-regsvr32 /s "$dir\OsmsRdsProvider.dll"
-if ($LASTEXITCODE) { throw 'regsvr32 falló.' }
+Sign "$dir\OsmsRdsProvider.dll"
+RegSvr "/s `"$dir\OsmsRdsProvider.dll`""
 $done.ProviderDir = $dir; Save
 
 # 4) listener de puestos: copia de RDP-Tcp con otro puerto y este proveedor

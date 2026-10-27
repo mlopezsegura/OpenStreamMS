@@ -14,7 +14,8 @@ if ($s.WinStation -and (Test-Path "$ws\$($s.WinStation)")) {
 }
 if ($s.ProviderDir) {
     $dll = Join-Path $s.ProviderDir 'OsmsRdsProvider.dll'
-    if (Test-Path $dll) { regsvr32 /s /u $dll }
+    # Start-Process -Wait: regsvr32 es gráfico y PowerShell no lo esperaría.
+    if (Test-Path $dll) { Start-Process regsvr32.exe -ArgumentList "/s /u `"$dll`"" -Wait }
     if ($RestartTermService) { Restart-Service TermService -Force }
     Remove-Item -Recurse -Force $s.ProviderDir -ErrorAction SilentlyContinue
     if (Test-Path $s.ProviderDir) { Write-Warning "TermService aún tiene cargado el proveedor: borra $($s.ProviderDir) tras reiniciar." }
