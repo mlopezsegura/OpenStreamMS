@@ -10,8 +10,14 @@ namespace OpenStreamMS.Services.Session;
 /// Estado actual del RDP Wrapper en la máquina.
 /// </summary>
 public record RdpWrapperStatus(
-    /// <summary>true si la DLL está copiada, registrada en el servicio y el archivo existe.</summary>
+    /// <summary>true si ServiceDll apunta a un wrapper conocido, el archivo existe y TermService lo tiene cargado.</summary>
     bool    Installed,
+    /// <summary>Wrapper al que apunta ServiceDll: <c>"asmtron"</c>, <c>"TermWrap"</c> o null si es el termsrv.dll de Windows u otro.</summary>
+    string? Wrapper,
+    /// <summary>true si la DLL del wrapper está cargada en el proceso de TermService; null si no se pudo comprobar.</summary>
+    bool?   Loaded,
+    /// <summary>true si RDP-Tcp pasa por el proveedor de RemoteIdd (captura remoteidd disponible).</summary>
+    bool    RemoteIdd,
     /// <summary>Directorio canónico de instalación (<c>%ProgramFiles%\RDP Wrapper</c>).</summary>
     string  InstallDir,
     /// <summary>Versión del bundle asmtron instalado (leída de <c>autoupdate__info.txt</c>). Null si no se detecta.</summary>
@@ -52,17 +58,30 @@ public sealed class RdpWrapperManager
 
     public RdpWrapperStatus GetStatus()
     {
-        var dll           = Path.Combine(_installDir, "rdpwrap.dll");
-        var ini           = Path.Combine(_installDir, "rdpwrap.ini");
-        var serviceDll    = ReadServiceDll();
-        var dllInstalled  = File.Exists(dll) && File.Exists(ini);
-        var pointsToOurs  = serviceDll is not null &&
-                            serviceDll.Equals(dll, StringComparison.OrdinalIgnoreCase);
+        var serviceDll = ReadServiceDll();
+        // TermWrap (llccd) sustituye a asmtron cuando RemoteIdd está instalado: parchea además
+        // IsAllowNonRDPStack, que el proveedor RDS necesita. Ambos se registran en ServiceDll.
+        var wrapper = Path.GetFileName(serviceDll ?? "").ToLowerInvariant() switch
+        {
+            "rdpwrap.dll"  => "asmtron",
+            "termwrap.dll" => "TermWrap",
+            _              => null,
+        };
+        var filesOk = wrapper switch
+        {
+            "asmtron"  => File.Exists(serviceDll) && File.Exists(Path.Combine(Path.GetDirectoryName(serviceDll)!, "rdpwrap.ini")),
+            "TermWrap" => File.Exists(serviceDll),
+            _          => false,
+        };
+        var loaded = wrapper is null ? null : IsLoadedInTermService(serviceDll!);
 
         return new RdpWrapperStatus(
-            Installed:     dllInstalled && pointsToOurs,
+            Installed:     filesOk && loaded == true,
+            Wrapper:       wrapper,
+            Loaded:        loaded,
+            RemoteIdd:     IsRemoteIddActive(),
             InstallDir:    _installDir,
-            BundleVersion: ReadBundleVersion(),
+            BundleVersion: wrapper == "TermWrap" ? ReadFileVersion(serviceDll!) : ReadBundleVersion(),
             TermsrvVersion:ReadTermsrvVersion(),
             ServiceDllPath:serviceDll,
             Busy:          _busy,
@@ -141,6 +160,143 @@ public sealed class RdpWrapperManager
         });
     }
 
+    // ── Respaldo: TermWrap → asmtron ─────────────────────────────────────────
+
+    /// <summary>Proveedor de protocolo de RemoteIdd (Native/RemoteIdd/Provider/install.ps1).</summary>
+    public const string RemoteIddProviderClsid = "{8B0F3C51-2D7A-4F6E-A1C9-5E4D2B7F0A36}";
+    private const string RdpTcpKey     = @"SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp";
+    private const string RdpCoreTsClsid = "{5828227c-20cf-4408-b73f-73ab70b8849f}";
+
+    /// <summary>true si RDP-Tcp pasa por el proveedor de RemoteIdd.</summary>
+    public static bool IsRemoteIddActive()
+    {
+        try
+        {
+            using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(RdpTcpKey);
+            return string.Equals(key?.GetValue("LoadableProtocol_Object") as string, RemoteIddProviderClsid,
+                                 StringComparison.OrdinalIgnoreCase);
+        }
+        catch { return false; }
+    }
+
+    /// <summary>
+    /// Al arrancar, antes de levantar puestos: si RemoteIdd está puesto pero TermWrap no funciona
+    /// (no cargado, la tarea de asmtron lo cambió, o un Windows Update rompió sus parches y RDP-Tcp
+    /// no escucha), se vuelve a asmtron y a RDP-Tcp normal. Los puestos con captura remoteidd
+    /// arrancan entonces con la captura de siempre. Para volver a RemoteIdd: install.ps1.
+    /// </summary>
+    public void EnsureMultiRdp(CancellationToken ct)
+    {
+        if (!IsRemoteIddActive()) return;
+        // En el arranque del PC TermService puede tardar en abrir el listener.
+        var deadline = DateTime.UtcNow.AddSeconds(60);
+        string? problem;
+        while ((problem = TermWrapProblem()) is not null && DateTime.UtcNow < deadline && !ct.IsCancellationRequested)
+            Thread.Sleep(2000);
+        if (problem is null)
+        {
+            Logger.Log("[RdpWrap] TermWrap activo y RDP-Tcp escuchando: RemoteIdd disponible.");
+            return;
+        }
+        Logger.Error($"[RdpWrap] RemoteIdd sin TermWrap funcional ({problem}). Se vuelve a RDP Wrapper de asmtron.");
+        LeaveRemoteIdd();
+        SetServiceDllToAsmtron();
+        RestartTermService();
+        Logger.Log($"[RdpWrap] Respaldo aplicado. Estado: {GetStatus()}");
+    }
+
+    /// <summary>Null si TermWrap está cargado y RDP-Tcp escucha; si no, el motivo.</summary>
+    private string? TermWrapProblem()
+    {
+        var st = GetStatus();
+        if (st.Wrapper != "TermWrap") return $"ServiceDll = {st.ServiceDllPath}";
+        if (st.Loaded != true)        return "TermWrap.dll no está cargada en TermService";
+        if (!IsRdpTcpListening())     return "RDP-Tcp no escucha";
+        return null;
+    }
+
+    private static bool IsRdpTcpListening()
+    {
+        int port = 3389;
+        try
+        {
+            using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(RdpTcpKey);
+            if (key?.GetValue("PortNumber") is int p && p > 0) port = p;
+        }
+        catch { }
+        return System.Net.NetworkInformation.IPGlobalProperties.GetIPGlobalProperties()
+            .GetActiveTcpListeners().Any(e => e.Port == port);
+    }
+
+    /// <summary>
+    /// Quita el proveedor de RemoteIdd de RDP-Tcp y reactiva la tarea de autoupdate de asmtron
+    /// que install.ps1 desactivó. Con asmtron, termsrv rechaza un proveedor que no es el de
+    /// Microsoft y RDP-Tcp dejaría de escuchar: hay que hacerlo antes de cualquier acción de asmtron.
+    /// El driver y la DLL del proveedor se quedan instalados; uninstall.ps1 los quita.
+    /// </summary>
+    private void LeaveRemoteIdd()
+    {
+        using (var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(RdpTcpKey, writable: true))
+        {
+            if (key is null) return;
+            var inner = key.GetValue("OsmsInnerProtocol_Object") as string;
+            if (string.IsNullOrWhiteSpace(inner)) inner = RdpCoreTsClsid;
+            key.SetValue("LoadableProtocol_Object", inner, Microsoft.Win32.RegistryValueKind.String);
+            AppendLog($"RDP-Tcp devuelto a {inner} (RemoteIdd fuera).");
+        }
+        foreach (var task in ReadDisabledTasks())
+        {
+            var exit = RunProcessAsync("schtasks.exe", $"/Change /TN \"{task}\" /ENABLE", Environment.SystemDirectory,
+                                       CancellationToken.None).GetAwaiter().GetResult();
+            AppendLog($"Tarea {task} reactivada (schtasks salió con {exit}).");
+        }
+    }
+
+    /// <summary>Tareas que install.ps1 de RemoteIdd desactivó ("TaskPath|TaskName" en su fichero de estado).</summary>
+    private static IEnumerable<string> ReadDisabledTasks()
+    {
+        var state = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                                 "OpenStreamMS", "remoteidd-install.json");
+        try
+        {
+            using var doc = JsonDocument.Parse(File.ReadAllText(state));
+            if (!doc.RootElement.TryGetProperty("DisabledTasks", out var arr)) return [];
+            // ConvertTo-Json guarda un solo elemento como cadena, no como lista.
+            List<JsonElement> list = arr.ValueKind == JsonValueKind.Array ? arr.EnumerateArray().ToList() : new() { arr };
+            return list.Where(e => e.ValueKind == JsonValueKind.String)
+                       .Select(e => e.GetString()!.Replace("|", ""))
+                       .Where(t => t.Length > 0).ToList();
+        }
+        catch { return []; }
+    }
+
+    private void SetServiceDllToAsmtron()
+    {
+        var dll = Path.Combine(_installDir, "rdpwrap.dll");
+        if (!File.Exists(dll) || !File.Exists(Path.Combine(_installDir, "rdpwrap.ini")))
+        {
+            AppendLog($"No está {dll} con su rdpwrap.ini: ServiceDll se deja como está. Instala RDP Wrapper desde la UI.");
+            return;
+        }
+        using var key = Microsoft.Win32.Registry.LocalMachine
+            .OpenSubKey(@"SYSTEM\CurrentControlSet\Services\TermService\Parameters", writable: true);
+        key?.SetValue("ServiceDll", dll, Microsoft.Win32.RegistryValueKind.ExpandString);
+        AppendLog($"TermService: ServiceDll -> {dll}.");
+    }
+
+    private void RestartTermService()
+    {
+        using var sc = new System.ServiceProcess.ServiceController("TermService");
+        if (sc.Status != System.ServiceProcess.ServiceControllerStatus.Stopped)
+        {
+            sc.Stop(); // ServiceController para antes los dependientes (UmRdpService).
+            sc.WaitForStatus(System.ServiceProcess.ServiceControllerStatus.Stopped, TimeSpan.FromSeconds(60));
+        }
+        sc.Start();
+        sc.WaitForStatus(System.ServiceProcess.ServiceControllerStatus.Running, TimeSpan.FromSeconds(60));
+        AppendLog("TermService reiniciado.");
+    }
+
     // ── Implementación interna ───────────────────────────────────────────────
 
     private async Task RunExclusiveAsync(string action, Func<Task> work)
@@ -155,6 +311,9 @@ public sealed class RdpWrapperManager
         AppendLog($"--- Inicio: {action} ({DateTime.Now:HH:mm:ss}) ---");
         try
         {
+            // Las tres acciones dejan ServiceDll en rdpwrap.dll o termsrv.dll y reinician TermService:
+            // con el proveedor de RemoteIdd aún en RDP-Tcp, el RDP dejaría de escuchar.
+            if (IsRemoteIddActive()) LeaveRemoteIdd();
             await work();
         }
         catch (Exception ex)
@@ -255,6 +414,65 @@ public sealed class RdpWrapperManager
                 .OpenSubKey(@"SYSTEM\CurrentControlSet\Services\TermService\Parameters");
             return key?.GetValue("ServiceDll") as string;
         }
+        catch { return null; }
+    }
+
+    /// <summary>
+    /// Mira si la DLL está en los módulos del svchost de TermService. Que ServiceDll apunte a ella
+    /// no basta: hasta el siguiente reinicio del servicio sigue cargada la anterior, y la tarea de
+    /// autoupdate de asmtron puede haberla cambiado por detrás. Null si TermService está parado o
+    /// no se puede leer el proceso.
+    /// </summary>
+    private static bool? IsLoadedInTermService(string dllPath)
+    {
+        try
+        {
+            var pid = GetServicePid("TermService");
+            if (pid == 0) return null;
+            using var p = Process.GetProcessById((int)pid);
+            foreach (ProcessModule m in p.Modules)
+                if (string.Equals(m.FileName, dllPath, StringComparison.OrdinalIgnoreCase))
+                    return true;
+            return false;
+        }
+        catch { return null; }
+    }
+
+    private static uint GetServicePid(string name)
+    {
+        var scm = OpenSCManagerW(null, null, SC_MANAGER_CONNECT);
+        if (scm == IntPtr.Zero) return 0;
+        try
+        {
+            var svc = OpenServiceW(scm, name, SERVICE_QUERY_STATUS);
+            if (svc == IntPtr.Zero) return 0;
+            try
+            {
+                var buf = new byte[36]; // SERVICE_STATUS_PROCESS
+                if (!QueryServiceStatusEx(svc, 0 /* SC_STATUS_PROCESS_INFO */, buf, buf.Length, out _)) return 0;
+                const uint SERVICE_RUNNING = 4;
+                return BitConverter.ToUInt32(buf, 4) == SERVICE_RUNNING ? BitConverter.ToUInt32(buf, 28) : 0;
+            }
+            finally { CloseServiceHandle(svc); }
+        }
+        finally { CloseServiceHandle(scm); }
+    }
+
+    private const uint SC_MANAGER_CONNECT   = 0x0001;
+    private const uint SERVICE_QUERY_STATUS = 0x0004;
+
+    [System.Runtime.InteropServices.DllImport("advapi32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr OpenSCManagerW(string? machine, string? database, uint access);
+    [System.Runtime.InteropServices.DllImport("advapi32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr OpenServiceW(IntPtr scm, string name, uint access);
+    [System.Runtime.InteropServices.DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool QueryServiceStatusEx(IntPtr svc, int infoLevel, byte[] buffer, int size, out int needed);
+    [System.Runtime.InteropServices.DllImport("advapi32.dll")]
+    private static extern bool CloseServiceHandle(IntPtr h);
+
+    private static string? ReadFileVersion(string path)
+    {
+        try { return File.Exists(path) ? FileVersionInfo.GetVersionInfo(path).FileVersion : null; }
         catch { return null; }
     }
 

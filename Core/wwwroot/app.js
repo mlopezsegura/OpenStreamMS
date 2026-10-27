@@ -691,8 +691,7 @@ function updateRdpPill(st) {
   let cls, key;
   if (st.busy)                         { cls = 'status-pill-working'; key = 'rdp.state.working'; }
   else if (st.installed)               { cls = 'status-pill-ok';      key = 'rdp.state.ok';      }
-  else if (st.serviceDllPath && st.serviceDllPath.toLowerCase().includes('rdpwrap'))
-                                       { cls = 'status-pill-broken';  key = 'rdp.state.broken';  }
+  else if (st.wrapper)                 { cls = 'status-pill-broken';  key = 'rdp.state.broken';  }
   else                                 { cls = 'status-pill-missing'; key = 'rdp.state.missing'; }
 
   pill.classList.add(cls);
@@ -707,20 +706,26 @@ function renderRdpStatus(st) {
               : 'badge-error';
   const key   = st.busy ? 'rdp.state.working'
               : st.installed ? 'rdp.state.ok'
+              : st.wrapper ? 'rdp.state.broken'
               : 'rdp.state.missing';
   badge.className = `badge ${cls}`;
   badge.innerHTML = `<span class="badge-dot"></span>${esc(t(key))}`;
+  // ServiceDll apunta al wrapper pero TermService no lo tiene cargado (falta reiniciarlo, o
+  // la tarea de autoupdate de asmtron lo cambió por detrás).
+  badge.title = st.wrapper && st.loaded === false ? t('rdp.notLoaded') : '';
 
   document.getElementById('rdp-install-dir').textContent = st.installDir     || '—';
-  document.getElementById('rdp-bundle').textContent      = st.bundleVersion  || '—';
+  document.getElementById('rdp-bundle').textContent      =
+    st.wrapper ? `${st.wrapper} ${st.bundleVersion || ''}`.trim() : (st.bundleVersion || '—');
   document.getElementById('rdp-termsrv').textContent     = st.termsrvVersion || '—';
   document.getElementById('rdp-service-dll').textContent = st.serviceDllPath || '—';
 
-  // Habilitar/deshabilitar botones según estado
+  // Habilitar/deshabilitar botones según estado. Actualizar solo tiene sentido con asmtron
+  // (con TermWrap no hay rdpwrap.ini que refrescar).
   const busy = !!st.busy;
   document.getElementById('rdp-btn-install').disabled   = busy;
-  document.getElementById('rdp-btn-update').disabled    = busy || !st.installed;
-  document.getElementById('rdp-btn-uninstall').disabled = busy || !st.serviceDllPath?.toLowerCase().includes('rdpwrap');
+  document.getElementById('rdp-btn-update').disabled    = busy || st.wrapper !== 'asmtron' || !st.installed;
+  document.getElementById('rdp-btn-uninstall').disabled = busy || st.wrapper !== 'asmtron';
 }
 
 async function rdpFetchLog() {
@@ -752,7 +757,8 @@ function closeRdpModal() {
 }
 
 async function rdpInstall() {
-  if (!confirm(t('rdp.confirm.install'))) return;
+  const msg = t('rdp.confirm.install') + (rdpLastStatus?.remoteIdd ? '\n\n' + t('rdp.confirm.leaveRemoteIdd') : '');
+  if (!confirm(msg)) return;
   const res = await api('POST', '/api/rdpwrap/install');
   if (!res) return;
   if (!res.ok) { toast(await res.text(), true); return; }

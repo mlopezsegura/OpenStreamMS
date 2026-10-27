@@ -98,6 +98,9 @@ Orden sugerido: primero lo que impide compilar/ejecutar limpio, luego correccion
   pruebas con permiso del usuario: exige administrador, testsigning y reiniciar TermService.
   Riesgo abierto: que rdpcorets no acepte una sesión sin su RdpIdd (DuoStream engancha
   RdpIdd en vez de sustituirlo); es lo primero que dirá la prueba.
+  *2026-10-27:* primer intento: TermService no cargó el proveedor y RDP-Tcp no escuchó
+  (`IsAllowNonRDPStack` de termsrv en Windows cliente). `install.ps1` instala ahora TermWrap 0.7
+  (NonRDPPatch) como ServiceDll; pendiente repetir. Detalle en `GUIA.md`, sección 8.
 
 ---
 **No hacer:** inyectar en `RdpIdd.dll` ni enganchar funciones internas por offset (mecanismo real de

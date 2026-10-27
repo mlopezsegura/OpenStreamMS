@@ -970,7 +970,8 @@ public class StreamSessionService
                 new SunshineConfigurator.SunshineCredentials(session.SunshineAuthUser, session.SunshineAuthPass),
                 profileOverrides,
                 GetSunshineStatePersistPath(session.Id),
-                GetSunshineStateAliasPath(session));
+                GetSunshineStateAliasPath(session),
+                runAsSystem: UsesRemoteIdd(session));
         });
 
     /// <summary>
@@ -1069,7 +1070,7 @@ public class StreamSessionService
         new(
             StreamPort:               s.SunshineStreamPort,
             Name:                     string.IsNullOrWhiteSpace(s.SunshineName) ? s.Name : s.SunshineName,
-            Capture:                  s.Capture,
+            Capture:                  EffectiveCapture(s),
             Encoder:                  s.Encoder,
             OutputName:               s.OutputName,
             OriginWebUiAllowed:       s.OriginWebUiAllowed,
@@ -1174,10 +1175,22 @@ public class StreamSessionService
 
     /// <summary>
     /// Captura RemoteIdd: el proveedor de RDP-Tcp da a la sesión del puesto el driver propio
-    /// de pantalla y Sunshine lee sus frames con capture = remoteidd.
+    /// de pantalla y Sunshine lee sus frames con capture = remoteidd. Si el proveedor no está
+    /// en RDP-Tcp (no instalado, o se volvió a asmtron porque TermWrap falló), el puesto usa la
+    /// captura por defecto.
     /// </summary>
     private static bool UsesRemoteIdd(StreamSession session) =>
+        WantsRemoteIdd(session) && RdpWrapperManager.IsRemoteIddActive();
+
+    private static bool WantsRemoteIdd(StreamSession session) =>
         string.Equals(session.Capture, "remoteidd", StringComparison.OrdinalIgnoreCase);
+
+    private static string? EffectiveCapture(StreamSession session)
+    {
+        if (!WantsRemoteIdd(session) || UsesRemoteIdd(session)) return session.Capture;
+        Logger.Warning($"[{session.Name}] Captura remoteidd sin RemoteIdd activo en RDP-Tcp: se usa la captura por defecto.", session.Id);
+        return null;
+    }
 
     private static int NormalizeRdpFrameRate(int frameRate) =>
         Math.Clamp(frameRate > 0 ? frameRate : 60, 1, 240);
