@@ -3,10 +3,12 @@
 // Sin registrar nada: objetos falsos hacen de rdpcorets (lo envuelto) y de Terminal
 // Services (quien llama). Comprueba que:
 //   1) todas las llamadas de IWRdsProtocol* llegan a rdpcorets sin cambios;
-//   2) GetHardwareId devuelve el de RemoteIdd aunque rdpcorets diga RdpIdd;
-//   3) OnDriverLoad (las dos versiones) entrega la sesión al driver;
-//   4) EnableWddmIdd también se notifica a rdpcorets;
-//   5) no quedan referencias colgando al soltarlo todo.
+//   2) en un puesto (cliente 127.0.0.2) GetHardwareId pide RemoteIdd y OnDriverLoad (las dos
+//      versiones) entrega sesión y resolución al driver;
+//   3) en cualquier otra conexión todo, IDD incluido, sigue siendo de Microsoft (RdpIdd);
+//   4) las interfaces del IDD solo se exponen si rdpcorets las tiene;
+//   5) EnableWddmIdd se notifica a rdpcorets;
+//   6) no quedan referencias colgando al soltarlo todo.
 //
 // Build/Run: ver build.cmd (RemoteIddProviderTest.exe; código 0 = OK).
 
@@ -35,18 +37,27 @@ public:
     ULONG STDMETHODCALLTYPE Release() override { return --refs; }   // vive en la pila del test
 };
 
-class FakeConnection final : public Fake<IWRdsProtocolConnection>, public IWRdsWddmIddProps
+class FakeConnection final : public Fake<IWRdsProtocolConnection>, public IWRdsWddmIddProps,
+                             public IWRdsWddmIddProps1
 {
 public:
+    FakeConnection(const wchar_t* clientAddress, bool hasIdd = true)
+        : address(clientAddress), idd(hasIdd) {}
+
+    const wchar_t* address;
+    bool idd;
     int accepted = 0, closed = 0, monitorData = 0, enableCalls = 0, qiForwarded = 0;
+    int driverLoads = 0, clientDataCalls = 0;
     BOOL enabled = FALSE;
 
     HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void** ppv) override
     {
         if (riid == __uuidof(IUnknown) || riid == __uuidof(IWRdsProtocolConnection))
             *ppv = static_cast<IWRdsProtocolConnection*>(this);
-        else if (riid == __uuidof(IWRdsWddmIddProps))
+        else if (idd && riid == __uuidof(IWRdsWddmIddProps))
             *ppv = static_cast<IWRdsWddmIddProps*>(this);
+        else if (idd && riid == __uuidof(IWRdsWddmIddProps1))
+            *ppv = static_cast<IWRdsWddmIddProps1*>(this);
         else { ++qiForwarded; *ppv = nullptr; return E_NOINTERFACE; }
         AddRef();
         return S_OK;
@@ -56,7 +67,14 @@ public:
 
     HRESULT STDMETHODCALLTYPE GetLogonErrorRedirector(IWRdsProtocolLogonErrorRedirector**) override { return E_NOTIMPL; }
     HRESULT STDMETHODCALLTYPE AcceptConnection() override { ++accepted; return S_OK; }
-    HRESULT STDMETHODCALLTYPE GetClientData(WRDS_CLIENT_DATA* d) override { d->HRes = 2560; d->VRes = 1440; return S_OK; }
+    HRESULT STDMETHODCALLTYPE GetClientData(WRDS_CLIENT_DATA* d) override
+    {
+        ++clientDataCalls;
+        d->HRes = 2560; d->VRes = 1440;
+        wcscpy_s(d->ClientAddress, address);
+        wcscpy_s(d->Password, L"no-debe-salir");   // el proveedor no debe copiarla
+        return S_OK;
+    }
     HRESULT STDMETHODCALLTYPE GetClientMonitorData(UINT* n, UINT* p) override { ++monitorData; *n = 1; *p = 0; return S_OK; }
     HRESULT STDMETHODCALLTYPE GetUserCredentials(WRDS_USER_CREDENTIAL*) override { return E_NOTIMPL; }
     HRESULT STDMETHODCALLTYPE GetLicenseConnection(IWRdsProtocolLicenseConnection**) override { return E_NOTIMPL; }
@@ -79,9 +97,15 @@ public:
     HRESULT STDMETHODCALLTYPE GetShadowConnection(IWRdsProtocolShadowConnection**) override { return E_NOTIMPL; }
     HRESULT STDMETHODCALLTYPE NotifyCommandProcessCreated(ULONG) override { return E_NOTIMPL; }
 
-    // rdpcorets pediría su propio IDD.
-    HRESULT STDMETHODCALLTYPE GetHardwareId(WCHAR* id, DWORD count) override { return wcscpy_s(id, count, L"RdpIdd_IndirectDisplay") ? E_FAIL : S_OK; }
-    HRESULT STDMETHODCALLTYPE OnDriverLoad(ULONG, HANDLE_PTR) override { return E_UNEXPECTED; }
+    // rdpcorets pide su propio IDD.
+    HRESULT STDMETHODCALLTYPE GetHardwareId(WCHAR* id, DWORD count) override
+    {
+        if (count < ARRAYSIZE(L"RdpIdd_IndirectDisplay")) return E_INVALIDARG;
+        wcscpy_s(id, count, L"RdpIdd_IndirectDisplay");
+        return S_OK;
+    }
+    HRESULT STDMETHODCALLTYPE OnDriverLoad(ULONG, HANDLE_PTR) override { ++driverLoads; return S_FALSE; }
+    HRESULT STDMETHODCALLTYPE OnDriverLoad(ULONG, LPCWSTR) override { ++driverLoads; return S_FALSE; }
     HRESULT STDMETHODCALLTYPE OnDriverUnload(ULONG) override { return S_OK; }
     HRESULT STDMETHODCALLTYPE EnableWddmIdd(BOOL e) override { ++enableCalls; enabled = e; return S_OK; }
 };
@@ -157,7 +181,9 @@ int main()
     std::printf("RemoteIdd ProviderTest: envoltorio de rdpcorets con objetos falsos\n");
 
     FakeManager inner;
-    FakeConnection rdpConnection;
+    FakeConnection rdpConnection(REMOTEIDD_SEAT_CLIENT_ADDRESS);   // puesto de OpenStreamMS
+    FakeConnection lanConnection(L"192.168.1.50");                 // RDP normal desde la red
+    FakeConnection noIddConnection(L"192.168.1.51", false);        // rdpcorets sin interfaces de IDD
     FakeTermService termsrv;
     RecordingSink sink;
 
@@ -169,11 +195,11 @@ int main()
         mgr->NotifySettingsChange(nullptr);
         Check(inner.initialized == 1 && inner.settings == 1, "Initialize y NotifySettingsChange llegan a rdpcorets");
 
-        wchar_t name[] = L"OSMS-Seat";
+        wchar_t name[] = L"RDP-Tcp";
         IWRdsProtocolListener* listener = nullptr;
         Check(SUCCEEDED(mgr->CreateListener(name, &listener)) && listener && listener != &inner.listener,
               "CreateListener devuelve un listener envuelto");
-        Check(inner.listenerName == L"OSMS-Seat", "el nombre del listener llega sin cambios");
+        Check(inner.listenerName == L"RDP-Tcp", "el nombre del listener llega sin cambios");
 
         Check(SUCCEEDED(listener->StartListen(&termsrv)) && inner.listener.callback && inner.listener.callback != &termsrv,
               "StartListen pasa a rdpcorets un callback envuelto");
@@ -194,9 +220,11 @@ int main()
             IWRdsWddmIddProps* props = nullptr;
             Check(SUCCEEDED(conn->QueryInterface(__uuidof(IWRdsWddmIddProps), reinterpret_cast<void**>(&props))) && props,
                   "la conexión expone IWRdsWddmIddProps");
+            // Antes de GetClientData: el proveedor pide él mismo los datos para decidir.
             wchar_t hwid[128] = {};
             props->GetHardwareId(hwid, ARRAYSIZE(hwid));
-            Check(wcscmp(hwid, REMOTEIDD_HARDWARE_ID) == 0, "GetHardwareId pide RemoteIdd, no RdpIdd");
+            Check(wcscmp(hwid, REMOTEIDD_HARDWARE_ID) == 0, "en un puesto, GetHardwareId pide RemoteIdd, no RdpIdd");
+            Check(rdpConnection.clientDataCalls == 1, "y para saberlo consulta una vez los datos del cliente");
             Check(props->GetHardwareId(hwid, 4) != S_OK, "GetHardwareId rechaza un búfer corto");
 
             // Terminal Services pide los datos del cliente antes de cargar el driver.
@@ -207,8 +235,9 @@ int main()
             delete clientData;
 
             props->OnDriverLoad(7, reinterpret_cast<HANDLE_PTR>(reinterpret_cast<HANDLE>(0x1234)));
-            Check(sink.handleSeat.SessionId == 7 && sink.handle == reinterpret_cast<HANDLE>(0x1234),
-                  "OnDriverLoad(handle) entrega la sesión al driver");
+            Check(sink.handleSeat.SessionId == 7 && sink.handle == reinterpret_cast<HANDLE>(0x1234) &&
+                  rdpConnection.driverLoads == 0,
+                  "OnDriverLoad(handle) entrega la sesión al driver, no a rdpcorets");
             Check(sink.handleSeat.Version == REMOTEIDD_SET_SESSION_VERSION &&
                   sink.handleSeat.Width == 2560 && sink.handleSeat.Height == 1440,
                   "y con ella la resolución que pidió el cliente");
@@ -239,6 +268,44 @@ int main()
             conn->Release();
         }
 
+        // Una conexión RDP normal (no de puesto): el IDD sigue siendo el de Microsoft.
+        inner.listener.callback->OnConnected(&lanConnection, nullptr, nullptr);
+        if (IWRdsProtocolConnection* lan = termsrv.received)
+        {
+            IWRdsWddmIddProps* props = nullptr;
+            lan->QueryInterface(__uuidof(IWRdsWddmIddProps), reinterpret_cast<void**>(&props));
+            wchar_t hwid[128] = {};
+            if (props) props->GetHardwareId(hwid, ARRAYSIZE(hwid));
+            Check(wcscmp(hwid, L"RdpIdd_IndirectDisplay") == 0, "fuera de los puestos, GetHardwareId es el de Microsoft (RdpIdd)");
+            ULONG before = sink.handleSeat.SessionId;
+            HRESULT hr = props ? props->OnDriverLoad(11, 0) : E_FAIL;
+            Check(hr == S_FALSE && lanConnection.driverLoads == 1 && sink.handleSeat.SessionId == before,
+                  "fuera de los puestos, OnDriverLoad va a rdpcorets y no al driver propio");
+            if (props) props->Release();
+
+            IWRdsWddmIddProps1* props1 = nullptr;
+            lan->QueryInterface(__uuidof(IWRdsWddmIddProps1), reinterpret_cast<void**>(&props1));
+            std::wstring instanceBefore = sink.instance;
+            if (props1) { props1->OnDriverLoad(12, L"SWD\\RdpIdd\\0001"); props1->Release(); }
+            Check(lanConnection.driverLoads == 2 && sink.instance == instanceBefore,
+                  "y también OnDriverLoad por instancia");
+            termsrv.received = nullptr;
+            lan->Release();
+        }
+        else
+            Check(false, "la conexión normal llega a Terminal Services");
+
+        // Si rdpcorets no tiene interfaces de IDD, el envoltorio tampoco las ofrece.
+        inner.listener.callback->OnConnected(&noIddConnection, nullptr, nullptr);
+        if (IWRdsProtocolConnection* c = termsrv.received)
+        {
+            IUnknown* props = nullptr;
+            Check(FAILED(c->QueryInterface(__uuidof(IWRdsWddmIddProps), reinterpret_cast<void**>(&props))) && !props,
+                  "sin IDD en rdpcorets, el envoltorio no expone IWRdsWddmIddProps");
+            termsrv.received = nullptr;
+            c->Release();
+        }
+
         listener->StopListen();
         Check(inner.listener.stops == 1, "StopListen llega a rdpcorets");
         listener->Release();
@@ -247,7 +314,8 @@ int main()
         mgr->Release();
     }
 
-    Check(inner.refs == 1 && inner.listener.refs == 1 && rdpConnection.refs == 1 && termsrv.refs == 1,
+    Check(inner.refs == 1 && inner.listener.refs == 1 && rdpConnection.refs == 1 && termsrv.refs == 1 &&
+          lanConnection.refs == 1 && noIddConnection.refs == 1,
           "sin referencias colgando al soltarlo todo");
 
     // El sink real con un handle inválido falla limpio (sin driver no hay a quién avisar).

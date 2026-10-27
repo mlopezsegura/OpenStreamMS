@@ -33,8 +33,9 @@ DDA/WGC ni por la codificación RDP.
 ```
 
 Quién carga el driver: Terminal Services, a petición del **proveedor de protocolo**
-`OsmsRdsProvider.dll`, que solo atiende al listener de puestos `OSMS-Seat` (puerto 3390).
-RDP-Tcp (3389) y la consola no cambian.
+`OsmsRdsProvider.dll`, registrado en RDP-Tcp. Solo las conexiones de puesto (cliente
+`127.0.0.2`, el loopback que usa solo OpenStreamMS) reciben RemoteIdd; cualquier otra
+conexión RDP sigue entera con el protocolo y el RdpIdd de Microsoft.
 
 ## 2. Decisiones de diseño (no reabrir sin motivo)
 
@@ -46,9 +47,15 @@ RDP-Tcp (3389) y la consola no cambian.
   las llamadas. Solo responde por su cuenta a `IWRdsWddmIddProps`/`IWRdsWddmIddProps1`:
   `GetHardwareId` → `OsmsRemoteIdd_IndirectDisplay` (así Windows carga RemoteIdd y no
   RdpIdd) y `OnDriverLoad` → pasa la sesión al driver por IOCTL.
-- **Mínima invasión**: listener aparte (no se toca RDP-Tcp), sin dispositivo raíz (el
-  dispositivo lo crea Terminal Services por sesión), driver solo en el Driver Store, objetos
-  efímeros con DACL mínima (SYSTEM, LocalService, administradores), desinstalación completa.
+- **En RDP-Tcp, no en un listener aparte.** Windows cliente (Pro) solo levanta el listener
+  RDP-Tcp: un listener propio (`OSMS-Seat`) se probó el 2026-10-27 y Terminal Services no lo
+  arranca (evento 1136, sin rol de Host de sesión). DuoStream hace lo mismo: su `DuoRds.dll`
+  agrega el listener de RDP-Tcp. La decisión es por conexión: solo `127.0.0.2` recibe
+  RemoteIdd; en el resto, hasta las interfaces del IDD se delegan en Microsoft.
+- **Mínima invasión**: un solo valor de RDP-Tcp cambiado (el original se guarda y se
+  restaura), sin dispositivo raíz (el dispositivo lo crea Terminal Services por sesión),
+  driver solo en el Driver Store, objetos efímeros con DACL mínima (SYSTEM, LocalService,
+  administradores), desinstalación completa.
 - **Base de SO mínima**: IddCx 1.4 + UMDF 2.33 (Windows 10 1903+).
 - **Limitador por llegada**: el driver nunca espera a Sunshine. Si Sunshine tiene la
   textura (keyed mutex ocupado) el frame se pierde; la sesión no se frena.
@@ -67,7 +74,7 @@ RDP-Tcp (3389) y la consola no cambian.
 | Instalación de prueba | `Provider/install.ps1`, `uninstall.ps1` | Con fichero de estado para deshacer exactamente. |
 | Tests | `test/*.cpp`, `test/verify-seat.ps1` | Ver sección 4. |
 | Sunshine | sunshine-webrtc: `display_remoteidd.cpp`, `display_vram.cpp`, `display_base.cpp` | Backend `capture = remoteidd`, nunca automático. |
-| OpenStreamMS | `RdpSessionCreator.cs`, `StreamSessionService.cs`, `wwwroot` | Captura `remoteidd` → sesión contra `127.0.0.2:<puerto OSMS-Seat>`. |
+| OpenStreamMS | `RdpSessionCreator.cs`, `StreamSessionService.cs`, `wwwroot` | Captura `remoteidd` → comprueba el proveedor en RDP-Tcp y conecta a `127.0.0.2`. |
 
 Detalles que costó encontrar:
 - Todo IDD necesita `UpperFilters = IndirectKmd` en el INF (lo pone también RdpIdd).
@@ -77,7 +84,7 @@ Detalles que costó encontrar:
 - La sesión no se puede deducir en el driver (el WUDFHost está en la sesión 0): la manda el
   proveedor. Sin sesión el driver no publica (dos puestos se pisarían).
 - RDP no transmite los Hz del cliente: salen de `OsmsRefreshHz` (DWORD) en
-  `WinStations\OSMS-Seat` (`install.ps1 -RefreshHz`). La resolución sí: `HRes`/`VRes` de
+  `WinStations\RDP-Tcp` (`install.ps1 -RefreshHz`). La resolución sí: `HRes`/`VRes` de
   `GetClientData`, que el proveedor lee al delegar (la estructura lleva la contraseña: no
   se copia ni se registra nada más).
 - `wcscpy_s` con búfer corto **aborta el proceso**; en el proveedor eso tumbaría el svchost
@@ -87,6 +94,11 @@ Detalles que costó encontrar:
 - Un handle NT nuevo puede reutilizar el valor del anterior: el consumidor reabre por
   `TextureGeneration`, no por valor de handle.
 - Crear objetos en `Global\` exige SeCreateGlobalPrivilege: los tests usan `Local\`.
+- Windows cliente no levanta listeners adicionales (ni copiando RDP-Tcp en otro puerto: además
+  se copian los puertos WebSocket 3387/3392 y chocan). Por eso el proveedor va en RDP-Tcp.
+- Scripts en Windows en español: el grupo es "Administradores" y `bcdedit` dice "Sí". Se
+  usan el rol integrado y `SystemStartOptions` del registro, que no dependen del idioma.
+- `regsvr32` es gráfico: PowerShell no lo espera; `Start-Process -Wait -PassThru`.
 
 ## 4. Compilar y probar sin instalar
 
@@ -124,22 +136,22 @@ Restart-Computer
 ```
 Aparece la marca de agua "Modo de prueba": es normal.
 
-**2. Instalar** (certificado de test, driver, proveedor y listener `OSMS-Seat`)
+**2. Instalar** (certificado de test, driver y proveedor en RDP-Tcp)
 ```powershell
 cd E:\Workspace\OpenStreamMS\Native\RemoteIdd
 .\Provider\install.ps1 -Bin .\bin -RefreshHz 120 -RestartTermService
 ```
 
-**3. Abrir una sesión de puesto** con un usuario de puesto (no con el propio: Windows no
-deja conectar por RDP al propio usuario que está en la consola). Dejar algo moviéndose:
-IddCx solo presenta cuando cambia la pantalla.
+**3. Abrir una sesión de puesto** con un usuario de puesto y **desde `127.0.0.2`** (solo esas
+conexiones reciben RemoteIdd; no con el propio usuario, que está en la consola). Dejar algo
+moviéndose: IddCx solo presenta cuando cambia la pantalla.
 ```powershell
-mstsc /v:127.0.0.2:3390
+mstsc /v:127.0.0.2
 ```
 
 **4. Verificar** (desde el escritorio propio, no desde el puesto)
 ```powershell
-.\test\verify-seat.ps1 -Bin .\bin
+.\test\verify-seat.ps1 -Bin .\bin -User <usuario del puesto>
 ```
 - `RESULTADO: OK` → el driver entrega frames del puesto: funciona de extremo a extremo.
 - Sesión en negro o que se cierra → rdpcorets no acepta el IDD propio (riesgo abierto,
@@ -159,23 +171,26 @@ bcdedit /set testsigning off
 Restart-Computer
 ```
 Y reactivar Secure Boot si se desactivó. `uninstall.ps1` deshace exactamente lo que anotó
-`install.ps1` en `%ProgramData%\OpenStreamMS\remoteidd-install.json`: listener, clase COM y
-DLL del proveedor, driver del Driver Store y certificado de test.
+`install.ps1` en `%ProgramData%\OpenStreamMS\remoteidd-install.json`: primero devuelve
+RDP-Tcp a su protocolo original y luego quita clase COM y DLL del proveedor, driver del
+Driver Store y certificado de test.
 
 ### Alternativa en VM (Hyper-V)
 Válida para comprobar que funciona; las latencias no son representativas (sin GPU real).
 VM de generación 2 con TPM virtual y **Secure Boot desactivado** (`Set-VMFirmware
 -EnableSecureBoot Off`), `testsigning` dentro de la VM, Escritorio remoto habilitado y
-regla de firewall para el 3390. El cliente es el PC (`mstsc /v:<ip VM>:3390` con un usuario
-de la VM) y la verificación se lanza por PowerShell Direct (`Invoke-Command -VMName`).
+y conexión del puesto desde `127.0.0.2` dentro de la propia VM (es la condición para recibir
+RemoteIdd). La verificación se lanza por PowerShell Direct (`Invoke-Command -VMName`).
 Pendiente: que `install.ps1` firme en el PC y en la VM solo instale (la VM no tiene el WDK).
 
 ## 6. Seguridad y sistema
 
 - `testsigning` es un cambio global del arranque: solo para pruebas. En producción, firma
   *attestation* en el Partner Center de Microsoft (certificado EV); no toca el arranque.
-- El proveedor corre dentro del svchost de Terminal Services: un fallo en él afecta a las
-  sesiones de ese listener. Por eso solo se registra en `OSMS-Seat`.
+- El proveedor corre dentro del svchost de Terminal Services y está en el camino de **todas**
+  las conexiones RDP del equipo: un fallo en él afecta también al RDP normal. Lo mitigan la
+  delegación completa fuera de los puestos, los tests con objetos falsos y una desinstalación
+  que restaura RDP-Tcp antes que nada.
 - Los objetos con nombre solo admiten SYSTEM, LocalService y administradores. El
   dispositivo del driver: los mismos (`Security` en el INF; RdpIdd abre a todos).
 - `RemoteIddPerf watch` necesita SeDebugPrivilege para duplicar el handle del WUDFHost;

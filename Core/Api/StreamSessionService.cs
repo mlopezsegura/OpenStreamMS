@@ -1173,8 +1173,8 @@ public class StreamSessionService
         string.IsNullOrWhiteSpace(s) ? null : s.Trim();
 
     /// <summary>
-    /// Captura RemoteIdd: la sesión RDP se abre contra el listener OSMS-Seat (driver propio
-    /// de pantalla) y Sunshine lee sus frames con capture = remoteidd.
+    /// Captura RemoteIdd: el proveedor de RDP-Tcp da a la sesión del puesto el driver propio
+    /// de pantalla y Sunshine lee sus frames con capture = remoteidd.
     /// </summary>
     private static bool UsesRemoteIdd(StreamSession session) =>
         string.Equals(session.Capture, "remoteidd", StringComparison.OrdinalIgnoreCase);

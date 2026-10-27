@@ -91,25 +91,27 @@ namespace OpenStreamMS.Core.Helpers
         const string LoopbackHost = "127.0.0.2";
 
         /// <summary>
-        /// Listener de puestos de RemoteIdd (Native/RemoteIdd/Provider/install.ps1): copia de
-        /// RDP-Tcp en otro puerto con el proveedor que carga el driver RemoteIdd en la sesión.
+        /// Proveedor de protocolo de RemoteIdd (Native/RemoteIdd/Provider/install.ps1). Va en
+        /// RDP-Tcp, el único listener que levanta Windows cliente, y solo da la pantalla
+        /// RemoteIdd a las conexiones que llegan desde <see cref="LoopbackHost"/>.
         /// </summary>
-        const string RemoteIddListenerKey =
-            @"SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\OSMS-Seat";
+        const string RemoteIddProviderClsid = "{8B0F3C51-2D7A-4F6E-A1C9-5E4D2B7F0A36}";
 
         /// <summary>
-        /// Dirección a la que conecta el cliente RDP: el loopback de siempre (RDP-Tcp) o, con
-        /// captura RemoteIdd, el puerto del listener OSMS-Seat. Sin listener instalado falla en
-        /// vez de abrir la sesión por RDP-Tcp, donde Sunshine no encontraría frames.
+        /// Dirección a la que conecta el cliente RDP: siempre el loopback de los puestos. Con
+        /// captura RemoteIdd se comprueba antes que el proveedor esté instalado: sin él, la
+        /// sesión tendría la pantalla RDP normal y Sunshine no encontraría frames.
         /// </summary>
         static string RdpAddress(bool remoteIdd)
         {
             if (!remoteIdd) return LoopbackHost;
-            using var key = Registry.LocalMachine.OpenSubKey(RemoteIddListenerKey)
-                ?? throw new InvalidOperationException(
-                    "[RDP] Captura RemoteIdd sin listener OSMS-Seat: instálalo con Native/RemoteIdd/Provider/install.ps1.");
-            int port = key.GetValue("PortNumber") is int p && p > 0 ? p : 3390;
-            return $"{LoopbackHost}:{port}";
+            using var key = Registry.LocalMachine.OpenSubKey(
+                @"SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp");
+            if (!string.Equals(key?.GetValue("LoadableProtocol_Object") as string, RemoteIddProviderClsid,
+                               StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException(
+                    "[RDP] Captura RemoteIdd sin su proveedor en RDP-Tcp: instálalo con Native/RemoteIdd/Provider/install.ps1.");
+            return LoopbackHost;
         }
 
         // ── Public API ────────────────────────────────────────────────────────────

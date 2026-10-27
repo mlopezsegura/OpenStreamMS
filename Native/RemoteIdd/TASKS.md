@@ -91,7 +91,9 @@ Orden sugerido: primero lo que impide compilar/ejecutar limpio, luego correccion
 - [x] **D1b. Modo del cliente.** IOCTL v2 con resolución (de `GetClientData`) y Hz
   (`OsmsRefreshHz`); el driver añade el modo si falta y lo aplica aunque llegue tarde.
 - [ ] **D2. Verificación con puesto real.** `Provider/install.ps1` (testsigning, cert de test,
-  driver, proveedor, listener `OSMS-Seat` en otro puerto; RDP-Tcp intacto),
+  driver y proveedor en RDP-Tcp con el valor original guardado; solo los puestos de
+  127.0.0.2 reciben RemoteIdd; el listener aparte `OSMS-Seat` se descartó: Windows Pro no lo
+  levanta),
   `test/verify-seat.ps1`, `Provider/uninstall.ps1`. Pendiente de ejecutar en VM/equipo de
   pruebas con permiso del usuario: exige administrador, testsigning y reiniciar TermService.
   Riesgo abierto: que rdpcorets no acepte una sesión sin su RdpIdd (DuoStream engancha

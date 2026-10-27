@@ -1,6 +1,6 @@
-; RemoteIdd.inf — driver IddCx de sesión remota para OpenStreamMS (spike, no funcional solo).
-; Lo carga Terminal Services para cada sesión del listener de puestos: el proveedor de
-; protocolo (Provider/) devuelve REMOTEIDD_HARDWARE_ID en IWRdsWddmIddProps::GetHardwareId.
+; RemoteIdd.inf — driver IddCx de sesión remota para los puestos de OpenStreamMS (experimental).
+; Lo carga Terminal Services para cada sesión de puesto: el proveedor de protocolo
+; (Provider/) devuelve REMOTEIDD_HARDWARE_ID en IWRdsWddmIddProps::GetHardwareId.
 ;
 ; Mínima invasión: no hay dispositivo raíz ni se toca ningún driver de Windows; el
 ; dispositivo existe solo mientras vive la sesión del puesto. Se desinstala del todo con:

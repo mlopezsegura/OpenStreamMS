@@ -112,10 +112,10 @@ performance (4K240 present→pixel p99 ≈ 0.6 ms) and the protocol provider wit
 **How the blocker was solved, with documented APIs only:** an RDS protocol provider
 (`OsmsRdsProvider.dll`) wraps Microsoft's own RDP protocol (`rdpcorets`) and answers only
 `IWRdsWddmIddProps`: Windows then loads our IddCx for the session, and the provider hands the
-session id and client resolution to the driver by IOCTL. It is registered on a separate
-`OSMS-Seat` listener (port 3390); RDP-Tcp is untouched. Sunshine reads frames with
-`capture = remoteidd`; OpenStreamMS opens the seat session against that listener when a
-session uses that capture.
+session id and client resolution to the driver by IOCTL. It sits on RDP-Tcp (Windows client
+editions start no other listener, as DuoStream also assumes) and acts only on seat
+connections from 127.0.0.2; every other RDP connection keeps Microsoft's protocol and RdpIdd.
+Sunshine reads frames with `capture = remoteidd`.
 
 **Open risk:** `rdpcorets` may refuse a session whose display is not its own `RdpIdd`. Only the
 real-seat test (`Provider/install.ps1` + `test/verify-seat.ps1`, needs test signing) answers it.

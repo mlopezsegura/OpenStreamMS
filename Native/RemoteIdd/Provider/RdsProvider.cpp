@@ -23,7 +23,22 @@ static void Log(const wchar_t* fmt, ...)
     ULONG STDMETHODCALLTYPE Release() override { return ReleaseImpl(); }
 
 // ============================================================ conexión
-// Delega todo en la conexión de rdpcorets salvo la elección y carga del IDD.
+// ¿Conexión de puesto? OpenStreamMS conecta sus puestos desde 127.0.0.2, un loopback
+// alternativo que no usa nada más. Cualquier otra conexión RDP sigue entera con Microsoft.
+static bool IsSeatClient(const WRDS_CLIENT_DATA& d)
+{
+    if (wcsncmp(d.ClientAddress, REMOTEIDD_SEAT_CLIENT_ADDRESS, ARRAYSIZE(d.ClientAddress)) == 0)
+        return true;
+    if (d.ClientSockAddress.sin_family == 2 /* AF_INET */)
+    {
+        ULONG a = d.ClientSockAddress.u.ipv4.in_addr;
+        return a == 0x0200007F || a == 0x7F000002;   // 127.0.0.2 en orden de red o de host
+    }
+    return false;
+}
+
+// Delega todo en la conexión de rdpcorets. Solo en las conexiones de puesto responde por su
+// cuenta a la elección y carga del IDD; en las demás también eso va a Microsoft (RdpIdd).
 class Connection final : public RefCounted, public IWRdsProtocolConnection,
                          public IWRdsWddmIddProps, public IWRdsWddmIddProps1
 {
@@ -40,9 +55,11 @@ public:
         if (!ppv) return E_POINTER;
         if (riid == __uuidof(IUnknown) || riid == __uuidof(IWRdsProtocolConnection))
             *ppv = static_cast<IWRdsProtocolConnection*>(this);
-        else if (riid == __uuidof(IWRdsWddmIddProps))
+        // Las interfaces del IDD solo si rdpcorets también las tiene: así, fuera de los
+        // puestos, Terminal Services ve exactamente lo mismo que sin este proveedor.
+        else if (riid == __uuidof(IWRdsWddmIddProps) && InnerHas<IWRdsWddmIddProps>())
             *ppv = static_cast<IWRdsWddmIddProps*>(this);
-        else if (riid == __uuidof(IWRdsWddmIddProps1))
+        else if (riid == __uuidof(IWRdsWddmIddProps1) && InnerHas<IWRdsWddmIddProps1>())
             *ppv = static_cast<IWRdsWddmIddProps1*>(this);
         else
             return m_inner->QueryInterface(riid, ppv);   // resto de interfaces: las de Microsoft
@@ -56,13 +73,8 @@ public:
     HRESULT STDMETHODCALLTYPE AcceptConnection() override { return m_inner->AcceptConnection(); }
     HRESULT STDMETHODCALLTYPE GetClientData(WRDS_CLIENT_DATA* p) override
     {
-        // Solo se guarda la resolución pedida; el resto (credenciales incluidas) no se toca.
         HRESULT hr = m_inner->GetClientData(p);
-        if (SUCCEEDED(hr) && p)
-        {
-            m_width = p->HRes;
-            m_height = p->VRes;
-        }
+        if (SUCCEEDED(hr) && p) Remember(*p);
         return hr;
     }
     HRESULT STDMETHODCALLTYPE GetClientMonitorData(UINT* n, UINT* primary) override { return m_inner->GetClientMonitorData(n, primary); }
@@ -87,9 +99,17 @@ public:
     HRESULT STDMETHODCALLTYPE GetShadowConnection(IWRdsProtocolShadowConnection** p) override { return m_inner->GetShadowConnection(p); }
     HRESULT STDMETHODCALLTYPE NotifyCommandProcessCreated(ULONG s) override { return m_inner->NotifyCommandProcessCreated(s); }
 
-    // ---- IWRdsWddmIddProps / IWRdsWddmIddProps1: lo único propio ----
+    // ---- IWRdsWddmIddProps / IWRdsWddmIddProps1: propio solo en puestos ----
+    // GetHardwareId y OnDriverUnload tienen la misma firma en las dos interfaces: fuera de
+    // los puestos se delegan en la que tenga rdpcorets.
     HRESULT STDMETHODCALLTYPE GetHardwareId(WCHAR* id, DWORD count) override
     {
+        if (!IsSeat())
+        {
+            HRESULT hr = Inner<IWRdsWddmIddProps>([&](auto* p) { return p->GetHardwareId(id, count); });
+            return hr != E_NOINTERFACE ? hr
+                 : Inner<IWRdsWddmIddProps1>([&](auto* p) { return p->GetHardwareId(id, count); });
+        }
         if (!id || !count) return E_INVALIDARG;
         // Comprobar antes: wcscpy_s con búfer corto aborta el proceso (y esto corre en el
         // svchost de Terminal Services).
@@ -100,31 +120,72 @@ public:
     }
     HRESULT STDMETHODCALLTYPE OnDriverLoad(ULONG sessionId, HANDLE_PTR driver) override
     {
-        Log(L"OsmsRds: RemoteIdd cargado para la sesión %lu\n", sessionId);
+        if (!IsSeat())
+            return Inner<IWRdsWddmIddProps>([&](auto* p) { return p->OnDriverLoad(sessionId, driver); });
+        Log(L"OsmsRds: RemoteIdd cargado para el puesto de la sesión %lu\n", sessionId);
         return m_sink.ToDriverHandle(Seat(sessionId), reinterpret_cast<HANDLE>(driver));
     }
     HRESULT STDMETHODCALLTYPE OnDriverLoad(ULONG sessionId, LPCWSTR deviceInstance) override
     {
-        Log(L"OsmsRds: RemoteIdd cargado para la sesión %lu (%ls)\n", sessionId, deviceInstance ? deviceInstance : L"?");
+        if (!IsSeat())
+            return Inner<IWRdsWddmIddProps1>([&](auto* p) { return p->OnDriverLoad(sessionId, deviceInstance); });
+        Log(L"OsmsRds: RemoteIdd cargado para el puesto de la sesión %lu (%ls)\n", sessionId, deviceInstance ? deviceInstance : L"?");
         return m_sink.ToDeviceInstance(Seat(sessionId), deviceInstance);
     }
-    HRESULT STDMETHODCALLTYPE OnDriverUnload(ULONG) override { return S_OK; }
+    HRESULT STDMETHODCALLTYPE OnDriverUnload(ULONG sessionId) override
+    {
+        if (IsSeat()) return S_OK;
+        HRESULT hr = Inner<IWRdsWddmIddProps>([&](auto* p) { return p->OnDriverUnload(sessionId); });
+        return hr != E_NOINTERFACE ? hr
+             : Inner<IWRdsWddmIddProps1>([&](auto* p) { return p->OnDriverUnload(sessionId); });
+    }
     HRESULT STDMETHODCALLTYPE EnableWddmIdd(BOOL enabled) override
     {
-        // Se informa también a rdpcorets para que su estado sea coherente con la sesión.
-        IWRdsWddmIddProps* props = nullptr;
-        if (SUCCEEDED(m_inner->QueryInterface(__uuidof(IWRdsWddmIddProps), reinterpret_cast<void**>(&props))))
-        {
-            props->EnableWddmIdd(enabled);
-            props->Release();
-        }
-        m_wddmIdd = enabled != FALSE;
-        return S_OK;
+        // Siempre a rdpcorets: su estado tiene que ser coherente con la sesión.
+        return Inner<IWRdsWddmIddProps>([&](auto* p) { return p->EnableWddmIdd(enabled); });
     }
 
-    bool WddmIddEnabled() const { return m_wddmIdd; }
-
 private:
+    template <class I> bool InnerHas() const
+    {
+        I* p = nullptr;
+        if (FAILED(m_inner->QueryInterface(__uuidof(I), reinterpret_cast<void**>(&p))) || !p) return false;
+        p->Release();
+        return true;
+    }
+
+    template <class I, class F> HRESULT Inner(F&& call) const
+    {
+        I* p = nullptr;
+        if (FAILED(m_inner->QueryInterface(__uuidof(I), reinterpret_cast<void**>(&p))) || !p) return E_NOINTERFACE;
+        HRESULT hr = call(p);
+        p->Release();
+        return hr;
+    }
+
+    void Remember(const WRDS_CLIENT_DATA& d)
+    {
+        m_seat = IsSeatClient(d) ? SeatState::Yes : SeatState::No;
+        m_width = d.HRes;
+        m_height = d.VRes;
+    }
+
+    // Si Terminal Services aún no pidió los datos del cliente, se piden aquí una vez. La
+    // estructura lleva la contraseña: solo se leen dirección y resolución y se borra.
+    bool IsSeat()
+    {
+        if (m_seat == SeatState::Unknown)
+        {
+            auto* d = new (std::nothrow) WRDS_CLIENT_DATA();
+            if (d && SUCCEEDED(m_inner->GetClientData(d)))
+                Remember(*d);
+            else
+                m_seat = SeatState::No;
+            if (d) { SecureZeroMemory(d, sizeof(*d)); delete d; }
+        }
+        return m_seat == SeatState::Yes;
+    }
+
     REMOTEIDD_SET_SESSION Seat(ULONG sessionId) const
     {
         REMOTEIDD_SET_SESSION seat = {};
@@ -136,11 +197,13 @@ private:
         return seat;
     }
 
+    enum class SeatState { Unknown, Yes, No };
+
     IWRdsProtocolConnection* m_inner;
     SessionSink& m_sink;
     ULONG m_refreshHz;
+    SeatState m_seat = SeatState::Unknown;
     ULONG m_width = 0, m_height = 0;    // del cliente, al pasar por GetClientData
-    bool m_wddmIdd = false;
 };
 
 // ============================================================ callback del listener
@@ -349,18 +412,22 @@ HRESULT CreateProtocolManager(IWRdsProtocolManager* inner, SessionSink& sink, RE
 
 HRESULT CreateInnerProtocolManager(IWRdsProtocolManager** inner)
 {
-    // El protocolo de RDP-Tcp, salvo que alguien haya puesto este proveedor ahí (no se
-    // permite: se envolvería a sí mismo).
+    // Este proveedor ocupa LoadableProtocol_Object de RDP-Tcp; install.ps1 guarda el valor
+    // original en OsmsInnerProtocol_Object. Nunca se envuelve a sí mismo.
     CLSID clsid = CLSID_RdpCoreTsProtocolManager;
-    wchar_t value[64] = {};
-    DWORD size = sizeof(value);
-    if (RegGetValueW(HKEY_LOCAL_MACHINE,
-                     L"SYSTEM\\CurrentControlSet\\Control\\Terminal Server\\WinStations\\RDP-Tcp",
-                     L"LoadableProtocol_Object", RRF_RT_REG_SZ, nullptr, value, &size) == ERROR_SUCCESS)
+    for (LPCWSTR name : { L"OsmsInnerProtocol_Object", L"LoadableProtocol_Object" })
     {
+        wchar_t value[64] = {};
+        DWORD size = sizeof(value);
         CLSID fromReg;
-        if (SUCCEEDED(CLSIDFromString(value, &fromReg)) && fromReg != CLSID_OsmsRdsProtocolManager)
+        if (RegGetValueW(HKEY_LOCAL_MACHINE,
+                         L"SYSTEM\\CurrentControlSet\\Control\\Terminal Server\\WinStations\\RDP-Tcp",
+                         name, RRF_RT_REG_SZ, nullptr, value, &size) == ERROR_SUCCESS &&
+            SUCCEEDED(CLSIDFromString(value, &fromReg)) && fromReg != CLSID_OsmsRdsProtocolManager)
+        {
             clsid = fromReg;
+            break;
+        }
     }
     return CoCreateInstance(clsid, nullptr, CLSCTX_INPROC_SERVER, __uuidof(IWRdsProtocolManager),
                             reinterpret_cast<void**>(inner));
@@ -436,7 +503,7 @@ STDAPI DllCanUnloadNow()
     return S_FALSE;
 }
 
-// Solo registra la clase COM; el listener de puestos lo crea install.ps1 aparte.
+// Solo registra la clase COM; ponerla en RDP-Tcp lo hace install.ps1 aparte.
 STDAPI DllRegisterServer()
 {
     wchar_t path[MAX_PATH];

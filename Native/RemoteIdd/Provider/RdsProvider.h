@@ -7,7 +7,8 @@
 //     para la sesión en vez de RdpIdd.
 //   - OnDriverLoad: pasa la sesión al driver por IOCTL (B2).
 // Sin hooks ni parches: todo es COM documentado en wtsprotocol.h. Se registra solo en un
-// listener propio de los puestos (ver install.ps1); RDP-Tcp sigue intacto.
+// RDP-Tcp, el único listener que levanta Windows cliente (ver install.ps1), y solo actúa en
+// las conexiones de puesto (cliente REMOTEIDD_SEAT_CLIENT_ADDRESS); en el resto delega todo.
 #pragma once
 
 #include <windows.h>

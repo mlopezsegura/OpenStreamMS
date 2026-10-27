@@ -7,16 +7,16 @@
 # Lo que toca, y uninstall.ps1 deshace con el fichero de estado:
 #   1) certificado de test        2) driver en el Driver Store (pnputil)
 #   3) OsmsRdsProvider.dll en Program Files + su clase COM (HKLM)
-#   4) listener nuevo WinStations\OSMS-Seat (copia de RDP-Tcp con otro puerto y este
-#      proveedor). RDP-Tcp NO se modifica.
+#   4) RDP-Tcp: LoadableProtocol_Object pasa a este proveedor (el original se guarda en
+#      OsmsInnerProtocol_Object y en el estado) + OsmsRefreshHz.
+# Windows cliente (Pro) solo levanta el listener RDP-Tcp, así que el proveedor va ahí, como
+# hace DuoStream. Solo las conexiones de puesto (cliente 127.0.0.2) reciben RemoteIdd; el
+# resto de conexiones RDP siguen enteras con el protocolo y el RdpIdd de Microsoft.
 #
-# Uso (administrador):  .\install.ps1 -Bin <salida de build.cmd> [-Port 3390] [-RefreshHz 120] [-RestartTermService]
+# Uso (administrador):  .\install.ps1 -Bin <salida de build.cmd> [-RefreshHz 120] [-RestartTermService]
 # -RefreshHz: Hz de la pantalla del puesto (RDP no los transmite). Por defecto, 60.
 param(
     [Parameter(Mandatory)] [string] $Bin,
-    [int] $Port = 3390,
-    [int] $WebSocketPort = 3394,
-    [int] $WebSocketTlsPort = 3395,
     [ValidateRange(24, 500)] [int] $RefreshHz = 60,
     [switch] $RestartTermService
 )
@@ -40,12 +40,12 @@ if ((Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control').SystemStartOptio
 foreach ($f in 'RemoteIdd.dll', 'RemoteIdd.inf', 'OsmsRdsProvider.dll') {
     if (-not (Test-Path (Join-Path $Bin $f))) { throw "Falta $f en $Bin (ejecuta build.cmd)." }
 }
-if (Test-Path "$ws\OSMS-Seat") { throw 'Ya existe WinStations\OSMS-Seat.' }
-foreach ($p in $Port, $WebSocketPort, $WebSocketTlsPort) {
-    if (Get-NetTCPConnection -State Listen -LocalPort $p -ErrorAction SilentlyContinue) { throw "El puerto $p ya está en uso." }
-}
+$rdpTcp = "$ws\RDP-Tcp"
+$original = (Get-ItemProperty $rdpTcp).LoadableProtocol_Object
+if (-not $original) { throw 'RDP-Tcp no tiene LoadableProtocol_Object: no es el RDP de Windows esperado.' }
+if ($original -eq $clsid) { throw 'RDP-Tcp ya apunta a este proveedor (¿instalación anterior a medias?).' }
 
-$done = [ordered]@{ Port = $Port }
+$done = [ordered]@{}
 
 # signtool: parar si falla (si no, el error saldría después como "driver sin firmar").
 function Sign($file) {
@@ -92,22 +92,18 @@ Sign "$dir\OsmsRdsProvider.dll"
 RegSvr "/s `"$dir\OsmsRdsProvider.dll`""
 $done.ProviderDir = $dir; Save
 
-# 4) listener de puestos: copia de RDP-Tcp con otro puerto y este proveedor
-reg copy "HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" `
-         "HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\OSMS-Seat" /s /f | Out-Null
-Set-ItemProperty "$ws\OSMS-Seat" PortNumber $Port -Type DWord
-# RDP-Tcp también abre puertos de transporte WebSocket (3387/3392): con los copiados, los
-# dos listeners chocan y OSMS-Seat queda inactivo (evento 1035, socket ya en uso).
-Set-ItemProperty "$ws\OSMS-Seat" WebSocketListenerPort $WebSocketPort -Type DWord
-Set-ItemProperty "$ws\OSMS-Seat" WebSocketTlsListenerPort $WebSocketTlsPort -Type DWord
-Set-ItemProperty "$ws\OSMS-Seat" LoadableProtocol_Object $clsid
-Set-ItemProperty "$ws\OSMS-Seat" OsmsRefreshHz $RefreshHz -Type DWord
-$done.WinStation = 'OSMS-Seat'; Save
+# 4) RDP-Tcp: este proveedor delante del de Microsoft. El original primero en el estado,
+#    para que uninstall.ps1 lo restaure aunque algo falle a continuación.
+$done.OriginalProtocol = $original; Save
+Set-ItemProperty $rdpTcp OsmsInnerProtocol_Object $original
+Set-ItemProperty $rdpTcp OsmsRefreshHz $RefreshHz -Type DWord
+Set-ItemProperty $rdpTcp LoadableProtocol_Object $clsid
+$done.RdpTcpPatched = $true; Save
 
 if ($RestartTermService) {
     Write-Warning 'Reiniciando TermService: se cierran TODAS las sesiones remotas abiertas.'
     Restart-Service TermService -Force
 } else {
-    Write-Host 'Listo. El listener OSMS-Seat se activa al reiniciar TermService o el equipo.'
+    Write-Host 'Listo. El proveedor se carga al reiniciar TermService o el equipo.'
 }
-Write-Host "Prueba: abre una sesión en 127.0.0.1:$Port y ejecuta test\verify-seat.ps1."
+Write-Host 'Prueba: mstsc /v:127.0.0.2 con un usuario de puesto y test\verify-seat.ps1 -User <usuario>.'
