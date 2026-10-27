@@ -3,6 +3,10 @@
 param([switch] $RestartTermService)
 $ErrorActionPreference = 'Continue'
 
+# Sin esto, cada paso fallaba con acceso denegado y aun así se anunciaba como hecho.
+if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    throw 'Hay que ejecutarlo como administrador.'
+}
 $state = Join-Path $env:ProgramData 'OpenStreamMS\remoteidd-install.json'
 if (-not (Test-Path $state)) { Write-Host 'No hay nada instalado.'; return }
 $s = Get-Content $state -Raw | ConvertFrom-Json
@@ -18,6 +22,17 @@ if ($s.OriginalProtocol) {
     Remove-ItemProperty $rdpTcp OsmsRemoteIddAllConnections -ErrorAction SilentlyContinue
     Write-Host "RDP-Tcp restaurado a $($s.OriginalProtocol)."
 }
+foreach ($t in @($s.DisabledTasks)) {
+    if (-not $t) { continue }
+    $path, $name = $t -split '\|', 2
+    Enable-ScheduledTask -TaskPath $path -TaskName $name -ErrorAction SilentlyContinue | Out-Null
+    Write-Host "Tarea reactivada: $path$name"
+}
+# TermService vuelve a su ServiceDll anterior (normalmente rdpwrap.dll de asmtron).
+if ($s.OriginalServiceDll) {
+    Set-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\TermService\Parameters' ServiceDll $s.OriginalServiceDll -Type ExpandString
+    Write-Host "TermService: ServiceDll restaurado a $($s.OriginalServiceDll)."
+}
 # Instalaciones anteriores, con listener aparte.
 if ($s.WinStation -and (Test-Path "$ws\$($s.WinStation)")) {
     Remove-Item -Recurse -Force "$ws\$($s.WinStation)"
@@ -27,9 +42,13 @@ if ($s.ProviderDir) {
     $dll = Join-Path $s.ProviderDir 'OsmsRdsProvider.dll'
     # Start-Process -Wait: regsvr32 es gráfico y PowerShell no lo esperaría.
     if (Test-Path $dll) { Start-Process regsvr32.exe -ArgumentList "/s /u `"$dll`"" -Wait }
-    if ($RestartTermService) { Restart-Service TermService -Force }
-    Remove-Item -Recurse -Force $s.ProviderDir -ErrorAction SilentlyContinue
-    if (Test-Path $s.ProviderDir) { Write-Warning "TermService aún tiene cargado el proveedor: borra $($s.ProviderDir) tras reiniciar." }
+}
+if ($RestartTermService) { Restart-Service TermService -Force }
+# Con TermService reiniciado ya no están cargadas; si no, se quedan y se avisa.
+foreach ($path in @($s.ProviderDir) + @($s.TermWrapFiles)) {
+    if (-not $path) { continue }
+    Remove-Item -Recurse -Force $path -ErrorAction SilentlyContinue
+    if (Test-Path $path) { Write-Warning "TermService aún tiene cargado $path`: bórralo tras reiniciar." }
 }
 if ($s.DriverInf) { pnputil /delete-driver $s.DriverInf /uninstall /force | Out-Null; Write-Host "Driver $($s.DriverInf) eliminado." }
 if ($s.Thumbprint) {

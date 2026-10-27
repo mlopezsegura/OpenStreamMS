@@ -29,6 +29,13 @@ namespace OpenStreamMS.Services.Sunshine
         private readonly SunshineConfigurator.SunshineConfig _cfg;
         private readonly SunshineConfigurator.SunshineCredentials? _creds;
         private readonly Dictionary<string, string>? _envOverrides;
+        /// <summary>
+        /// Sunshine como SYSTEM dentro de la sesión del puesto (como hace sunshinesvc en la
+        /// consola). Lo exige capture = remoteidd: el driver publica en Global\ con DACL de
+        /// SYSTEM/LocalService/administradores y Sunshine duplica la textura desde el WUDFHost.
+        /// Sunshine lanza las apps con el usuario de su propia sesión (misc.cpp de sunshine-webrtc).
+        /// </summary>
+        private readonly bool _runAsSystem;
         private readonly string? _statePersistPath;
         private readonly string? _stateAliasPath;
         private FileSystemWatcher? _stateWatcher;
@@ -45,8 +52,10 @@ namespace OpenStreamMS.Services.Sunshine
                                SunshineConfigurator.SunshineCredentials? credentials = null,
                                Dictionary<string, string>? envOverrides = null,
                                string? statePersistPath = null,
-                               string? stateAliasPath = null)
+                               string? stateAliasPath = null,
+                               bool runAsSystem = false)
         {
+            _runAsSystem           = runAsSystem;
             _sunshineExe           = sunshineExePath;
             _vddEnabled            = vddEnabled;
             _cfg                   = cfg;
@@ -249,7 +258,7 @@ namespace OpenStreamMS.Services.Sunshine
                     // Prioridad Normal: Sunshine ya eleva sus hilos de captura/encode por su
                     // cuenta; AboveNormal en todo el proceso coincidio con microsaltos.
                     _sunshinePid = new ProcessInSession().LaunchInSession(
-                        sessionId, _sunshineExe, argQuoted, _envOverrides);
+                        sessionId, _sunshineExe, argQuoted, _envOverrides, asSystem: _runAsSystem);
                 }
                 else
                 {

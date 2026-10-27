@@ -37,6 +37,10 @@ namespace osms::ridd
         // después de cargar el driver). Se recrean en el siguiente Publish.
         void   SetSession(UINT32 sessionId);
 
+        // Crea ya el slot y los eventos de la sesión actual, sin esperar al primer frame (no
+        // usa el dispositivo D3D). false si aún no hay sesión o no se pudieron crear.
+        bool   Prepare() { return m_sessionId != 0 && EnsureSharedObjects(); }
+
         void   SetRefresh(UINT32 numer, UINT32 denom) { m_info.RefreshNumer = numer; m_info.RefreshDenom = denom; }
         UINT64 LastFrameId() const { return m_info.FrameId; }
 

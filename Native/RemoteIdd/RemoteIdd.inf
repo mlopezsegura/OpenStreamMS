@@ -42,10 +42,11 @@ Needs   = WUDFRD.NT.HW
 AddReg  = RemoteIdd_HardwareDeviceSettings
 
 ; IndirectKmd es el filtro de modo kernel que exige todo IDD (lo pone también RdpIdd).
-; Security: SYSTEM, LocalService y administradores; RdpIdd abre a todos (WD), aquí no.
+; Security: SYSTEM, LocalService, NetworkService (TermService, que manda la sesión por IOCTL
+; desde el proveedor) y administradores; RdpIdd abre a todos (WD), aquí no.
 [RemoteIdd_HardwareDeviceSettings]
 HKR,, "UpperFilters", %REG_MULTI_SZ%, "IndirectKmd"
-HKR,, Security,, "D:P(A;;GA;;;SY)(A;;GA;;;LS)(A;;GA;;;BA)"
+HKR,, Security,, "D:P(A;;GA;;;SY)(A;;GA;;;LS)(A;;GA;;;NS)(A;;GA;;;BA)"
 
 [RemoteIdd_Install.NT.Services]
 Include = WUDFRD.inf
@@ -55,14 +56,16 @@ Needs   = WUDFRD.NT.Services
 UmdfService              = RemoteIdd, RemoteIdd_Service
 UmdfServiceOrder         = RemoteIdd
 UmdfKernelModeClientPolicy = AllowKernelModeClients
-; Carga la extensión de clase IddCx en el host UMDF (obligatorio para un IDD).
-UmdfExtensions           = IddCx0102
 ; Un host UMDF por sesión: recomendado por Microsoft para IDD remotos (lo usa también DuoIdd).
 UmdfHostProcessSharing   = ProcessSharingDisabled
 
+; UmdfExtensions va en la sección del servicio, como en rdpidd.inf y en el sample IddSample:
+; en la sección .Wdf se ignora (infverif no avisa), el host no carga IddCx y el dispositivo
+; acaba en CM_PROB_FAILED_ADD (0xC0000001).
 [RemoteIdd_Service]
 UmdfLibraryVersion = $UMDFVERSION$
 ServiceBinary      = %13%\RemoteIdd.dll
+UmdfExtensions     = IddCx0102
 
 [UMDriverCopy]
 RemoteIdd.dll

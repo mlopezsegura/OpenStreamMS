@@ -1,6 +1,8 @@
 // RdsProvider.cpp — ver RdsProvider.h.
 
 #include "RdsProvider.h"
+#include <initguid.h>   // DEVPKEY_Device_InstanceId definido aquí
+#include <devpkey.h>
 #include <cfgmgr32.h>
 #include <cstdio>
 #include <new>
@@ -118,12 +120,20 @@ public:
     HRESULT STDMETHODCALLTYPE IsUserAllowedToLogon(ULONG s, HANDLE_PTR t, WCHAR* d, WCHAR* u) override { return m_inner->IsUserAllowedToLogon(s, t, d, u); }
     HRESULT STDMETHODCALLTYPE SessionArbitrationEnumeration(HANDLE_PTR t, BOOL single, ULONG* ids, ULONG* count) override { return m_inner->SessionArbitrationEnumeration(t, single, ids, count); }
     HRESULT STDMETHODCALLTYPE LogonNotify(HANDLE_PTR t, WCHAR* u, WCHAR* d, WRDS_SESSION_ID* s, PWRDS_CONNECTION_SETTINGS c) override { return m_inner->LogonNotify(t, u, d, s, c); }
-    HRESULT STDMETHODCALLTYPE PreDisconnect(ULONG r) override { return m_inner->PreDisconnect(r); }
+    HRESULT STDMETHODCALLTYPE PreDisconnect(ULONG r) override
+    {
+        if (m_seat == SeatState::Yes) Log(L"OsmsRds: PreDisconnect(%lu) en un puesto\n", r);
+        return m_inner->PreDisconnect(r);
+    }
     HRESULT STDMETHODCALLTYPE DisconnectNotify() override { return m_inner->DisconnectNotify(); }
     HRESULT STDMETHODCALLTYPE Close() override { return m_inner->Close(); }
     HRESULT STDMETHODCALLTYPE GetProtocolStatus(WRDS_PROTOCOL_STATUS* p) override { return m_inner->GetProtocolStatus(p); }
     HRESULT STDMETHODCALLTYPE GetLastInputTime(ULONG64* t) override { return m_inner->GetLastInputTime(t); }
-    HRESULT STDMETHODCALLTYPE SetErrorInfo(ULONG e) override { return m_inner->SetErrorInfo(e); }
+    HRESULT STDMETHODCALLTYPE SetErrorInfo(ULONG e) override
+    {
+        if (m_seat == SeatState::Yes) Log(L"OsmsRds: SetErrorInfo(0x%X) en un puesto\n", e);
+        return m_inner->SetErrorInfo(e);
+    }
     HRESULT STDMETHODCALLTYPE CreateVirtualChannel(CHAR* n, BOOL st, ULONG prio, ULONG_PTR* ch) override { return m_inner->CreateVirtualChannel(n, st, prio, ch); }
     HRESULT STDMETHODCALLTYPE QueryProperty(GUID q, ULONG nIn, ULONG nOut, PWRDS_PROPERTY_VALUE in, PWRDS_PROPERTY_VALUE out) override { return m_inner->QueryProperty(q, nIn, nOut, in, out); }
     HRESULT STDMETHODCALLTYPE GetShadowConnection(IWRdsProtocolShadowConnection** p) override { return m_inner->GetShadowConnection(p); }
@@ -146,6 +156,7 @@ public:
         constexpr size_t needed = ARRAYSIZE(REMOTEIDD_HARDWARE_ID);
         if (count < needed) return HRESULT_FROM_WIN32(ERROR_INSUFFICIENT_BUFFER);
         memcpy(id, REMOTEIDD_HARDWARE_ID, needed * sizeof(wchar_t));
+        Log(L"OsmsRds: puesto %lux%lu, GetHardwareId -> RemoteIdd\n", m_width, m_height);
         return S_OK;
     }
     HRESULT STDMETHODCALLTYPE OnDriverLoad(ULONG sessionId, HANDLE_PTR driver) override
@@ -153,18 +164,26 @@ public:
         if (!IsSeat())
             return Inner<IWRdsWddmIddProps>([&](auto* p) { return p->OnDriverLoad(sessionId, driver); });
         Log(L"OsmsRds: RemoteIdd cargado para el puesto de la sesión %lu\n", sessionId);
-        return m_sink.ToDriverHandle(Seat(sessionId), reinterpret_cast<HANDLE>(driver));
+        return Delivered(m_sink.ToDriverHandle(Seat(sessionId), reinterpret_cast<HANDLE>(driver)));
     }
     HRESULT STDMETHODCALLTYPE OnDriverLoad(ULONG sessionId, LPCWSTR deviceInstance) override
     {
         if (!IsSeat())
             return Inner<IWRdsWddmIddProps1>([&](auto* p) { return p->OnDriverLoad(sessionId, deviceInstance); });
         Log(L"OsmsRds: RemoteIdd cargado para el puesto de la sesión %lu (%ls)\n", sessionId, deviceInstance ? deviceInstance : L"?");
-        return m_sink.ToDeviceInstance(Seat(sessionId), deviceInstance);
+        return Delivered(m_sink.ToDeviceInstance(Seat(sessionId), deviceInstance));
+    }
+    // Un error en OnDriverLoad hace que Terminal Services cierre la sesión
+    // (ERRINFO_CLOSE_STACK_ON_DRIVER_IFACE_FAILURE, 0x12). Sin la sesión el driver solo deja de
+    // publicar frames: se registra y la conexión sigue.
+    static HRESULT Delivered(HRESULT hr)
+    {
+        if (FAILED(hr)) Log(L"OsmsRds: no se pudo pasar la sesión al driver (0x%08X)\n", hr);
+        return S_OK;
     }
     HRESULT STDMETHODCALLTYPE OnDriverUnload(ULONG sessionId) override
     {
-        if (IsSeat()) return S_OK;
+        if (IsSeat()) { Log(L"OsmsRds: OnDriverUnload, sesión %lu\n", sessionId); return S_OK; }
         HRESULT hr = Inner<IWRdsWddmIddProps>([&](auto* p) { return p->OnDriverUnload(sessionId); });
         return hr != E_NOINTERFACE ? hr
              : Inner<IWRdsWddmIddProps1>([&](auto* p) { return p->OnDriverUnload(sessionId); });
@@ -172,7 +191,9 @@ public:
     HRESULT STDMETHODCALLTYPE EnableWddmIdd(BOOL enabled) override
     {
         // Siempre a rdpcorets: su estado tiene que ser coherente con la sesión.
-        return Inner<IWRdsWddmIddProps>([&](auto* p) { return p->EnableWddmIdd(enabled); });
+        HRESULT hr = Inner<IWRdsWddmIddProps>([&](auto* p) { return p->EnableWddmIdd(enabled); });
+        if (m_seat == SeatState::Yes) Log(L"OsmsRds: EnableWddmIdd(%d) 0x%08X\n", enabled, hr);
+        return hr;
     }
 
 private:
@@ -409,6 +430,19 @@ public:
     HRESULT ToDeviceInstance(const REMOTEIDD_SET_SESSION& seat, LPCWSTR instance) override
     {
         if (!instance) return E_INVALIDARG;
+        // rdpcorets no pasa el id de instancia sino una ruta de interfaz del IDD
+        // (\\?\SWD#RemoteDisplayEnum#...#{1ca05181-...}): de ella se saca la instancia.
+        wchar_t fromPath[MAX_DEVICE_ID_LEN] = {};
+        if (wcsncmp(instance, L"\\\\?\\", 4) == 0)
+        {
+            DEVPROPTYPE type = 0;
+            ULONG size = sizeof(fromPath);
+            if (CM_Get_Device_Interface_PropertyW(instance, &DEVPKEY_Device_InstanceId, &type,
+                                                  reinterpret_cast<PBYTE>(fromPath), &size, 0) != CR_SUCCESS
+                || type != DEVPROP_TYPE_STRING)
+                return HRESULT_FROM_WIN32(ERROR_NOT_FOUND);
+            instance = fromPath;
+        }
         // Interfaz REMOTEIDD_INTERFACE_GUID de esa instancia concreta.
         ULONG len = 0;
         GUID guid = REMOTEIDD_INTERFACE_GUID;

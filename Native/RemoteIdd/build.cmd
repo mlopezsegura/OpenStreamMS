@@ -32,21 +32,21 @@ set OBJ=%TEMP%\osms-remoteidd-obj
 if not exist "%OBJ%" mkdir "%OBJ%"
 
 :: ---- 1) test del contrato SharedFrame.h (no necesita WDK) ----
-cl /nologo /O2 /W4 /WX /EHsc /std:c++17 /Fo"%OBJ%\\" "%~dp0test\SharedFrameTest.cpp" /Fe"%OBJ%\SharedFrameTest.exe" || exit /b 1
+cl /nologo /utf-8 /O2 /W4 /WX /EHsc /std:c++17 /Fo"%OBJ%\\" "%~dp0test\SharedFrameTest.cpp" /Fe"%OBJ%\SharedFrameTest.exe" || exit /b 1
 "%OBJ%\SharedFrameTest.exe" || exit /b 1
 
 :: ---- 1b) test de rendimiento (no necesita WDK) ----
-cl /nologo /O2 /W4 /WX /EHsc /std:c++17 /DUNICODE /D_UNICODE /Fo"%OBJ%\\" ^
+cl /nologo /utf-8 /O2 /W4 /WX /EHsc /std:c++17 /DUNICODE /D_UNICODE /Fo"%OBJ%\\" ^
   "%~dp0test\PerfTest.cpp" "%~dp0FramePublisher.cpp" "%~dp0FrameConsumer.cpp" ^
   /Fe"%OUT%\RemoteIddPerf.exe" /link d3d11.lib dxgi.lib avrt.lib advapi32.lib || exit /b 1
 if not "%RIDD_NOPERF%"=="1" "%OUT%\RemoteIddPerf.exe" || exit /b 1
 
 :: ---- 1c) proveedor de protocolo RDS: test con objetos falsos + DLL ----
-cl /nologo /O2 /W4 /WX /EHsc /std:c++17 /DUNICODE /D_UNICODE /Fo"%OBJ%\\" ^
+cl /nologo /utf-8 /O2 /W4 /WX /EHsc /std:c++17 /DUNICODE /D_UNICODE /Fo"%OBJ%\\" ^
   "%~dp0test\ProviderTest.cpp" "%~dp0Provider\RdsProvider.cpp" ^
   /Fe"%OBJ%\RemoteIddProviderTest.exe" /link ole32.lib cfgmgr32.lib advapi32.lib || exit /b 1
 "%OBJ%\RemoteIddProviderTest.exe" || exit /b 1
-cl /nologo /O2 /W4 /WX /EHsc /std:c++17 /MT /GS /guard:cf /DUNICODE /D_UNICODE /LD /Fo"%OBJ%\\" ^
+cl /nologo /utf-8 /O2 /W4 /WX /EHsc /std:c++17 /MT /GS /guard:cf /DUNICODE /D_UNICODE /LD /Fo"%OBJ%\\" ^
   "%~dp0Provider\RdsProvider.cpp" /Fe"%OUT%\OsmsRdsProvider.dll" ^
   /link /DEF:"%~dp0Provider\OsmsRdsProvider.def" /GUARD:CF ole32.lib cfgmgr32.lib advapi32.lib || exit /b 1
 del /q "%OUT%\OsmsRdsProvider.lib" "%OUT%\OsmsRdsProvider.exp" 2>nul
@@ -66,14 +66,14 @@ if not exist "%WINC%\um\iddcx\1.4\IddCx.h" (
 
 :: ---- 3) driver ----
 :: C4324 sale de las cabeceras de WDF (wdfrequest.h), no del código del driver.
-cl /nologo /c /O2 /W4 /WX /wd4324 /EHsc /std:c++17 /MT /GS /guard:cf /Zi /Fo"%OBJ%\\" /Fd"%OBJ%\\" ^
+cl /nologo /utf-8 /c /O2 /W4 /WX /wd4324 /EHsc /std:c++17 /MT /GS /guard:cf /Zi /Fo"%OBJ%\\" /Fd"%OBJ%\\" ^
   /DUNICODE /D_UNICODE /D_WINDLL /DWIN32_LEAN_AND_MEAN ^
   /DUMDF_VERSION_MAJOR=2 /DUMDF_VERSION_MINOR=33 /DUMDF_USING_NTSTATUS ^
   /DIDDCX_VERSION_MAJOR=1 /DIDDCX_VERSION_MINOR=4 /DIDDCX_MINIMUM_VERSION_REQUIRED=4 ^
   /I"%WINC%\um\iddcx\1.4" /I"%W%\Include\wdf\umdf\2.33" /I"%WINC%\um" /I"%WINC%\shared" ^
   "%~dp0Driver.cpp" || exit /b 1
 :: FramePublisher no es código UMDF: sin UMDF_USING_NTSTATUS (ocultaría los STATUS_* de winnt.h).
-cl /nologo /c /O2 /W4 /WX /EHsc /std:c++17 /MT /GS /guard:cf /Zi /Fo"%OBJ%\\" /Fd"%OBJ%\\" ^
+cl /nologo /utf-8 /c /O2 /W4 /WX /EHsc /std:c++17 /MT /GS /guard:cf /Zi /Fo"%OBJ%\\" /Fd"%OBJ%\\" ^
   /DUNICODE /D_UNICODE /DWIN32_LEAN_AND_MEAN "%~dp0FramePublisher.cpp" || exit /b 1
 link /nologo /DLL /OUT:"%OUT%\RemoteIdd.dll" /PDB:"%OUT%\RemoteIdd.pdb" /DEBUG /INCREMENTAL:NO /GUARD:CF ^
   /NODEFAULTLIB:kernel32.lib "%OBJ%\Driver.obj" "%OBJ%\FramePublisher.obj" ^

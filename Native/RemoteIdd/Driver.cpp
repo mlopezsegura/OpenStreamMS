@@ -7,8 +7,9 @@
 // Estructura basada en el sample oficial Windows-driver-samples/video/IndirectDisplay,
 // adaptada a sesión remota + entrega de frames por memoria compartida (SharedFrame.h).
 //
-// Mínima invasión: no escribe registro ni ficheros, no engancha nada de Windows. Todo lo
-// que crea (objetos con nombre, textura compartida) muere con el WUDFHost del driver.
+// Mínima invasión: no escribe registro, no engancha nada de Windows. Todo lo que crea
+// (objetos con nombre, textura compartida) muere con el WUDFHost del driver. El único fichero
+// es el log de diagnóstico, y solo si install.ps1 lo ha creado.
 
 #include "Driver.h"
 #include <atomic>
@@ -20,6 +21,9 @@ using namespace Microsoft::WRL;
 namespace osms::ridd {
 
 // ------------------------------------------------------------------ util
+// Además de OutputDebugString, se añade a %ProgramData%\OpenStreamMS\remoteidd-driver.log si
+// existe: lo crea install.ps1 con escritura para LOCAL SERVICE (la cuenta del WUDFHost). Si no
+// existe, no se crea.
 static void Log(const wchar_t* fmt, ...)
 {
     wchar_t buf[256];
@@ -28,13 +32,53 @@ static void Log(const wchar_t* fmt, ...)
     _vsnwprintf_s(buf, _TRUNCATE, fmt, args);
     va_end(args);
     OutputDebugStringW(buf);
+
+    wchar_t path[MAX_PATH];
+    if (!ExpandEnvironmentStringsW(L"%ProgramData%\\OpenStreamMS\\remoteidd-driver.log", path, MAX_PATH))
+        return;
+    HANDLE f = CreateFileW(path, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
+                           OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (f == INVALID_HANDLE_VALUE) return;
+    SYSTEMTIME t;
+    GetLocalTime(&t);
+    wchar_t line[320];
+    int n = swprintf_s(line, L"%02u:%02u:%02u.%03u [%lu] %ls", t.wHour, t.wMinute, t.wSecond,
+                       t.wMilliseconds, GetCurrentProcessId(), buf);
+    char utf8[960];
+    int len = n > 0 ? WideCharToMultiByte(CP_UTF8, 0, line, n, utf8, sizeof(utf8), nullptr, nullptr) : 0;
+    DWORD written = 0;
+    if (len > 0) WriteFile(f, utf8, static_cast<DWORD>(len), &written, nullptr);
+    CloseHandle(f);
 }
 
-// B2: sesión del puesto. El WUDFHost corre en la sesión 0, así que no se puede deducir:
-// la envía el proveedor de protocolo con IOCTL_REMOTEIDD_SET_SESSION al cargar el driver.
+// B2: sesión del puesto. El WUDFHost corre en la sesión 0, así que no sale del proceso. La
+// envía el proveedor con IOCTL_REMOTEIDD_SET_SESSION desde OnDriverLoad, pero Terminal
+// Services no siempre lo llama: por eso también se lee del id de instancia que pone
+// RemoteDisplayEnum (...&SessionId_0008, en decimal; ver SessionFromInstance). El IOCTL manda.
 // 0 = aún desconocida (la sesión 0 nunca es un puesto). Hay un WUDFHost por dispositivo
 // (ProcessSharingDisabled) y un dispositivo por sesión, así que basta con un global.
 static std::atomic<UINT32> g_seatSession{ 0 };
+
+// Slot y eventos de la sesión, vivos mientras viva el driver. Los SwapChainProcessor los crean
+// en el primer frame y los cierran al perder el swapchain; con el escritorio quieto puede no
+// haber frame, y Sunshine (que solo abre, nunca crea) no arrancaba ("no frame slot"). Este
+// publicador sin dispositivo D3D solo los mantiene abiertos con la versión puesta.
+static SRWLOCK g_sharedLock = SRWLOCK_INIT;
+static FramePublisher* g_sharedKeeper = nullptr;
+
+static void KeepSharedObjects(UINT32 session)
+{
+    AcquireSRWLockExclusive(&g_sharedLock);
+    if (!g_sharedKeeper)
+        g_sharedKeeper = new (std::nothrow) FramePublisher(nullptr, nullptr, 0);
+    if (g_sharedKeeper)
+    {
+        g_sharedKeeper->SetSession(session);
+        if (g_sharedKeeper->Prepare())
+            Log(L"RemoteIdd: objetos compartidos listos para la sesión %lu\n", session);
+    }
+    ReleaseSRWLockExclusive(&g_sharedLock);
+}
 
 // ------------------------------------------------------------------ modos (B3)
 // Sin EDID: el monitor se crea con descripción vacía e IddCx pide los modos por
@@ -60,6 +104,46 @@ static SRWLOCK g_modeLock = SRWLOCK_INIT;
 static ModeDef g_seatMode = kDefaultConfig;
 static IDDCX_ADAPTER g_adapter = nullptr;
 static IDDCX_MONITOR g_monitor = nullptr;
+
+// Sesión e Hz sin depender de OnDriverLoad: sesión del id de instancia y Hz de OsmsRefreshHz
+// (lo escribe install.ps1 en RDP-Tcp; RDP no transmite los Hz del cliente). La resolución
+// sigue llegando solo por el IOCTL v2.
+static void SeatFromDevice(WDFDEVICE device)
+{
+    // DEVPKEY_Device_InstanceId, definido aquí para no depender de initguid/devpkey.h.
+    static const DEVPROPKEY kInstanceId = {
+        { 0x78c34fc8, 0x104a, 0x4aca, { 0x9e, 0xa4, 0x52, 0x4d, 0x52, 0x99, 0x6e, 0x57 } }, 256 };
+    WDF_DEVICE_PROPERTY_DATA prop;
+    WDF_DEVICE_PROPERTY_DATA_INIT(&prop, &kInstanceId);
+    WDFMEMORY memory = nullptr;
+    DEVPROPTYPE type = 0;
+    if (NT_SUCCESS(WdfDeviceAllocAndQueryPropertyEx(device, &prop, NonPagedPoolNx, WDF_NO_OBJECT_ATTRIBUTES,
+                                                    &memory, &type)) && type == DEVPROP_TYPE_STRING)
+    {
+        size_t size = 0;
+        auto* id = static_cast<const wchar_t*>(WdfMemoryGetBuffer(memory, &size));
+        const wchar_t* tag = wcsstr(id, L"&SessionId_");
+        ULONG session = tag ? wcstoul(tag + 11, nullptr, 10) : 0;
+        UINT32 expected = 0;
+        if (session != 0 && g_seatSession.compare_exchange_strong(expected, session))
+        {
+            Log(L"RemoteIdd: sesión del puesto %lu (id de instancia)\n", session);
+            KeepSharedObjects(session);
+        }
+    }
+    if (memory) WdfObjectDelete(memory);
+
+    DWORD hz = 0, size = sizeof(hz);
+    if (RegGetValueW(HKEY_LOCAL_MACHINE,
+                     L"SYSTEM\\CurrentControlSet\\Control\\Terminal Server\\WinStations\\RDP-Tcp",
+                     L"OsmsRefreshHz", RRF_RT_REG_DWORD, nullptr, &hz, &size) == ERROR_SUCCESS
+        && hz >= 24 && hz <= 500)
+    {
+        AcquireSRWLockExclusive(&g_modeLock);
+        g_seatMode.VSync = hz;
+        ReleaseSRWLockExclusive(&g_modeLock);
+    }
+}
 
 static bool SameMode(const ModeDef& a, const ModeDef& b)
 {
@@ -198,10 +282,17 @@ void SwapChainProcessor::Run()
     // de adaptador de render...), al borrarlo IddCx llama a Unassign y vuelve a llamar a
     // Assign con un swapchain y un dispositivo nuevos. Reintentar sobre el viejo no sirve.
     Exit why = RunCore();
+    // Solo si lo perdemos nosotros: borrarlo hace que IddCx asigne otro. Con Exit::Terminate
+    // nos para IddCx (Unassign o EvtMonitorCleanup al retirar el dispositivo) y es él quien lo
+    // destruye; borrarlo aquí espera a IddCx mientras IddCx espera a este hilo. Sospecha del
+    // cuelgue del 2026-10-27: el WUDFHost no terminaba y la sesión no se podía cerrar.
     if (why == Exit::SwapChainLost)
+    {
         Log(L"RemoteIdd: swapchain perdido; IddCx reasignará uno nuevo\n");
-
-    WdfObjectDelete(reinterpret_cast<WDFOBJECT>(m_swapChain));
+        WdfObjectDelete(reinterpret_cast<WDFOBJECT>(m_swapChain));
+    }
+    else
+        Log(L"RemoteIdd: hilo del swapchain parado por IddCx\n");
     m_swapChain = nullptr;
 }
 
@@ -242,7 +333,10 @@ SwapChainProcessor::Exit SwapChainProcessor::RunCore()
             if (session && SUCCEEDED(md.pSurface->QueryInterface(IID_PPV_ARGS(&src))))
             {
                 m_publisher.SetSession(session);
-                m_publisher.Publish(src.Get(), md.PresentDisplayQPCTime);
+                auto r = m_publisher.Publish(src.Get(), md.PresentDisplayQPCTime);
+                static std::atomic<bool> s_first{ true };
+                if (r == FramePublisher::Result::Published && s_first.exchange(false))
+                    Log(L"RemoteIdd: primer frame publicado (sesión %lu)\n", session);
             }
         }
 
@@ -258,6 +352,7 @@ SwapChainProcessor::Exit SwapChainProcessor::RunCore()
 // ============================================================ IddCx: adaptador
 NTSTATUS EvtAdapterInitFinished(IDDCX_ADAPTER adapter, const IDARG_IN_ADAPTER_INIT_FINISHED* args)
 {
+    Log(L"RemoteIdd: AdapterInitFinished 0x%08X\n", args->AdapterInitStatus);
     if (!NT_SUCCESS(args->AdapterInitStatus)) return args->AdapterInitStatus;
 
     auto* ac = WdfObjectGet_AdapterContext(adapter);
@@ -284,7 +379,7 @@ NTSTATUS EvtAdapterInitFinished(IDDCX_ADAPTER adapter, const IDARG_IN_ADAPTER_IN
 
     IDARG_OUT_MONITORCREATE mcOut = {};
     NTSTATUS st = IddCxMonitorCreate(adapter, &mcIn, &mcOut);
-    if (!NT_SUCCESS(st)) return st;
+    if (!NT_SUCCESS(st)) { Log(L"RemoteIdd: IddCxMonitorCreate 0x%08X\n", st); return st; }
 
     auto* mc = WdfObjectGet_MonitorContext(mcOut.MonitorObject);
     mc->Monitor = mcOut.MonitorObject;
@@ -292,7 +387,7 @@ NTSTATUS EvtAdapterInitFinished(IDDCX_ADAPTER adapter, const IDARG_IN_ADAPTER_IN
 
     IDARG_OUT_MONITORARRIVAL arrival = {};
     st = IddCxMonitorArrival(mcOut.MonitorObject, &arrival);
-    if (!NT_SUCCESS(st)) return st;
+    if (!NT_SUCCESS(st)) { Log(L"RemoteIdd: IddCxMonitorArrival 0x%08X\n", st); return st; }
 
     AcquireSRWLockExclusive(&g_modeLock);
     g_adapter = adapter;
@@ -376,6 +471,7 @@ NTSTATUS EvtMonitorAssignSwapChain(IDDCX_MONITOR monitor, const IDARG_IN_SETSWAP
                                  D3D11_SDK_VERSION, &d3d, nullptr, &ctx)))
         return STATUS_UNSUCCESSFUL;
 
+    Log(L"RemoteIdd: swapchain asignado\n");
     // A1: un solo procesador por monitor; Unassign o EvtMonitorCleanup lo liberan.
     delete mc->Processor;
     mc->Processor = new (std::nothrow) SwapChainProcessor(
@@ -421,7 +517,7 @@ NTSTATUS EvtDeviceAdd(WDFDRIVER, PWDFDEVICE_INIT deviceInit)
     cfg.EvtIddCxDeviceIoControl                  = EvtDeviceIoControl;
 
     NTSTATUS st = IddCxDeviceInitConfig(deviceInit, &cfg);
-    if (!NT_SUCCESS(st)) return st;
+    if (!NT_SUCCESS(st)) { Log(L"RemoteIdd: IddCxDeviceInitConfig 0x%08X\n", st); return st; }
 
     WDF_PNPPOWER_EVENT_CALLBACKS pnp;
     WDF_PNPPOWER_EVENT_CALLBACKS_INIT(&pnp);
@@ -433,15 +529,18 @@ NTSTATUS EvtDeviceAdd(WDFDRIVER, PWDFDEVICE_INIT deviceInit)
 
     WDFDEVICE device = nullptr;
     st = WdfDeviceCreate(&deviceInit, &devAttr, &device);
-    if (!NT_SUCCESS(st)) return st;
+    if (!NT_SUCCESS(st)) { Log(L"RemoteIdd: WdfDeviceCreate 0x%08X\n", st); return st; }
+    SeatFromDevice(device);
 
     // Interfaz para que el proveedor encuentre el dispositivo por su id de instancia
     // (IWRdsWddmIddProps1) y le mande la sesión.
     st = WdfDeviceCreateDeviceInterface(device, &REMOTEIDD_INTERFACE_GUID, nullptr);
-    if (!NT_SUCCESS(st)) return st;
+    if (!NT_SUCCESS(st)) { Log(L"RemoteIdd: WdfDeviceCreateDeviceInterface 0x%08X\n", st); return st; }
 
     // El adaptador se crea en D0Entry, como en el sample de Microsoft.
-    return IddCxDeviceInitialize(device);
+    st = IddCxDeviceInitialize(device);
+    Log(L"RemoteIdd: EvtDeviceAdd (IddCxDeviceInitialize) 0x%08X\n", st);
+    return st;
 }
 
 void EvtDeviceIoControl(WDFDEVICE, WDFREQUEST request, size_t, size_t inputLength, ULONG code)
@@ -459,6 +558,7 @@ void EvtDeviceIoControl(WDFDEVICE, WDFREQUEST request, size_t, size_t inputLengt
         {
             g_seatSession.store(in->SessionId, std::memory_order_relaxed);
             Log(L"RemoteIdd: sesión del puesto %lu\n", in->SessionId);
+            KeepSharedObjects(in->SessionId);
 
             // v2: modo del cliente. Fuera de rango o 0 = se mantiene el valor actual.
             if (in->Version >= 2 && length >= sizeof(REMOTEIDD_SET_SESSION))
@@ -484,6 +584,7 @@ NTSTATUS EvtDeviceD0Entry(WDFDEVICE device, WDF_POWER_DEVICE_STATE)
 {
     auto* dc = WdfObjectGet_DeviceContext(device);
     if (dc->Adapter) return STATUS_SUCCESS;     // ya creado en un D0Entry anterior
+    Log(L"RemoteIdd: D0Entry, creando el adaptador\n");
 
     // --- Crear el adaptador IddCx como DRIVER DE SESIÓN REMOTA ---
     WDF_OBJECT_ATTRIBUTES adAttr;
@@ -505,7 +606,10 @@ NTSTATUS EvtDeviceD0Entry(WDFDEVICE device, WDF_POWER_DEVICE_STATE)
     caps.MaxMonitorsSupported = 1;
     caps.EndPointDiagnostics.Size = sizeof(caps.EndPointDiagnostics);
     caps.EndPointDiagnostics.GammaSupport = IDDCX_FEATURE_IMPLEMENTATION_NONE;
-    caps.EndPointDiagnostics.TransmissionType = IDDCX_TRANSMISSION_TYPE_NETWORK_OTHER;
+    // NETWORK_OTHER (9) está en iddcx.h 1.4, pero el IddCx de Windows 11 26100 lo rechaza en
+    // IddCxAdapterInitAsync ("Invalid IDDCX_TRANSMISSION_TYPE, value 9" → 0xC000000D). Solo es
+    // telemetría: OTHER.
+    caps.EndPointDiagnostics.TransmissionType = IDDCX_TRANSMISSION_TYPE_OTHER;
     caps.EndPointDiagnostics.pEndPointFriendlyName = L"OpenStreamMS Remote Seat";
     caps.EndPointDiagnostics.pEndPointModelName = L"RemoteIdd";
     caps.EndPointDiagnostics.pEndPointManufacturerName = L"OpenStreamMS";
@@ -527,7 +631,7 @@ NTSTATUS EvtDeviceD0Entry(WDFDEVICE device, WDF_POWER_DEVICE_STATE)
     NTSTATUS st = IddCxAdapterInitAsync(&initIn, &initOut);
     if (!NT_SUCCESS(st))
     {
-        Log(L"RemoteIdd: IddCxAdapterInitAsync 0x%08X (esperado sin proveedor RDS)\n", st);
+        Log(L"RemoteIdd: IddCxAdapterInitAsync 0x%08X\n", st);
         return st;
     }
 

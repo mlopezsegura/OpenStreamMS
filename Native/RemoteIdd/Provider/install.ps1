@@ -7,7 +7,12 @@
 # Lo que toca, y uninstall.ps1 deshace con el fichero de estado:
 #   1) certificado de test        2) driver en el Driver Store (pnputil)
 #   3) OsmsRdsProvider.dll en Program Files + su clase COM (HKLM)
-#   4) RDP-Tcp: LoadableProtocol_Object pasa a este proveedor (el original se guarda en
+#   4) TermService: ServiceDll pasa a TermWrap (llccd, v0.7 con hash fijo; el original, que
+#      suele ser rdpwrap.dll, se guarda en el estado). En Windows cliente termsrv rechaza toda
+#      pila de protocolo que no sea la de Microsoft (CRemoteConnectionManager::IsAllowNonRDPStack):
+#      sin el parche, TermService no carga el proveedor y RDP-Tcp no escucha. RDP Wrapper de
+#      asmtron no lo parchea; TermWrap sí, y además hace la multisesión.
+#   5) RDP-Tcp: LoadableProtocol_Object pasa a este proveedor (el original se guarda en
 #      OsmsInnerProtocol_Object y en el estado) + OsmsRefreshHz.
 # Windows cliente (Pro) solo levanta el listener RDP-Tcp, así que el proveedor va ahí, como
 # hace DuoStream. Solo las conexiones de puesto (cliente 127.0.0.2) reciben RemoteIdd; el
@@ -100,8 +105,63 @@ $log = Join-Path $env:ProgramData 'OpenStreamMS\remoteidd-provider.log'
 New-Item -ItemType File -Force $log | Out-Null
 icacls $log /grant '*S-1-5-20:(M)' /grant '*S-1-5-32-545:(R)' | Out-Null
 $done.ProviderLog = $log; Save
+# Log del driver (lo escribe el WUDFHost, que corre como LOCAL SERVICE; *S-1-5-19).
+$dlog = Join-Path $env:ProgramData 'OpenStreamMS\remoteidd-driver.log'
+New-Item -ItemType File -Force $dlog | Out-Null
+icacls $dlog /grant '*S-1-5-19:(M)' /grant '*S-1-5-32-545:(R)' | Out-Null
+$done.DriverLog = $dlog; Save
 
-# 4) RDP-Tcp: este proveedor delante del de Microsoft. El original primero en el estado,
+# 4) TermWrap como ServiceDll de TermService (ver cabecera). Versión y hashes fijos: la DLL
+#    corre dentro de TermService.
+$svcParams = 'HKLM:\SYSTEM\CurrentControlSet\Services\TermService\Parameters'
+$twDir = Join-Path $env:ProgramFiles 'RDP Wrapper'
+$twDll = '%ProgramFiles%\RDP Wrapper\TermWrap.dll'
+$serviceDll = (Get-Item $svcParams).GetValue('ServiceDll', $null, 'DoNotExpandEnvironmentNames')
+if ($serviceDll -notmatch 'TermWrap\.dll$') {
+    if ($env:PROCESSOR_ARCHITECTURE -ne 'AMD64') { throw 'TermWrap: solo se contempla x64.' }
+    $twHashes = @{
+        'TermWrap.dll' = '0D213D44A0FE0E6D174D81D7D986C29D306466F460E429B1B946D994F562A2D4'
+        'Zydis.dll'    = 'AFBDBAF38B8F2789731AB83700B1F4F0095056C3F073288CFE773A103DDBDF81'
+    }
+    $twTmp = Join-Path $env:TEMP 'osms-termwrap'
+    Remove-Item -Recurse -Force $twTmp -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory $twTmp | Out-Null
+    $zip = Join-Path $twTmp 'TermWrap-0.7.zip'
+    Invoke-WebRequest -UseBasicParsing 'https://github.com/llccd/TermWrap/releases/download/v0.7/TermWrap-0.7.zip' -OutFile $zip
+    if ((Get-FileHash $zip -Algorithm SHA256).Hash -ne '096CC075E4D2EBBF2587F19D5E9A3003181E1D3AE44C514E0532BA222F82AFC4') {
+        throw 'TermWrap-0.7.zip no tiene el hash esperado.'
+    }
+    Expand-Archive $zip $twTmp
+    New-Item -ItemType Directory -Force $twDir | Out-Null
+    $copied = @()
+    foreach ($f in $twHashes.Keys) {
+        $src = Join-Path $twTmp "x64\$f"
+        if ((Get-FileHash $src -Algorithm SHA256).Hash -ne $twHashes[$f]) { throw "$f no tiene el hash esperado." }
+        $dst = Join-Path $twDir $f
+        # Solo se anota lo que no estaba: uninstall.ps1 no borra un TermWrap/Zydis ajeno.
+        if (-not (Test-Path $dst)) { $copied += $dst }
+        Copy-Item $src $dst -Force
+    }
+    Remove-Item -Recurse -Force $twTmp
+    $done.OriginalServiceDll = $serviceDll; $done.TermWrapFiles = $copied; Save
+    Set-ItemProperty $svcParams ServiceDll $twDll -Type ExpandString
+    Write-Host "TermService: ServiceDll $serviceDll -> $twDll"
+}
+# El autoupdate.bat de asmtron (tarea programada al arrancar) reinstala rdpwrap.dll como
+# ServiceDll si no lo encuentra: visto el 2026-10-27, deshacía TermWrap en cada arranque. Se
+# desactivan sus tareas mientras RemoteIdd esté instalado; uninstall.ps1 las reactiva.
+$autoTasks = @(Get-ScheduledTask | Where-Object {
+    $_.State -ne 'Disabled' -and ($_.Actions | Where-Object { "$($_.Execute) $($_.Arguments)" -match 'autoupdate\.bat|RDPWInst' })
+})
+if ($autoTasks) {
+    $done.DisabledTasks = @($autoTasks | ForEach-Object { "$($_.TaskPath)|$($_.TaskName)" }); Save
+    $autoTasks | Disable-ScheduledTask | Out-Null
+    Write-Host "Desactivadas las tareas de autoupdate de RDP Wrapper: $($done.DisabledTasks -join ', ')"
+} else {
+    Write-Warning 'No se encontró la tarea de autoupdate de RDP Wrapper: si algo reinstala rdpwrap al arrancar, TermWrap se perderá.'
+}
+
+# 5) RDP-Tcp: este proveedor delante del de Microsoft. El original primero en el estado,
 #    para que uninstall.ps1 lo restaure aunque algo falle a continuación.
 $done.OriginalProtocol = $original; Save
 Set-ItemProperty $rdpTcp OsmsInnerProtocol_Object $original
