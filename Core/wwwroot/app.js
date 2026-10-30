@@ -89,7 +89,18 @@ async function loadSessions() {
   sessions = await res.json();
   if (seatRes && seatRes.ok) seats = await seatRes.json();
   renderSessions();
+  openPairFromHash();
 }
+
+// El aviso de emparejamiento del icono de bandeja abre el panel con #pair=<sesión>: se
+// abre el emparejamiento de esa sesión y se quita el hash para no reabrirlo al refrescar.
+function openPairFromHash() {
+  const m = location.hash.match(/^#pair=([0-9a-f-]{36})$/i);
+  if (!m || !sessions.some(s => s.id === m[1])) return;
+  history.replaceState(null, '', location.pathname + location.search);
+  openSunMgrModal(m[1]);
+}
+window.addEventListener('hashchange', openPairFromHash);
 
 function renderSessions() {
   const grid  = document.getElementById('sessions-grid');

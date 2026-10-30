@@ -261,6 +261,9 @@ public record PairRequest(
 /// <summary>Solicitud de emparejamiento pendiente en Sunshine (Moonlight esperando PIN).</summary>
 public record PendingPairing(string Id, string? Name, string? Address);
 
+/// <summary>Solicitud de emparejamiento pendiente en una sesión (aviso del icono de bandeja).</summary>
+public record SessionPendingPairing(Guid SessionId, string SessionName, string Id, string? Name, string? Address);
+
 /// <summary>Cliente Moonlight pareado con una sesión.</summary>
 public record SunshineClient(string Uuid, string Name);
 
@@ -403,6 +406,15 @@ public static class SessionEndpoints
              .WithDescription("Devuelve las últimas N líneas del log de actividad de la sesión.");
 
         // ── Gestión Sunshine (reverse proxy con Basic Auth interna) ──────────
+
+        // GET /api/sessions/pairings
+        group.MapGet("/pairings", PendingPairings)
+             .WithName("PendingPairings")
+             .WithSummary("Moonlight esperando PIN")
+             .WithDescription("""
+                Solicitudes de emparejamiento pendientes en todas las sesiones activas. El icono
+                de bandeja lo consulta para avisar en la consola. Requiere Sunshine 2026.9+.
+                """);
 
         // POST /api/sessions/{id}/pair
         group.MapPost("/{id:guid}/pair", PairClient)
@@ -634,6 +646,49 @@ public static class SessionEndpoints
         return new SunshineError("credentials_rotated");
     }
 
+    /// <summary>
+    /// Solicitudes pendientes de un <c>GET /api/pin</c> de Sunshine 2026.9+; null si la versión
+    /// no lo tiene. RawIds guarda cada id con su tipo JSON original (número o texto según versión).
+    /// </summary>
+    static (Dictionary<string, System.Text.Json.JsonElement> RawIds, List<PendingPairing> Pending)?
+        ParsePendingPairings(int status, System.Text.Json.JsonElement? body)
+    {
+        if (status is < 200 or >= 300 || body?.TryGetProperty("pairings", out var arr) != true ||
+            arr.ValueKind != System.Text.Json.JsonValueKind.Array)
+            return null;
+        var rawIds  = new Dictionary<string, System.Text.Json.JsonElement>();
+        var pending = arr.EnumerateArray()
+            .Where(p => p.TryGetProperty("id", out var i) && rawIds.TryAdd(i.ToString(), i.Clone()))
+            .Select(p => new PendingPairing(
+                p.GetProperty("id").ToString(),
+                p.TryGetProperty("name", out var n) && n.ValueKind == System.Text.Json.JsonValueKind.String ? n.GetString() : null,
+                p.TryGetProperty("address", out var a) && a.ValueKind == System.Text.Json.JsonValueKind.String ? a.GetString() : null))
+            .ToList();
+        return (rawIds, pending);
+    }
+
+    /// <summary>
+    /// Sondeo de solo lectura: una sesión que falle (Sunshine en pausa por un puesto, sin
+    /// credenciales aún, reiniciándose) se omite sin tocar sus credenciales.
+    /// </summary>
+    static async Task<IResult> PendingPairings(StreamSessionService svc, SunshineProxy proxy)
+    {
+        var running = svc.GetAll().Where(s => s.State == SessionState.Running).ToList();
+        var lists = await Task.WhenAll(running.Select(async s =>
+        {
+            try
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                var (status, body) = await proxy.SendJsonAsync(s, HttpMethod.Get, "/api/pin", ct: cts.Token);
+                return ParsePendingPairings(status, body)?.Pending
+                    .Select(p => new SessionPendingPairing(s.Id, s.Name, p.Id, p.Name, p.Address))
+                    .ToList() ?? [];
+            }
+            catch { return new List<SessionPendingPairing>(); }
+        }));
+        return Results.Ok(lists.SelectMany(l => l));
+    }
+
     static async Task<IResult> PairClient(
         Guid id, PairRequest req, StreamSessionService svc, SunshineProxy proxy)
     {
@@ -654,19 +709,8 @@ public static class SessionEndpoints
             return Results.Json(rotatedList, statusCode: 409);
 
         object payload;
-        if (listStatus is >= 200 and < 300 &&
-            listBody?.TryGetProperty("pairings", out var arr) == true &&
-            arr.ValueKind == System.Text.Json.JsonValueKind.Array)
+        if (ParsePendingPairings(listStatus, listBody) is ({ } rawIds, { } pending))
         {
-            // El id se reenvía con su tipo JSON original (número o texto según versión).
-            var rawIds  = new Dictionary<string, System.Text.Json.JsonElement>();
-            var pending = arr.EnumerateArray()
-                .Where(p => p.TryGetProperty("id", out var i) && rawIds.TryAdd(i.ToString(), i.Clone()))
-                .Select(p => new PendingPairing(
-                    p.GetProperty("id").ToString(),
-                    p.TryGetProperty("name", out var n) && n.ValueKind == System.Text.Json.JsonValueKind.String ? n.GetString() : null,
-                    p.TryGetProperty("address", out var a) && a.ValueKind == System.Text.Json.JsonValueKind.String ? a.GetString() : null))
-                .ToList();
 
             string? pairingId = req.PairingId;
             if (pairingId is not null && pending.All(p => p.Id != pairingId))

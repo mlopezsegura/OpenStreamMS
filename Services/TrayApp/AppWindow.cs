@@ -15,6 +15,7 @@ internal sealed class AppWindow : Form
     private readonly Uri _baseUri;
     private readonly WebView2 _web;
     private readonly System.Windows.Forms.Timer _retry;
+    private string? _startUrl;
 
     internal AppWindow(string baseUrl)
     {
@@ -44,8 +45,14 @@ internal sealed class AppWindow : Form
         catch { return false; }
     }
 
-    internal void ShowAndActivate()
+    /// <param name="url">Página del panel a mostrar (p. ej. con <c>#pair=</c>); null = la que tenga.</param>
+    internal void ShowAndActivate(string? url = null)
     {
+        if (url is not null)
+        {
+            if (_web.CoreWebView2 is { } core) core.Navigate(url);
+            else _startUrl = url;   // InitAsync aún no ha terminado
+        }
         if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
         Show();
         Activate();
@@ -98,7 +105,7 @@ internal sealed class AppWindow : Form
             _retry.Start();
         };
 
-        core.Navigate(_baseUri.AbsoluteUri);
+        core.Navigate(_startUrl ?? _baseUri.AbsoluteUri);
     }
 
     private bool IsPanel(string uri) =>
