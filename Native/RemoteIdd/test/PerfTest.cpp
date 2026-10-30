@@ -23,6 +23,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -400,6 +401,97 @@ void RunScenario(UINT32 session, const Scenario& sc)
     Check(gpu99 >= 0 && gpu99 <= sc.maxGpuP99, what, d);
 }
 
+// Color del píxel (0,0) de una textura B8G8R8A8, como FrameId (IdFromBgra).
+UINT64 ReadId(ID3D11Device* dev, ID3D11DeviceContext* ctx, ID3D11Texture2D* tex)
+{
+    D3D11_TEXTURE2D_DESC desc;
+    tex->GetDesc(&desc);
+    desc.Usage = D3D11_USAGE_STAGING;
+    desc.BindFlags = 0;
+    desc.MiscFlags = 0;
+    desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+    ComPtr<ID3D11Texture2D> staging;
+    if (FAILED(dev->CreateTexture2D(&desc, nullptr, &staging))) return 0;
+    ctx->CopyResource(staging.Get(), tex);
+    D3D11_MAPPED_SUBRESOURCE map;
+    if (FAILED(ctx->Map(staging.Get(), 0, D3D11_MAP_READ, 0, &map))) return 0;
+    UINT64 id = IdFromBgra(static_cast<const BYTE*>(map.pData));
+    ctx->Unmap(staging.Get(), 0);
+    return id;
+}
+
+// Lo que el driver crea por cada swapchain que le asigna IddCx: dispositivo y publicador
+// nuevos. Publish() publica un frame de color `id`.
+struct SwapChainSim
+{
+    ComPtr<ID3D11Device> dev;
+    ComPtr<ID3D11DeviceContext> ctx;
+    ComPtr<ID3D11Texture2D> src;
+    ComPtr<ID3D11RenderTargetView> rtv;
+    std::unique_ptr<FramePublisher> pub;
+
+    bool Init(UINT32 session)
+    {
+        if (!CreateDevice(dev, ctx)) return false;
+        D3D11_TEXTURE2D_DESC desc = {};
+        desc.Width = 64; desc.Height = 64; desc.MipLevels = 1; desc.ArraySize = 1;
+        desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM; desc.SampleDesc.Count = 1;
+        desc.Usage = D3D11_USAGE_DEFAULT; desc.BindFlags = D3D11_BIND_RENDER_TARGET;
+        if (FAILED(dev->CreateTexture2D(&desc, nullptr, &src)) ||
+            FAILED(dev->CreateRenderTargetView(src.Get(), nullptr, &rtv)))
+            return false;
+        pub = std::make_unique<FramePublisher>(dev, ctx, session, kNs, nullptr);
+        return true;
+    }
+
+    bool Publish(UINT64 id)
+    {
+        float rgba[4];
+        ColorFor(id, rgba);
+        ctx->ClearRenderTargetView(rtv.Get(), rgba);
+        bool ok = pub->Publish(src.Get(), static_cast<UINT64>(Qpc())) == FramePublisher::Result::Published;
+        ctx->Flush();
+        return ok;
+    }
+};
+
+// Lo que pasa con el escritorio seguro del UAC: IddCx quita el swapchain y asigna otro, y el
+// driver publica con un FramePublisher nuevo en el mismo proceso. El consumidor tiene que
+// pasar a la textura nueva, no quedarse con la del publicador anterior.
+void RunSwapChainChange(UINT32 session)
+{
+    std::printf("\n== cambio de swapchain (escritorio seguro del UAC)\n");
+    ComPtr<ID3D11Device> dev;
+    ComPtr<ID3D11DeviceContext> ctx;
+    if (!CreateDevice(dev, ctx)) { Check(false, "dispositivo del consumidor", "D3D11CreateDevice"); return; }
+
+    // Mantiene vivos el slot y los eventos entre publicadores, como KeepSharedObjects.
+    FramePublisher keeper(nullptr, nullptr, session, kNs, nullptr);
+    if (!keeper.Prepare()) { Check(false, "objetos compartidos", "Prepare"); return; }
+
+    UINT64 got[2] = {};
+    FrameConsumer consumer(dev, session, kNs);
+    std::unique_ptr<SwapChainSim> swapChain;
+    for (int i = 0; i < 2; ++i)
+    {
+        // El swapchain anterior muere antes de que IddCx asigne el siguiente.
+        swapChain.reset();
+        swapChain = std::make_unique<SwapChainSim>();
+        if (!swapChain->Init(session) || !swapChain->Publish(0x10 + i) || !consumer.Open() ||
+            consumer.WaitFrame(1000) != FrameConsumer::Wait::Frame)
+            break;
+        ComPtr<ID3D11Texture2D> tex;
+        RemoteIddFrameInfo info;
+        if (!consumer.Acquire(1000, &tex, &info)) break;
+        got[i] = ReadId(dev.Get(), ctx.Get(), tex.Get());
+        consumer.Release();
+    }
+
+    char d[96];
+    sprintf_s(d, "leído 0x%llx y 0x%llx, esperado 0x10 y 0x11", got[0], got[1]);
+    Check(got[0] == 0x10 && got[1] == 0x11, "tras un swapchain nuevo se lee la textura nueva", d);
+}
+
 } // namespace
 
 int wmain(int argc, wchar_t** argv)
@@ -430,6 +522,7 @@ int wmain(int argc, wchar_t** argv)
     };
 
     UINT32 session = 7000 + (GetCurrentProcessId() % 1000) * 10;
+    RunSwapChainChange(session++);
     for (const auto& sc : scenarios) RunScenario(session++, sc);
 
     std::printf("\nRESULTADO: %s\n", g_fail ? "FALLO" : "OK");

@@ -3,11 +3,19 @@
 #include "FramePublisher.h"
 #include <dxgi1_2.h>
 #include <sddl.h>
+#include <atomic>
 #include <cstdio>
 #include <utility>
 
 using namespace Microsoft::WRL;
 namespace osms::ridd {
+
+// TextureGeneration única en todo el proceso, no por publicador. Al perder el swapchain
+// (p. ej. el escritorio seguro del UAC) IddCx asigna otro y el driver crea otro
+// FramePublisher en el mismo WUDFHost: con un contador por publicador volvía a 1, el
+// consumidor veía la misma generación y el mismo pid y seguía leyendo la textura vieja, en
+// la que ya nadie escribía (pantalla negra).
+static std::atomic<uint32_t> g_textureGeneration{ 0 };
 
 static void Log(const wchar_t* fmt, ...)
 {
@@ -137,7 +145,7 @@ bool FramePublisher::EnsureSharedTexture(const D3D11_TEXTURE2D_DESC& src)
     m_sharedMutex = mutex;
     m_sharedHandle = h;
     m_textureChanged = true;
-    m_info.TextureGeneration++;
+    m_info.TextureGeneration = ++g_textureGeneration;
     return true;
 }
 
