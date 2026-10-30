@@ -18,15 +18,19 @@
 # hace DuoStream. Solo las conexiones de puesto (cliente 127.0.0.2) reciben RemoteIdd; el
 # resto de conexiones RDP siguen enteras con el protocolo y el RdpIdd de Microsoft.
 #
-# Uso (administrador):  .\install.ps1 -Bin <salida de build.cmd> [-RefreshHz 120] [-AllConnections] [-RestartTermService]
+# Uso (administrador):  .\install.ps1 -Bin <salida de build.cmd> [-RefreshHz 120] [-AllConnections] [-RestartTermService] [-SkipTestSigningCheck]
 # -AllConnections: RemoteIdd también en las sesiones RDP que llegan por la red, no solo en los
 #                  puestos locales. Por defecto, solo conexiones desde el propio equipo.
 # -RefreshHz: Hz de la pantalla del puesto (RDP no los transmite). Por defecto, 60.
+# -SkipTestSigningCheck: instala sin testsigning. RemoteIdd es UMDF (modo usuario) y ha cargado
+#                  sin él con el certificado de test en Root y TrustedPublisher; útil con
+#                  BitLocker, donde activar testsigning pide la clave de recuperación.
 param(
     [Parameter(Mandatory)] [string] $Bin,
     [ValidateRange(24, 500)] [int] $RefreshHz = 60,
     [switch] $AllConnections,
-    [switch] $RestartTermService
+    [switch] $RestartTermService,
+    [switch] $SkipTestSigningCheck
 )
 $ErrorActionPreference = 'Stop'
 
@@ -42,7 +46,8 @@ if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdenti
 }
 if (Test-Path $state) { throw "Ya instalado (ver $state). Ejecuta antes uninstall.ps1." }
 # Opciones de arranque en vigor (no depende del idioma, a diferencia de la salida de bcdedit).
-if ((Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control').SystemStartOptions -notmatch 'TESTSIGNING') {
+if (-not $SkipTestSigningCheck -and
+    (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control').SystemStartOptions -notmatch 'TESTSIGNING') {
     throw 'testsigning no está activo. Solo para pruebas: bcdedit /set testsigning on y reiniciar (en una VM).'
 }
 foreach ($f in 'RemoteIdd.dll', 'RemoteIdd.inf', 'OsmsRdsProvider.dll') {

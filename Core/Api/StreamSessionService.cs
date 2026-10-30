@@ -1175,19 +1175,25 @@ public class StreamSessionService
 
     /// <summary>
     /// Captura RemoteIdd: el proveedor de RDP-Tcp da a la sesión del puesto el driver propio
-    /// de pantalla y Sunshine lee sus frames con capture = remoteidd. Si el proveedor no está
-    /// en RDP-Tcp (no instalado, o se volvió a asmtron porque TermWrap falló), el puesto usa la
+    /// de pantalla y Sunshine lee sus frames con capture = remoteidd. Es la captura de los
+    /// puestos RDP en auto-detección y con remoteidd elegido. Si el proveedor no está en
+    /// RDP-Tcp (no instalado, o se volvió a asmtron porque TermWrap falló), el puesto usa la
     /// captura por defecto.
     /// </summary>
     private static bool UsesRemoteIdd(StreamSession session) =>
         WantsRemoteIdd(session) && RdpWrapperManager.IsRemoteIddActive();
 
     private static bool WantsRemoteIdd(StreamSession session) =>
+        !session.Local &&
+        (string.IsNullOrWhiteSpace(session.Capture) || IsRemoteIddCapture(session));
+
+    private static bool IsRemoteIddCapture(StreamSession session) =>
         string.Equals(session.Capture, "remoteidd", StringComparison.OrdinalIgnoreCase);
 
     private static string? EffectiveCapture(StreamSession session)
     {
-        if (!WantsRemoteIdd(session) || UsesRemoteIdd(session)) return session.Capture;
+        if (UsesRemoteIdd(session)) return "remoteidd";
+        if (!IsRemoteIddCapture(session)) return session.Capture;
         Logger.Warning($"[{session.Name}] Captura remoteidd sin RemoteIdd activo en RDP-Tcp: se usa la captura por defecto.", session.Id);
         return null;
     }

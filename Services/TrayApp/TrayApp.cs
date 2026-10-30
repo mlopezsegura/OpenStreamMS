@@ -33,6 +33,10 @@ internal sealed class TrayApp : ApplicationContext
     private readonly RegisteredWaitHandle _showWait;
     private readonly Control _ui = new();
 
+    // Emparejamientos ya avisados ("sesión:id"), para no repetir el aviso en cada sondeo.
+    private readonly HashSet<string> _notifiedPairings = [];
+    private Guid? _pairingSession;   // sesión del último aviso: el clic abre su emparejamiento
+
     internal TrayApp(string baseUrl, bool showWindow = false)
     {
         _ui.CreateControl();   // para volver al hilo de la UI desde el evento
@@ -48,6 +52,10 @@ internal sealed class TrayApp : ApplicationContext
             Visible = true,
         };
         _icon.DoubleClick           += (_, _) => OpenWeb();
+        _icon.BalloonTipClicked     += (_, _) =>
+        {
+            if (_pairingSession is { } id) OpenWeb(new Uri(new Uri(_baseUrl), $"/#pair={id}").AbsoluteUri);
+        };
         _icon.ContextMenuStrip       = BuildOfflineMenu();
 
         _timer = new System.Windows.Forms.Timer { Interval = 5000 };
@@ -66,11 +74,12 @@ internal sealed class TrayApp : ApplicationContext
     // ── web ──────────────────────────────────────────────────────────────────────
 
     /// <summary>Muestra el panel en su ventana; sin WebView2, en el navegador.</summary>
-    private void OpenWeb()
+    /// <param name="url">Página del panel a abrir; null = la principal.</param>
+    private void OpenWeb(string? url = null)
     {
         if (!AppWindow.RuntimeAvailable())
         {
-            Process.Start(new ProcessStartInfo(_baseUrl) { UseShellExecute = true });
+            Process.Start(new ProcessStartInfo(url ?? _baseUrl) { UseShellExecute = true });
             return;
         }
         if (_window is null || _window.IsDisposed)
@@ -79,7 +88,7 @@ internal sealed class TrayApp : ApplicationContext
             _window = new AppWindow(_baseUrl);
             _window.FormClosed += (_, _) => { _window?.Dispose(); _window = null; };
         }
-        _window.ShowAndActivate();
+        _window.ShowAndActivate(url);
     }
 
     // ── refresh ──────────────────────────────────────────────────────────────────
@@ -90,6 +99,7 @@ internal sealed class TrayApp : ApplicationContext
         {
             var sessions = await _http.GetFromJsonAsync<TraySessionDto[]>($"{_baseUrl}/api/sessions")
                            ?? [];
+            await NotifyPairingsAsync(sessions);
             var signature = string.Join("|", sessions.Select(s => $"{s.Id}:{s.Name}:{s.State}"));
             if (signature == _menuSignature) return;
             _menuSignature = signature;
@@ -103,6 +113,36 @@ internal sealed class TrayApp : ApplicationContext
             _icon.ContextMenuStrip = BuildOfflineMenu();
             old?.Dispose();
         }
+    }
+
+    // ── emparejamiento ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Un Moonlight espera PIN en alguna sesión: aviso de Windows en la consola. Al hacer clic
+    /// se abre el panel con el emparejamiento de esa sesión. Cada solicitud se avisa una vez.
+    /// </summary>
+    private async Task NotifyPairingsAsync(TraySessionDto[] sessions)
+    {
+        if (!sessions.Any(s => s.State == "Running")) { _notifiedPairings.Clear(); return; }
+        TrayPairingDto[] pending;
+        try
+        {
+            pending = await _http.GetFromJsonAsync<TrayPairingDto[]>($"{_baseUrl}/api/sessions/pairings") ?? [];
+        }
+        catch { return; }   // servicio sin este endpoint o sin respuesta: sin aviso
+
+        _notifiedPairings.IntersectWith(pending.Select(p => $"{p.SessionId}:{p.Id}"));
+        var fresh = pending.FirstOrDefault(p => _notifiedPairings.Add($"{p.SessionId}:{p.Id}"));
+        if (fresh is null) return;
+
+        bool tv = fresh.Kind == "webrtc";
+        string who = fresh.Name is { } n ? (tv ? $"La TV {n}" : n)
+                   : fresh.Address is { } a ? (tv ? $"Una TV en {a}" : $"Un dispositivo en {a}")
+                   : tv ? "Una TV con Moonlight WebRTC" : "Un dispositivo Moonlight";
+        _pairingSession = fresh.SessionId;
+        _icon.ShowBalloonTip(15000, "Solicitud de emparejamiento",
+            $"{who} quiere emparejarse con '{fresh.SessionName}'. Haz clic para introducir el PIN.",
+            ToolTipIcon.Info);
     }
 
     // ── menus ─────────────────────────────────────────────────────────────────────
@@ -215,3 +255,4 @@ internal sealed class TrayApp : ApplicationContext
 }
 
 internal sealed record TraySessionDto(Guid Id, string Name, string State);
+internal sealed record TrayPairingDto(Guid SessionId, string SessionName, string Id, string? Name, string? Address, string? Kind);

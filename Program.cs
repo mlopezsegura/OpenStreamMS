@@ -337,8 +337,8 @@ static bool IsTrayRequest(HttpContext ctx)
 {
     if (!ctx.Request.Headers.ContainsKey(TrayApp.LocalHeader)) return false;
     var segments = (ctx.Request.Path.Value ?? "").Trim('/').ToLowerInvariant().Split('/');
-    // GET /api/sessions  ·  POST /api/sessions/{id}/start|stop
-    return segments is ["api", "sessions"]
+    // GET /api/sessions  ·  GET /api/sessions/pairings (aviso de emparejamiento)  ·  POST /api/sessions/{id}/start|stop
+    return segments is ["api", "sessions"] or ["api", "sessions", "pairings"]
         ? HttpMethods.IsGet(ctx.Request.Method)
         : HttpMethods.IsPost(ctx.Request.Method) &&
           segments is ["api", "sessions", var id, "start" or "stop"] && Guid.TryParse(id, out _);

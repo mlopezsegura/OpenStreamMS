@@ -234,12 +234,18 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
 
             // 4. Ajustar la pantalla RDP al monitor: la resolución fijada en el puesto o, si
             //    no hay, la que Windows le haya dado al encenderlo.
-            if (seat.Monitor is { } mon && ResolveMode(mon, session) is { } mode &&
-                (mode.Width != session.RdpWidth || mode.Height != session.RdpHeight || mode.Hz != session.RdpFrameRate))
+            //    Tras un reajuste (_resized puesto) la sesión puede estar en otro modo aunque el
+            //    nuevo coincida con el suyo: se reconecta igualmente.
+            if (seat.Monitor is { } mon && ResolveMode(mon, session) is { } mode)
             {
-                Status(seat, $"Ajustando la sesión a {mode.Width}x{mode.Height} @ {mode.Hz} Hz…");
-                sessions.ReconnectRdp(session.Id, mode.Width, mode.Height, mode.Hz);
-                _resized[seat.Id] = 0;
+                bool own = mode.Width == session.RdpWidth && mode.Height == session.RdpHeight && mode.Hz == session.RdpFrameRate;
+                if (!own || _resized.ContainsKey(seat.Id))
+                {
+                    Status(seat, $"Ajustando la sesión a {mode.Width}x{mode.Height} @ {mode.Hz} Hz…");
+                    sessions.ReconnectRdp(session.Id, mode.Width, mode.Height, mode.Hz);
+                }
+                if (own) _resized.TryRemove(seat.Id, out _);
+                else _resized[seat.Id] = 0;
             }
 
             // 5. Mandos del puesto → la sesión (lo aplica GamepadSessionIsolation con los
@@ -362,7 +368,11 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
     /// reconecta siempre en segundo plano a su resolución: desconectada, Windows le retira la
     /// pantalla y Sunshine no arranca ("Unable to find display", Moonlight da 503).
     /// </param>
-    public void Stop(Guid id, bool disconnectedFromSeat = false)
+    /// <param name="restarting">
+    /// Se apaga para volver a encenderlo enseguida (<see cref="Readjust"/>): el monitor sigue en
+    /// el escritorio, la sesión no vuelve a su resolución y Sunshine sigue en pausa.
+    /// </param>
+    public void Stop(Guid id, bool disconnectedFromSeat = false, bool restarting = false)
     {
         var seat = Require(id);
 
@@ -374,10 +384,10 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
         }
         SeatHostControl.RequestCloseSeat(id);
 
-        if (seat.Monitor is not null)
+        if (seat.Monitor is not null && !restarting)
             ConsoleDisplay.Deactivate(seat.Monitor.DevicePath);
 
-        if (seat.SessionId is { } sid)
+        if (seat.SessionId is { } sid && !restarting)
         {
             // Devolver la sesión a su resolución propia si el puesto la cambió.
             if ((_resized.TryRemove(seat.Id, out _) | disconnectedFromSeat) && sessions.Get(sid) is { State: SessionState.Running } s)
@@ -390,7 +400,7 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
 
         seat.State = SeatState.Stopped;
         seat.StatusDetail = disconnectedFromSeat ? "Desconectado desde el puesto. Enciéndelo de nuevo desde OpenStreamMS." : null;
-        if (!_seats.Values.Any(s => s.State is SeatState.Running or SeatState.Starting))
+        if (!restarting && !_seats.Values.Any(s => s.State is SeatState.Running or SeatState.Starting))
             ConsoleLockGuard.Release();
         Interlocked.Increment(ref _generation);   // los mandos del puesto vuelven a la consola
         Logger.Log($"[Seats] Puesto '{seat.Name}' detenido.");
@@ -528,7 +538,28 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
         }
     }
 
-    private static void StartBridge(ActiveSeatSession active, Seat seat)
+    /// <summary>
+    /// El presentador avisa de que el monitor del puesto cambió de tamaño (PIP, otro modo):
+    /// se rehace el puesto sin apagar el monitor, y al encenderse la sesión toma su modo nuevo.
+    /// </summary>
+    private void Readjust(Guid id)
+    {
+        if (!_readjusting.TryAdd(id, 0)) return;
+        try
+        {
+            var seat = Require(id);
+            if (seat.State != SeatState.Running) return;
+            Logger.Log($"[Seats] '{seat.Name}': el monitor cambió de modo; se reajusta la sesión.");
+            Stop(id, restarting: true);
+            Start(id);
+        }
+        catch (Exception ex) { Logger.Warning($"[Seats] No se pudo reajustar el puesto: {ex.Message}"); }
+        finally { _readjusting.TryRemove(id, out _); }
+    }
+
+    private readonly ConcurrentDictionary<Guid, byte> _readjusting = new();
+
+    private void StartBridge(ActiveSeatSession active, Seat seat)
     {
         // Agente -> Anfitrión (vídeo, audio, cursor, control)
         Task.Run(() =>
@@ -561,6 +592,13 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
                 {
                     var msg = active.HostChannel.Receive();
                     if (msg is null) break;
+                    if (msg.Value.Type == SeatMsg.Json &&
+                        SeatChannel.ParseJson(msg.Value.Data)["op"]?.GetValue<string>() == "monitor_mode")
+                    {
+                        // Para el servicio, no para el agente. Fuera de este hilo: Stop cierra el canal.
+                        _ = Task.Run(() => Readjust(seat.Id));
+                        continue;
+                    }
                     active.AgentChannel.Send(msg.Value.Type, msg.Value.Data);
                 }
             }

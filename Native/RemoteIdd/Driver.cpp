@@ -334,8 +334,8 @@ SwapChainProcessor::Exit SwapChainProcessor::RunCore()
             {
                 m_publisher.SetSession(session);
                 auto r = m_publisher.Publish(src.Get(), md.PresentDisplayQPCTime);
-                static std::atomic<bool> s_first{ true };
-                if (r == FramePublisher::Result::Published && s_first.exchange(false))
+                // Una vez por swapchain: tras un cambio de escritorio (UAC) se ve si volvió.
+                if (r == FramePublisher::Result::Published && m_publisher.LastFrameId() == 1)
                     Log(L"RemoteIdd: primer frame publicado (sesión %lu)\n", session);
             }
         }
