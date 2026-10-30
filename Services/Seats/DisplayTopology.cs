@@ -140,8 +140,10 @@ public static class DisplayTopology
                 else if (x == 0 && y == 0) { primW = *(int*)(sm + 16); primH = *(int*)(sm + 20); }
             }
             if (seatMode < 0 || primW == 0) return false;
-            *(int*)(m + seatMode * 64 + 28) = primW;
-            *(int*)(m + seatMode * 64 + 32) = primH;
+            byte* seat = m + seatMode * 64;
+            if (*(int*)(seat + 28) == primW && *(int*)(seat + 32) == primH) return true;   // ya está
+            *(int*)(seat + 28) = primW;
+            *(int*)(seat + 32) = primH;
             int r = SetDisplayConfig(np, paths.Take((int)np).ToArray(), nm, modes, SDC_APPLY | SDC_USE_SUPPLIED_DISPLAY_CONFIG | SDC_SAVE_TO_DATABASE);
             if (r != 0) { Logger.Warning($"[Seats] SetDisplayConfig (colocar en esquina) err={r}"); return false; }
             Logger.Log($"[Seats] Monitor '{target.FriendlyName}' colocado en la esquina ({primW},{primH}).");

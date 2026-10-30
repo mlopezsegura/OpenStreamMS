@@ -290,6 +290,8 @@ internal sealed class ActiveSeatHost
                 int copied = 0, busy = 0, presented = 0;
                 long nextStats = Environment.TickCount64 + 10_000, nextLocate = Environment.TickCount64 + 2_000;
                 var placed = (monX, monY, monW, monH);
+                long settleAt = 0;          // cuándo reajustar tras el último cambio del monitor; 0 = nada pendiente
+                var askedSize = (width, height);
                 while (!_stopping)
                 {
                     // Windows recoloca las pantallas por su cuenta unos segundos después de añadir
@@ -301,8 +303,14 @@ internal sealed class ActiveSeatHost
                         if (now != placed)
                         {
                             placed = now;
+                            settleAt = Environment.TickCount64 + MonitorSettleMs;
                             Native.SetWindowPos(_hwnd, Native.HWND_TOPMOST, now.X, now.Y, now.W, now.H, Native.SWP_NOACTIVATE);
                             Logger.Log($"[SeatHost] El monitor se ha movido: ventana recolocada en ({now.X},{now.Y} {now.W}x{now.H}).");
+                        }
+                        else if (settleAt != 0 && Environment.TickCount64 >= settleAt)
+                        {
+                            settleAt = 0;
+                            askedSize = ReadjustToMonitor(channel, now, askedSize);
                         }
                     }
                     if (Environment.TickCount64 >= nextStats)
@@ -506,6 +514,27 @@ internal sealed class ActiveSeatHost
     // registrada aunque el puesto se cierre y se reabra. Si el GC lo recogiera, el siguiente
     // DispatchMessage tumbaría el proceso entero (FailFast "callback on a garbage collected delegate").
     private static readonly Native.WndProc s_wndProc = Native.DefWindowProc;
+
+    /// <summary>Tiempo que el monitor tiene que estar quieto antes de reajustar: el PIP pasa por varios modos seguidos.</summary>
+    private const int MonitorSettleMs = 4_000;
+
+    /// <summary>
+    /// El monitor cambió de modo o de sitio (PIP, el propio monitor, Windows) y ya está quieto:
+    /// vuelve a la esquina del primario y, si su tamaño ya no es el de la sesión y el puesto no
+    /// fija resolución, pide al servicio que ajuste la sesión. Devuelve el tamaño ya pedido.
+    /// </summary>
+    private (int W, int H) ReadjustToMonitor(SeatChannel channel, (int X, int Y, int W, int H) now, (int W, int H) asked)
+    {
+        if (_monitor is null) return asked;
+        if (!DisplayTopology.PlaceAtCorner(_monitor.DevicePath))
+            Logger.Warning("[SeatHost] No se pudo devolver el monitor a la esquina del primario.");
+
+        if (_monitor.Width > 0 && _monitor.Height > 0) return asked;    // resolución fijada en el puesto
+        if ((now.W, now.H) == asked) return asked;
+        Logger.Log($"[SeatHost] El monitor está ahora a {now.W}x{now.H}: se pide ajustar la sesión.");
+        channel.SendJson(new JsonObject { ["op"] = "monitor_mode", ["width"] = now.W, ["height"] = now.H });
+        return (now.W, now.H);
+    }
 
     /// <summary>Posición y tamaño actuales del monitor del puesto en el escritorio de la consola.</summary>
     private (int X, int Y, int W, int H) LocateMonitor(int width, int height)
