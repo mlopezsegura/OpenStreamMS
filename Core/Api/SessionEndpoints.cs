@@ -259,10 +259,11 @@ public record PairRequest(
 );
 
 /// <summary>Solicitud de emparejamiento pendiente en Sunshine (Moonlight esperando PIN).</summary>
-public record PendingPairing(string Id, string? Name, string? Address);
+/// <param name="Kind"><c>moonlight</c> o <c>webrtc</c> (TV Moonlight WebRTC); null en Sunshine que no lo dice.</param>
+public record PendingPairing(string Id, string? Name, string? Address, string? Kind = null);
 
 /// <summary>Solicitud de emparejamiento pendiente en una sesión (aviso del icono de bandeja).</summary>
-public record SessionPendingPairing(Guid SessionId, string SessionName, string Id, string? Name, string? Address);
+public record SessionPendingPairing(Guid SessionId, string SessionName, string Id, string? Name, string? Address, string? Kind);
 
 /// <summary>Cliente Moonlight pareado con una sesión.</summary>
 public record SunshineClient(string Uuid, string Name);
@@ -662,7 +663,8 @@ public static class SessionEndpoints
             .Select(p => new PendingPairing(
                 p.GetProperty("id").ToString(),
                 p.TryGetProperty("name", out var n) && n.ValueKind == System.Text.Json.JsonValueKind.String ? n.GetString() : null,
-                p.TryGetProperty("address", out var a) && a.ValueKind == System.Text.Json.JsonValueKind.String ? a.GetString() : null))
+                p.TryGetProperty("address", out var a) && a.ValueKind == System.Text.Json.JsonValueKind.String ? a.GetString() : null,
+                p.TryGetProperty("kind", out var k) && k.ValueKind == System.Text.Json.JsonValueKind.String ? k.GetString() : null))
             .ToList();
         return (rawIds, pending);
     }
@@ -681,7 +683,7 @@ public static class SessionEndpoints
                 using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
                 var (status, body) = await proxy.SendJsonAsync(s, HttpMethod.Get, "/api/pin", ct: cts.Token);
                 return ParsePendingPairings(status, body)?.Pending
-                    .Select(p => new SessionPendingPairing(s.Id, s.Name, p.Id, p.Name, p.Address))
+                    .Select(p => new SessionPendingPairing(s.Id, s.Name, p.Id, p.Name, p.Address, p.Kind))
                     .ToList() ?? [];
             }
             catch { return new List<SessionPendingPairing>(); }
@@ -699,6 +701,8 @@ public static class SessionEndpoints
         if (string.IsNullOrWhiteSpace(req.Pin) || req.Pin.Length < 4)
             return Results.Json(new SunshineError("invalid_pin"), statusCode: 400);
 
+        // Sin nombre escrito se usa el que manda el dispositivo (una TV WebRTC se presenta con
+        // el suyo); "Moonlight" solo si tampoco lo hay.
         var name = string.IsNullOrWhiteSpace(req.Name) ? "Moonlight" : req.Name;
 
         // Sunshine 2026.9+: el PIN va dirigido a una solicitud pendiente concreta
@@ -711,7 +715,6 @@ public static class SessionEndpoints
         object payload;
         if (ParsePendingPairings(listStatus, listBody) is ({ } rawIds, { } pending))
         {
-
             string? pairingId = req.PairingId;
             if (pairingId is not null && pending.All(p => p.Id != pairingId))
                 pairingId = null; // caducó o ya se completó: se vuelve a elegir
@@ -724,6 +727,9 @@ public static class SessionEndpoints
                     return Results.Json(new SunshineError("multiple_pending", Pairings: pending), statusCode: 409);
                 pairingId = pending[0].Id;
             }
+            if (string.IsNullOrWhiteSpace(req.Name) &&
+                pending.First(p => p.Id == pairingId).Name is { Length: > 0 } deviceName)
+                name = deviceName;
 
             payload = new { pairing_id = rawIds[pairingId], pin = req.Pin, name };
         }

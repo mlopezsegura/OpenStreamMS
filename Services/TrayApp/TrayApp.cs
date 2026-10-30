@@ -135,7 +135,10 @@ internal sealed class TrayApp : ApplicationContext
         var fresh = pending.FirstOrDefault(p => _notifiedPairings.Add($"{p.SessionId}:{p.Id}"));
         if (fresh is null) return;
 
-        string who = fresh.Name ?? (fresh.Address is { } a ? $"Un dispositivo en {a}" : "Un dispositivo Moonlight");
+        bool tv = fresh.Kind == "webrtc";
+        string who = fresh.Name is { } n ? (tv ? $"La TV {n}" : n)
+                   : fresh.Address is { } a ? (tv ? $"Una TV en {a}" : $"Un dispositivo en {a}")
+                   : tv ? "Una TV con Moonlight WebRTC" : "Un dispositivo Moonlight";
         _pairingSession = fresh.SessionId;
         _icon.ShowBalloonTip(15000, "Solicitud de emparejamiento",
             $"{who} quiere emparejarse con '{fresh.SessionName}'. Haz clic para introducir el PIN.",
@@ -252,4 +255,4 @@ internal sealed class TrayApp : ApplicationContext
 }
 
 internal sealed record TraySessionDto(Guid Id, string Name, string State);
-internal sealed record TrayPairingDto(Guid SessionId, string SessionName, string Id, string? Name, string? Address);
+internal sealed record TrayPairingDto(Guid SessionId, string SessionName, string Id, string? Name, string? Address, string? Kind);
