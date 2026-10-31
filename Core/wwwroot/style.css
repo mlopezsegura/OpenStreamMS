@@ -1425,3 +1425,18 @@ section#view-sessions, section#view-seats { animation: viewIn .35s var(--ease); 
    (".form-row label" las ponía en bloque). */
 .form-advanced > .hint { font-size: .76rem; color: var(--muted); margin: -.3rem 0 .8rem; }
 .form-row .level-option { display: flex; margin: 0; font-size: inherit; color: var(--text); }
+
+/* Multi-RDP instalado pero aún sin cargar: informativo (azul), no un fallo. */
+.status-pill-pending .status-pill-dot { background: var(--blue); box-shadow: 0 0 6px rgba(59,130,246,.6); }
+.badge-pending { background: rgba(59,130,246,.12); color: #93c5fd; border: 1px solid rgba(59,130,246,.3); }
+.badge-pending .badge-dot { background: var(--blue); }
+.info-note {
+  margin: .8rem 0 0; padding: .55rem .75rem; border-radius: var(--radius); font-size: .82rem; line-height: 1.45;
+  background: rgba(59,130,246,.08); border: 1px solid rgba(59,130,246,.3); color: #bfdbfe;
+}
+.info-note.hidden { display: none; }
+.dep-activates .dep-dot { background: var(--blue); }
+.dep-broken .dep-dot { background: var(--red); }
+
+#log-level-note { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin: 0 0 .7rem; }
+#log-level-note.hidden { display: none; }

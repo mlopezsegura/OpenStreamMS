@@ -1692,6 +1692,13 @@ const MESSAGES = {
 // ── Textos de la ventana de sesión unificada, ajustes, conexión y primeros pasos ──
 // Van aparte para no mezclarlos con el bloque de cada idioma; sustituyen a los que repiten clave.
 Object.assign(MESSAGES.en, {
+  'log.levelNote': 'Log level: {level}. Only part of what happens is saved; for a full log pick Info.',
+  'rdp.state.pending': 'Installed',
+  'rdp.pendingFirstUse': 'Installed. It turns on by itself with the first RDP session; there is nothing else to do.',
+  'rdp.pendingReboot': 'Installed. It will be active after restarting Windows.',
+  'ux.dep.activates': 'installed, activates on first use',
+  'ux.dep.checking': 'checking…',
+  'ux.dep.broken': 'needs reinstalling',
   'btn.close': 'Close',
   'new.errorTestCreds': 'Windows did not accept that user and password. Check them and try again.',
   'about.description_html': 'Windows service that creates and manages isolated sessions for game streaming with <strong>Sunshine</strong> and <strong>Moonlight</strong>, and local seats so several people can use the same PC at once. Everything is controlled from a web interface or REST API.',
@@ -1737,7 +1744,7 @@ Object.assign(MESSAGES.en, {
   'settings.log.Warning': 'Warnings',
   'settings.log.WarningHint': 'Only warnings and errors.',
   'settings.log.Error': 'Errors',
-  'settings.log.ErrorHint': 'Only what failed.',
+  'settings.log.ErrorHint': 'Only what failed. Default.',
   'settings.log.Off': 'Off',
   'settings.log.OffHint': 'Nothing is written. If something fails, there will be no trace.',
   'settings.logHint': 'Applies to the service, the tray icon, the seats and Sunshine. Each Sunshine picks it up the next time its session restarts.',
@@ -1786,6 +1793,13 @@ Object.assign(MESSAGES.en, {
 });
 
 Object.assign(MESSAGES.es, {
+  'log.levelNote': 'Nivel de log: {level}. Solo se guarda parte de lo que pasa; para verlo todo, elige Info.',
+  'rdp.state.pending': 'Instalado',
+  'rdp.pendingFirstUse': 'Instalado. Se activa solo con la primera sesión RDP; no hay que hacer nada más.',
+  'rdp.pendingReboot': 'Instalado. Estará activo al reiniciar Windows.',
+  'ux.dep.activates': 'instalado, se activa al primer uso',
+  'ux.dep.checking': 'comprobando…',
+  'ux.dep.broken': 'hay que reinstalarlo',
   'btn.close': 'Cerrar',
   'new.errorTestCreds': 'Windows no ha aceptado ese usuario y contraseña. Revísalos y vuelve a intentarlo.',
   'about.description_html': 'Servicio de Windows que crea y gestiona sesiones aisladas para streaming de juegos con <strong>Sunshine</strong> y <strong>Moonlight</strong>, y puestos locales para que varias personas usen el mismo PC a la vez. Todo se controla desde una interfaz web o una API REST.',
@@ -1831,7 +1845,7 @@ Object.assign(MESSAGES.es, {
   'settings.log.Warning': 'Avisos',
   'settings.log.WarningHint': 'Solo avisos y errores.',
   'settings.log.Error': 'Errores',
-  'settings.log.ErrorHint': 'Solo lo que ha fallado.',
+  'settings.log.ErrorHint': 'Solo lo que ha fallado. Por defecto.',
   'settings.log.Off': 'Desactivado',
   'settings.log.OffHint': 'No se escribe nada. Si algo falla, no quedará rastro.',
   'settings.logHint': 'Vale para el servicio, la bandeja, los puestos y Sunshine. Cada Sunshine lo aplica la próxima vez que se reinicie su sesión.',
@@ -1880,6 +1894,13 @@ Object.assign(MESSAGES.es, {
 });
 
 Object.assign(MESSAGES.fr, {
+  'log.levelNote': 'Niveau de log : {level}. Seule une partie de ce qui se passe est enregistrée ; pour tout voir, choisissez Info.',
+  'rdp.state.pending': 'Installé',
+  'rdp.pendingFirstUse': 'Installé. Il s’active tout seul avec la première session RDP ; rien d’autre à faire.',
+  'rdp.pendingReboot': 'Installé. Il sera actif après le redémarrage de Windows.',
+  'ux.dep.activates': 'installé, s’active à la première utilisation',
+  'ux.dep.checking': 'vérification…',
+  'ux.dep.broken': 'à réinstaller',
   'btn.close': 'Fermer',
   'new.errorTestCreds': 'Windows n\'a pas accepté cet utilisateur et ce mot de passe. Vérifiez-les et réessayez.',
   'about.description_html': 'Service Windows qui crée et gère des sessions isolées pour le streaming de jeux avec <strong>Sunshine</strong> et <strong>Moonlight</strong>, ainsi que des postes locaux pour que plusieurs personnes utilisent le même PC en même temps. Tout se pilote depuis une interface web ou une API REST.',
@@ -1925,7 +1946,7 @@ Object.assign(MESSAGES.fr, {
   'settings.log.Warning': 'Avertissements',
   'settings.log.WarningHint': 'Seulement les avertissements et les erreurs.',
   'settings.log.Error': 'Erreurs',
-  'settings.log.ErrorHint': 'Seulement ce qui a échoué.',
+  'settings.log.ErrorHint': 'Seulement ce qui a échoué. Par défaut.',
   'settings.log.Off': 'Désactivé',
   'settings.log.OffHint': 'Rien n\'est écrit. Si quelque chose échoue, il n\'en restera aucune trace.',
   'settings.logHint': 'S\'applique au service, à l\'icône de la barre, aux postes et à Sunshine. Chaque Sunshine l\'applique au prochain redémarrage de sa session.',
@@ -1974,6 +1995,13 @@ Object.assign(MESSAGES.fr, {
 });
 
 Object.assign(MESSAGES.pt, {
+  'log.levelNote': 'Nível de log: {level}. Só se guarda parte do que acontece; para ver tudo, escolha Info.',
+  'rdp.state.pending': 'Instalado',
+  'rdp.pendingFirstUse': 'Instalado. Ativa-se sozinho com a primeira sessão RDP; não é preciso fazer mais nada.',
+  'rdp.pendingReboot': 'Instalado. Ficará ativo ao reiniciar o Windows.',
+  'ux.dep.activates': 'instalado, ativa-se no primeiro uso',
+  'ux.dep.checking': 'a verificar…',
+  'ux.dep.broken': 'é preciso reinstalar',
   'btn.close': 'Fechar',
   'new.errorTestCreds': 'O Windows não aceitou esse utilizador e palavra-passe. Verifique-os e tente novamente.',
   'about.description_html': 'Serviço do Windows que cria e gere sessões isoladas para streaming de jogos com <strong>Sunshine</strong> e <strong>Moonlight</strong>, e postos locais para que várias pessoas usem o mesmo PC ao mesmo tempo. Tudo é controlado a partir de uma interface web ou de uma API REST.',
@@ -2019,7 +2047,7 @@ Object.assign(MESSAGES.pt, {
   'settings.log.Warning': 'Avisos',
   'settings.log.WarningHint': 'Só avisos e erros.',
   'settings.log.Error': 'Erros',
-  'settings.log.ErrorHint': 'Só o que falhou.',
+  'settings.log.ErrorHint': 'Só o que falhou. Predefinido.',
   'settings.log.Off': 'Desativado',
   'settings.log.OffHint': 'Não se escreve nada. Se algo falhar, não ficará rasto.',
   'settings.logHint': 'Aplica-se ao serviço, ao ícone da bandeja, aos postos e ao Sunshine. Cada Sunshine aplica-o da próxima vez que a sua sessão reiniciar.',

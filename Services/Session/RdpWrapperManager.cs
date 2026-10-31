@@ -16,6 +16,12 @@ public record RdpWrapperStatus(
     string? Wrapper,
     /// <summary>true si la DLL del wrapper está cargada en el proceso de TermService; null si no se pudo comprobar.</summary>
     bool?   Loaded,
+    /// <summary>
+    /// Instalado pero aún sin cargar: TermService está parado (en Windows cliente arranca con la
+    /// primera conexión RDP) o sigue con la DLL anterior hasta reiniciar Windows. Es lo normal
+    /// justo después de instalar; no es un fallo.
+    /// </summary>
+    bool    Pending,
     /// <summary>true si RDP-Tcp pasa por el proveedor de RemoteIdd (captura remoteidd disponible).</summary>
     bool    RemoteIdd,
     /// <summary>Directorio canónico de instalación (<c>%ProgramFiles%\RDP Wrapper</c>).</summary>
@@ -79,6 +85,7 @@ public sealed class RdpWrapperManager
             Installed:     filesOk && loaded == true,
             Wrapper:       wrapper,
             Loaded:        loaded,
+            Pending:       filesOk && loaded != true,
             RemoteIdd:     IsRemoteIddActive(),
             InstallDir:    _installDir,
             BundleVersion: wrapper == "TermWrap" ? ReadFileVersion(serviceDll!) : ReadBundleVersion(),

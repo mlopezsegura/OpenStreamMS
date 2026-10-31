@@ -37,7 +37,7 @@ namespace OpenStreamMS.Services
         // mucho cada 10 s, así un cambio les llega sin reiniciarlos.
         private const string RegistryKey   = @"SOFTWARE\OpenStreamMS";
         private const string RegistryValue = "LogLevel";
-        private static LogThreshold _threshold = LogThreshold.Info;
+        private static LogThreshold _threshold = LogThreshold.Error;   // el de por defecto
         private static bool _thresholdFixed;              // true en el servicio: manda su config
         private static long _thresholdReadAt = long.MinValue;
 

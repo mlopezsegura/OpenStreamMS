@@ -520,6 +520,7 @@
           <button class="btn btn-ghost btn-sm" onclick="fetchLogs()" data-i18n="log.refresh">↻ Refrescar</button>
         </div>
       </div>
+      <div id="log-level-note" class="info-note hidden" role="status"></div>
       <div class="log-box" id="log-box"><span class="log-empty" data-i18n="log.empty">Sin entradas de log todavía.</span></div>
     </div>
     <div class="modal-footer">
@@ -709,6 +710,8 @@
         <tr><td data-i18n="rdp.row.termsrv">termsrv.dll</td><td id="rdp-termsrv">—</td></tr>
         <tr><td data-i18n="rdp.row.serviceDll">ServiceDll</td><td id="rdp-service-dll">—</td></tr>
       </table>
+
+      <div id="rdp-pending-note" class="info-note hidden" role="status"></div>
 
       <div class="dep-actions">
         <button class="btn btn-primary btn-sm" id="rdp-btn-install" onclick="rdpInstall()" data-i18n="rdp.btn.install">Instalar</button>

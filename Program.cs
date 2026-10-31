@@ -608,6 +608,6 @@ static void PrintHelp()
           RdpBackground    — true para ocultar la ventana RDP (producción)
           ApiPort          — puerto del servidor web/API (defecto: 5000)
           AdminUsername    — usuario del panel web (se configura en el primer arranque)
-          LogLevel         — Info, Warning, Error u Off (también en el panel: Más → Ajustes)
+          LogLevel         — Error (defecto), Warning, Info u Off (también en el panel: Más → Ajustes)
         """);
 }

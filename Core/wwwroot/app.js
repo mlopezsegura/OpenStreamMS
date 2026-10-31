@@ -560,7 +560,21 @@ function openLogModal(id, name) {
   show('log-modal');
   stopRefresh();
   fetchLogs();
+  showLogLevelNote();
   logTimer = setInterval(whenVisible(fetchLogs), 2500);
+}
+
+// Con un nivel distinto de Info el log de la sesión solo tiene parte: se dice, con el atajo a Ajustes.
+async function showLogLevelNote() {
+  const note = document.getElementById('log-level-note');
+  note.classList.add('hidden');
+  const res = await api('GET', '/api/settings');
+  if (!res || !res.ok) return;
+  const { logLevel } = await res.json();
+  if (logLevel === 'Info') return;
+  note.innerHTML = `${esc(t('log.levelNote', { level: t('settings.log.' + logLevel) }))}
+    <button type="button" class="btn btn-ghost btn-xs" onclick="closeLogModal(); openSettingsModal()">${esc(t('settings.title'))}</button>`;
+  note.classList.remove('hidden');
 }
 
 function closeLogModal() {
@@ -701,16 +715,15 @@ function updateRdpPill(st) {
   const state = document.getElementById('rdp-pill-state');
   if (!pill || !state) return;
 
-  pill.classList.remove('status-pill-ok','status-pill-missing','status-pill-broken','status-pill-working','status-pill-warn');
+  pill.classList.remove('status-pill-ok','status-pill-missing','status-pill-broken','status-pill-working','status-pill-warn','status-pill-pending');
 
-  let cls, key;
-  if (st.busy)                         { cls = 'status-pill-working'; key = 'rdp.state.working'; }
-  else if (st.installed)               { cls = 'status-pill-ok';      key = 'rdp.state.ok';      }
-  else if (st.wrapper)                 { cls = 'status-pill-broken';  key = 'rdp.state.broken';  }
-  else                                 { cls = 'status-pill-missing'; key = 'rdp.state.missing'; }
+  const key = rdpStateKey(st);
+  const cls = { working: 'status-pill-working', ok: 'status-pill-ok', pending: 'status-pill-pending',
+                broken: 'status-pill-broken', missing: 'status-pill-missing' }[key];
 
   pill.classList.add(cls);
-  state.textContent = t(key);
+  state.textContent = t(`rdp.state.${key}`);
+  pill.title = key === 'pending' ? rdpPendingText(st) : '';
   updateSystemPill();
   renderSessions();
 }
@@ -718,18 +731,14 @@ function updateRdpPill(st) {
 function renderRdpStatus(st) {
   if (!st) return;
   const badge = document.getElementById('rdp-status-badge');
-  const cls   = st.busy ? 'badge-starting'
-              : st.installed ? 'badge-running'
-              : 'badge-error';
-  const key   = st.busy ? 'rdp.state.working'
-              : st.installed ? 'rdp.state.ok'
-              : st.wrapper ? 'rdp.state.broken'
-              : 'rdp.state.missing';
+  const key   = rdpStateKey(st);
+  const cls   = { working: 'badge-starting', ok: 'badge-running', pending: 'badge-pending' }[key] || 'badge-error';
   badge.className = `badge ${cls}`;
-  badge.innerHTML = `<span class="badge-dot"></span>${esc(t(key))}`;
-  // ServiceDll apunta al wrapper pero TermService no lo tiene cargado (falta reiniciarlo, o
-  // la tarea de autoupdate de asmtron lo cambió por detrás).
-  badge.title = st.wrapper && st.loaded === false ? t('rdp.notLoaded') : '';
+  badge.innerHTML = `<span class="badge-dot"></span>${esc(t(`rdp.state.${key}`))}`;
+  badge.title = '';
+  const note = document.getElementById('rdp-pending-note');
+  note.textContent = key === 'pending' ? rdpPendingText(st) : '';
+  note.classList.toggle('hidden', key !== 'pending');
 
   document.getElementById('rdp-install-dir').textContent = st.installDir     || '—';
   document.getElementById('rdp-bundle').textContent      =
@@ -796,6 +805,22 @@ async function rdpUninstall() {
   if (!res) return;
   if (!res.ok) { toast(await res.text(), true); return; }
   rdpRefresh();
+}
+
+// Estado del multi-RDP. "pending": instalado pero TermService aún no lo ha cargado. Es lo
+// normal recién instalado (TermService parado hasta la primera conexión, o con la DLL anterior
+// hasta reiniciar Windows): no es un fallo. "broken": ServiceDll apunta a un wrapper cuyos
+// ficheros faltan.
+function rdpStateKey(st) {
+  if (st.busy)      return 'working';
+  if (st.installed) return 'ok';
+  if (st.pending)   return 'pending';
+  if (st.wrapper)   return 'broken';
+  return 'missing';
+}
+
+function rdpPendingText(st) {
+  return t(st.loaded === false ? 'rdp.pendingReboot' : 'rdp.pendingFirstUse');
 }
 
 // ── Sunshine management (proxied through OpenStreamMS) ────────────────────
@@ -1246,7 +1271,8 @@ function updateSystemPill() {
   if (!sys || !pills.length) return;
   const known = pills.filter(p => [...p.classList].some(c => c.startsWith('status-pill-') && c !== 'status-pill'));
   const working = pills.some(p => p.classList.contains('status-pill-working'));
-  const bad = pills.filter(p => !p.classList.contains('status-pill-ok') && !p.classList.contains('status-pill-working')).length;
+  const bad = pills.filter(p => !['status-pill-ok', 'status-pill-working', 'status-pill-pending']
+                                   .some(c => p.classList.contains(c))).length;
   sys.classList.remove('status-pill-ok', 'status-pill-missing', 'status-pill-working', 'status-pill-warn');
   if (known.length < pills.length) { state.textContent = '…'; return; }
   if (working)  { sys.classList.add('status-pill-working'); state.textContent = t('rdp.state.working'); }
@@ -1460,9 +1486,11 @@ function errorBox(s) {
 
 // Una sesión RDP necesita el multi-RDP: si falta, se dice en la tarjeta con su botón.
 function rdpWarning(s) {
-  if (s.local || !rdpLastStatus || rdpLastStatus.busy || rdpLastStatus.installed) return '';
+  if (s.local || !rdpLastStatus) return '';
+  const key = rdpStateKey(rdpLastStatus);
+  if (key !== 'missing' && key !== 'broken') return '';
   return `<div class="card-warning card-warning-action">
-      <span>${esc(t(rdpLastStatus.wrapper ? 'ux.rdpBroken' : 'ux.rdpMissing'))}</span>
+      <span>${esc(t(key === 'broken' ? 'ux.rdpBroken' : 'ux.rdpMissing'))}</span>
       <button type="button" class="btn btn-ghost btn-xs" onclick="openRdpModal()">${esc(t('ux.review'))}</button>
     </div>`;
 }
@@ -1484,18 +1512,20 @@ async function retrySession(id) {
 // ── Primeros pasos (sin sesiones todavía) ─────────────────────────────────
 function onboardingHtml() {
   const deps = [
-    { name: t('rdp.pill'), st: rdpLastStatus,            open: 'openRdpModal()' },
+    { name: t('rdp.pill'), st: rdpLastStatus,            open: 'openRdpModal()', rdp: true },
     { name: 'ViGEmBus',    st: drivers.vigem.lastStatus,   open: "openDriverModal('vigem')" },
     { name: 'HidHide',     st: drivers.hidhide.lastStatus, open: "openDriverModal('hidhide')" },
   ];
-  const depsOk = deps.every(d => d.st && d.st.installed && !d.st.rebootRequired);
+  const depState = d => !d.st ? 'checking' : d.st.busy ? 'working' : d.st.rebootRequired ? 'reboot'
+                     : d.st.installed ? 'ok' : d.rdp && d.st.pending ? 'activates'
+                     : d.rdp && d.st.wrapper ? 'broken' : 'missing';
+  const depsOk = deps.every(d => ['ok', 'activates'].includes(depState(d)));
   const depRow = d => {
-    const state = !d.st ? 'pending' : d.st.busy ? 'working' : d.st.rebootRequired ? 'reboot'
-                : d.st.installed ? 'ok' : 'missing';
-    return `<li class="dep-line dep-${state}">
+    const state = depState(d);
+    return `<li class="dep-line dep-${state}" ${state === 'activates' ? `title="${esc(rdpPendingText(d.st))}"` : ''}>
         <span class="dep-dot"></span><span>${esc(d.name)}</span>
         <span class="dep-state">${esc(t('ux.dep.' + state))}</span>
-        ${state === 'missing' || state === 'reboot'
+        ${['missing', 'broken', 'reboot'].includes(state)
           ? `<button type="button" class="btn btn-ghost btn-xs" onclick="${d.open}">${esc(t(state === 'missing' ? 'ux.install' : 'ux.review'))}</button>` : ''}
       </li>`;
   };

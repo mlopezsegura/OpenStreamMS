@@ -35,12 +35,12 @@ namespace OpenStreamMS.Core.Helpers
         /// Nivel mínimo de log para todo OpenStreamMS y sus Sunshine: "Info", "Warning",
         /// "Error" u "Off" (nada). Se cambia desde el panel (Más → Ajustes).
         /// </summary>
-        public string LogLevel               { get; set; } = "Info";
+        public string LogLevel               { get; set; } = "Error";
 
-        /// <summary>Nivel de log efectivo (Info si el valor guardado no es válido).</summary>
+        /// <summary>Nivel de log efectivo (Error, el de por defecto, si el valor guardado no es válido).</summary>
         [System.Text.Json.Serialization.JsonIgnore]
         public OpenStreamMS.Services.LogThreshold LogThreshold =>
-            OpenStreamMS.Services.Logger.ParseThreshold(LogLevel) ?? OpenStreamMS.Services.LogThreshold.Info;
+            OpenStreamMS.Services.Logger.ParseThreshold(LogLevel) ?? OpenStreamMS.Services.LogThreshold.Error;
 
         // ── Autenticación ────────────────────────────────────────────────────
         /// <summary>
