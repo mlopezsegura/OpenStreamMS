@@ -372,15 +372,24 @@ function renderSeatCard(s) {
   const starting = s.state === 'Starting';
   const session  = s.sessionId ? sessions.find(x => x.id === s.sessionId) : null;
 
+  const locked = running || starting;
+  // Sin sesión (o con una que ya no existe) no se puede encender: el aviso lleva al editor.
   let warning = '';
   if (!s.sessionId)   warning = t('seat.needSession');
   else if (!session && sessions.length) warning = t('seat.sessionMissing');
+  if (warning && !locked)
+    warning = `<div class="card-warning card-warning-action"><span>${esc(warning)}</span>
+        <button type="button" class="btn btn-ghost btn-xs" onclick="openSeatModal('${s.id}')">${esc(t('ux.seat.assign'))}</button></div>`;
+  else if (warning)
+    warning = `<div class="card-warning">${esc(warning)}</div>`;
+  const noInput = !s.devices.some(d => SEAT_KINDS.includes(d.kind))
+    ? `<div class="card-warning">${esc(t('seat.noInputWarning'))}</div>` : '';
 
-  const locked = running || starting;
   const power = starting
-    ? `<button class="power-btn busy" disabled title="${esc(t('btn.starting'))}">${uiIcon('power')}</button>`
-    : `<button class="power-btn ${running ? 'on' : 'off'}" onclick="seatAction('${s.id}','${running ? 'stop' : 'start'}')"
-               ${!running && !s.sessionId ? 'disabled' : ''} title="${esc(t(running ? 'seat.stop' : 'seat.start'))}">${uiIcon('power')}</button>`;
+    ? `<button type="button" class="power-btn busy" disabled title="${esc(t('btn.starting'))}" aria-label="${esc(t('btn.starting'))}">${uiIcon('power')}</button>`
+    : `<button type="button" class="power-btn ${running ? 'on' : 'off'}" onclick="seatAction('${s.id}','${running ? 'stop' : 'start'}')"
+               ${!running && !s.sessionId ? 'disabled' : ''} title="${esc(t(running ? 'seat.stop' : (s.sessionId ? 'seat.start' : 'seat.needSession')))}"
+               aria-label="${esc(t(running ? 'seat.stop' : 'seat.start'))}: ${esc(s.name)}" aria-pressed="${running}">${uiIcon('power')}</button>`;
   const area = s.monitor && s.monitor.area && s.monitor.area !== 'Full' ? ` · ${esc(t('seat.area.' + s.monitor.area))}` : '';
   const monitor = s.monitor
     ? `${screenGlyph(s.monitor.area)}<span>${esc(s.monitor.friendlyName)}${area} · ${esc(seatModeLabel(s.monitor))}</span>`
@@ -402,7 +411,8 @@ function renderSeatCard(s) {
       <div class="card-meta seat-line">${monitor}</div>
       ${renderSeatHardware(s, locked)}
       ${(starting || s.state === 'Stopped') && s.statusDetail ? `<div class="card-detail">${esc(s.statusDetail)}</div>` : ''}
-      ${warning ? `<div class="card-warning">${esc(warning)}</div>` : ''}
+      ${warning}
+      ${noInput}
       ${s.errorMessage ? `<div class="card-error">${esc(s.errorMessage)}</div>` : ''}
       <div class="card-footer">
         <label class="toggle" title="${esc(t('seat.autostart'))}">
@@ -410,7 +420,7 @@ function renderSeatCard(s) {
           <span class="toggle-track"></span>
           ${esc(t('card.autostart'))}
         </label>
-        <button class="icon-btn more-btn" onclick="seatMenu(event, '${s.id}')" title="${esc(t('nav.more'))}">${uiIcon('more')}</button>
+        <button type="button" class="icon-btn more-btn" onclick="seatMenu(event, '${s.id}')" title="${esc(t('nav.more'))}" aria-label="${esc(t('nav.more'))}: ${esc(s.name)}" aria-haspopup="menu">${uiIcon('more')}</button>
       </div>
     </div>`;
 }
@@ -420,7 +430,7 @@ function seatMenu(e, id) {
   if (!s) return;
   const locked = s.state === 'Running' || s.state === 'Starting';
   openMenu(e, [
-    { icon: 'gear',  label: t('btn.settings'), run: () => openSeatModal(s.id), disabled: locked, hint: t('seat.editLocked') },
+    { icon: 'gear',  label: t('btn.settings'), run: () => openSeatModal(s.id) },
     { sep: true },
     { icon: 'trash', label: t('btn.delete'),   run: () => deleteSeat(s.id, s.name), danger: true, disabled: locked, hint: t('seat.editLocked') },
   ]);
@@ -450,7 +460,7 @@ async function setSeatAutoStart(id, enabled) {
 }
 
 async function deleteSeat(id, name) {
-  if (!confirm(t('seat.confirmDelete', { name }))) return;
+  if (!await ask(t('seat.confirmDelete', { name }), { danger: true, ok: t('btn.delete') })) return;
   const res = await api('DELETE', `/api/seats/${id}`);
   if (!res) return;
   if (!res.ok && res.status !== 204) { toast(t('toast.deleteError'), true); return; }
@@ -470,6 +480,8 @@ async function openSeatModal(id, preset) {
 
   document.getElementById('seat-modal-title').textContent = t(seat ? 'seat.editTitle' : 'seat.newTitle');
   document.getElementById('seat-error').style.display = 'none';
+  document.getElementById('seat-running-note').classList.toggle('hidden',
+    !(seat && (seat.state === 'Running' || seat.state === 'Starting')));
   const f = document.getElementById('seat-form');
   f.Id.value = seat ? seat.id : '';
   f.Name.value = seat ? seat.name : '';
@@ -758,16 +770,58 @@ async function submitSeat(e) {
   };
 
   const id = f.Id.value;
+  const before = id && seats.find(x => x.id === id);
+  const running = before && (before.state === 'Running' || before.state === 'Starting');
+  const restart = running && hardwareChanged(before, body);
+  if (restart && !await ask(t('ux.seat.restartConfirm', { name: before.name }), { ok: t('ux.seat.applyRestart') })) return;
+
   const btn = f.querySelector('button[type=submit]');
   btn.disabled = true;
-  const res = await api(id ? 'PUT' : 'POST', id ? `/api/seats/${id}` : '/api/seats', body);
-  btn.disabled = false;
-  if (!res) return;
-  if (!res.ok) { fail(await res.text() || t('toast.connectionError')); return; }
-  closeSeatModal();
-  toast(t(id ? 'seat.saved' : 'seat.created', { name: body.name }));
-  loadSeats();
-  loadMonitorMap();
+  try {
+    if (restart) {
+      const stop = await api('POST', `/api/seats/${id}/stop`);
+      if (!stop) return;
+      if (!stop.ok) { fail(await stop.text() || t('toast.connectionError')); return; }
+      if (!await waitSeatState(id, 'Stopped', 30000)) { fail(t('ux.seat.stopTimeout')); return; }
+    }
+    const res = await api(id ? 'PUT' : 'POST', id ? `/api/seats/${id}` : '/api/seats', body);
+    if (!res) return;
+    if (!res.ok) { fail(await res.text() || t('toast.connectionError')); return; }
+    if (restart) {
+      const start = await api('POST', `/api/seats/${id}/start`);
+      if (start && !start.ok) toast(await start.text() || t('toast.connectionError'), true);
+    }
+    closeSeatModal();
+    toast(t(id ? 'seat.saved' : 'seat.created', { name: body.name }));
+    loadSeats();
+    loadMonitorMap();
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// Lo que no se puede cambiar con el puesto encendido (mismo criterio que SeatManager.SameHardware).
+function hardwareChanged(seat, body) {
+  const mon = m => m ? [m.devicePath, m.area || 'Full', m.width || 0, m.height || 0, m.refreshHz || 0].join('|') : '';
+  const devs = list => (list || []).map(d => `${d.kind}:${d.usbPort}`).sort().join(',');
+  return mon(seat.monitor) !== mon(body.monitor) ||
+         (seat.audioOutId || '') !== (body.audioOutId || '') ||
+         devs(seat.devices) !== devs(body.devices) ||
+         (seat.sessionId || null) !== (body.sessionId || null) ||
+         !!seat.exclusiveSession !== !!body.exclusiveSession;
+}
+
+async function waitSeatState(id, state, timeoutMs) {
+  const until = Date.now() + timeoutMs;
+  while (Date.now() < until) {
+    const res = await api('GET', '/api/seats');
+    if (res && res.ok) {
+      const seat = (await res.json()).find(x => x.id === id);
+      if (!seat || seat.state === state) return true;
+    }
+    await new Promise(r => setTimeout(r, 700));
+  }
+  return false;
 }
 
 window.addEventListener('langchange', () => { if (activeTab === 'seats') renderSeats(); });

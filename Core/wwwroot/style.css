@@ -1286,3 +1286,142 @@ section#view-sessions, section#view-seats { animation: viewIn .35s var(--ease); 
   .preview-screen { width: 96px !important; height: 60px; }
   .preview-chips .chip { max-width: 100%; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Mejoras de uso: ventana de sesión única, ajustes, confirmación, conexión,
+   progreso de arranque y primeros pasos
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Ventana de sesión: lo que solo se ve al crear o al editar, y por tipo de sesión.
+   Con !important porque ".modal-wide .form-check" (display:flex) ganaba a ".local-only". */
+#sess-modal.mode-edit .create-only      { display: none !important; }
+#sess-modal:not(.mode-edit) .edit-only  { display: none !important; }
+#sess-modal:not(.kind-local) .local-only { display: none !important; }
+#sess-modal.kind-local .rdp-only        { display: none !important; }
+.form-subtitle {
+  margin: 1.1rem 0 .55rem; font-size: .72rem; font-weight: 600; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--muted-h);
+}
+.form-advanced .form-subtitle:first-of-type { margin-top: .8rem; }
+.hint code, .form-row .hint code {
+  font-family: ui-monospace, Consolas, monospace; font-size: .72rem; padding: 0 .3rem;
+  border-radius: 4px; background: rgba(255,255,255,.06); color: var(--muted-h);
+}
+.cred-test-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem .75rem; margin-top: .6rem; }
+.cred-test-actions .hint { margin: 0; }
+
+/* Selectores segmentados: el radio sigue siendo enfocable con teclado. */
+.segmented input { display: block; position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+.segmented input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* Foco visible en todo lo que se pulsa. */
+.btn:focus-visible, .icon-btn:focus-visible, .power-btn:focus-visible, .modal-close:focus-visible,
+.nav-pop-item:focus-visible, .float-menu-item:focus-visible, .connect-addr:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+
+.btn-xs { padding: .2rem .55rem; font-size: .74rem; border-radius: 6px; }
+
+/* ── Ajustes: nivel de log ──────────────────────────────────────────────── */
+.level-picker { display: grid; gap: .45rem; }
+.level-option {
+  display: flex; align-items: flex-start; gap: .65rem; padding: .6rem .75rem; cursor: pointer;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
+  transition: border-color .15s, background .15s;
+}
+.level-option:hover { border-color: var(--border-h); }
+.level-option input { margin-top: .2rem; accent-color: var(--accent); }
+.level-option span { display: flex; flex-direction: column; gap: .15rem; }
+.level-option strong { font-size: .88rem; font-weight: 600; }
+.level-option small { font-size: .76rem; color: var(--muted); }
+.level-option:has(input:checked) { border-color: var(--accent); background: rgba(124,58,237,.1); }
+
+/* ── Confirmación ───────────────────────────────────────────────────────── */
+#confirm-modal { z-index: 300; }   /* encima de cualquier otra ventana abierta */
+.modal-confirm { max-width: 440px; }
+.confirm-msg { white-space: pre-line; font-size: .9rem; line-height: 1.5; color: var(--text); margin: 0; }
+
+/* ── Avisos: los de error se cierran a mano ────────────────────────────── */
+#toast { display: flex; align-items: flex-start; gap: .75rem; }
+#toast.hidden { display: none; }
+.toast-msg { flex: 1 1 auto; word-break: break-word; }
+.toast-close {
+  flex: none; border: 0; background: transparent; color: inherit; font-size: 1.1rem; line-height: 1;
+  cursor: pointer; padding: 0 .1rem; opacity: .75;
+}
+.toast-close:hover { opacity: 1; }
+
+/* ── Tarjetas: progreso, errores con acción y pie ──────────────────────── */
+.start-steps { margin-top: .7rem; }
+.start-steps-bar { height: 4px; border-radius: 4px; background: rgba(255,255,255,.07); overflow: hidden; }
+.start-steps-bar span {
+  display: block; height: 100%; border-radius: inherit; background: var(--orange);
+  transition: width .5s var(--ease, ease);
+}
+.start-steps-label { margin-top: .4rem; font-size: .76rem; color: var(--muted-h); }
+.start-steps-count { color: var(--muted); margin-left: .25rem; }
+.card-error { display: flex; flex-direction: column; gap: .45rem; margin-top: .6rem; }
+.card-error-actions, .card-warning-action { display: flex; flex-wrap: wrap; gap: .4rem; }
+.card-warning-action { align-items: center; justify-content: space-between; }
+.card-warning-action span { flex: 1 1 12rem; }
+.card-error .btn-xs { color: var(--text); }
+.card-footer-actions { display: flex; align-items: center; gap: .4rem; margin-left: auto; }
+.card-footer-actions .more-btn { margin-left: 0; }
+.card-footer-actions .btn .ui-icon { width: 14px; height: 14px; margin-right: .3rem; }
+
+/* ── Conectar dispositivos ──────────────────────────────────────────────── */
+.connect-info { margin-bottom: 1.1rem; }
+.connect-row {
+  display: flex; align-items: center; gap: .75rem; padding: .65rem .75rem; margin-bottom: .45rem;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
+}
+.connect-icon { display: flex; color: #a78bfa; }
+.connect-text { flex: 1 1 auto; min-width: 0; font-size: .86rem; }
+.connect-text .hint { margin-top: .15rem; font-size: .76rem; color: var(--muted); }
+.connect-addr {
+  flex: none; font-family: ui-monospace, Consolas, monospace; font-size: .9rem; color: var(--text);
+  background: rgba(124,58,237,.12); border: 1px solid rgba(124,58,237,.35); border-radius: 6px;
+  padding: .3rem .6rem; cursor: copy;
+}
+.connect-addr:hover { background: rgba(124,58,237,.22); }
+.connect-info > .hint { font-size: .76rem; color: var(--muted); }
+
+/* ── Primeros pasos ─────────────────────────────────────────────────────── */
+.onboarding {
+  grid-column: 1 / -1; max-width: 640px; margin: 1rem auto; padding: 1.5rem 1.6rem;
+  border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--card);
+}
+.onb-head { display: flex; align-items: center; gap: 1rem; margin-bottom: 1.2rem; }
+.onb-head .empty-icon { margin: 0; }
+.onb-head h2 { font-size: 1.15rem; margin: 0 0 .2rem; }
+.onb-head .hint { margin: 0; color: var(--muted); font-size: .85rem; }
+.onb-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 1rem; }
+.onb-step { display: flex; gap: .85rem; }
+.onb-num {
+  flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+  font-size: .82rem; font-weight: 600; background: rgba(124,58,237,.18); color: #c4b5fd;
+}
+.onb-step.done .onb-num { background: rgba(16,185,129,.18); color: var(--green); }
+.onb-body { flex: 1 1 auto; min-width: 0; }
+.onb-title { font-weight: 600; font-size: .95rem; }
+.onb-body .hint { margin: .2rem 0 .55rem; font-size: .8rem; color: var(--muted); }
+.dep-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
+.dep-line { display: flex; align-items: center; gap: .55rem; font-size: .84rem; min-height: 28px; }
+.dep-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.dep-ok .dep-dot { background: var(--green); }
+.dep-missing .dep-dot { background: var(--red); }
+.dep-working .dep-dot, .dep-reboot .dep-dot { background: var(--orange); }
+.dep-state { color: var(--muted); font-size: .78rem; }
+.dep-line .btn-xs { margin-left: auto; }
+
+@media (max-width: 640px) {
+  .connect-row { flex-wrap: wrap; }
+  .connect-addr { width: 100%; text-align: center; }
+  .onboarding { padding: 1.1rem 1rem; }
+  .card-footer-actions { width: 100%; justify-content: flex-end; }
+}
+
+/* Pistas sueltas dentro de "Avanzado" (fuera de un .form-row) y opciones del nivel de log
+   (".form-row label" las ponía en bloque). */
+.form-advanced > .hint { font-size: .76rem; color: var(--muted); margin: -.3rem 0 .8rem; }
+.form-row .level-option { display: flex; margin: 0; font-size: inherit; color: var(--text); }

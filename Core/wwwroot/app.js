@@ -2,6 +2,7 @@
 
 // ── Estado global ──────────────────────────────────────────────────────────
 let sessions         = [];
+let sessionsLoaded   = false;
 let sessionTimer     = null;
 let logTimer         = null;
 let logSessionId     = null;
@@ -32,9 +33,9 @@ window.addEventListener('langchange', () => {
     const st = drivers[k].lastStatus;
     if (st) { updateDriverPill(k, st); renderDriverStatus(k, st); }
   }
-  // Puerto derivado en ambos modales
-  updateDerivedWebPort('new');
-  updateDerivedWebPort('edit');
+  // Ventana de sesión abierta: puerto derivado, título y botón
+  updateDerivedWebPort();
+  setSessTexts();
   // Título del modal de log si hay una sesión abierta
   if (logSessionId) {
     const s = sessions.find(x => x.id === logSessionId);
@@ -86,7 +87,9 @@ async function loadSessions() {
   // Los puestos también: la tarjeta de cada sesión dice a qué puesto está asociada.
   const [res, seatRes] = await Promise.all([api('GET', '/api/sessions'), api('GET', '/api/seats')]);
   if (!res) return;
+  if (!res.ok) return;
   sessions = await res.json();
+  sessionsLoaded = true;
   if (seatRes && seatRes.ok) seats = await seatRes.json();
   renderSessions();
   openPairFromHash();
@@ -103,17 +106,13 @@ function openPairFromHash() {
 window.addEventListener('hashchange', openPairFromHash);
 
 function renderSessions() {
+  // Las píldoras de componentes también repintan: hasta tener la lista, sigue el "Cargando…".
+  if (!sessionsLoaded) return;
   const grid  = document.getElementById('sessions-grid');
   const count = document.getElementById('session-count');
   count.textContent = sessions.length;
 
-  const html = sessions.length === 0
-    ? `<div class="empty-state">
-        <div class="empty-icon">${uiIcon('screen')}</div>
-        <p>${esc(t('empty.noSessions'))}</p>
-        <p>${t('empty.noSessions_hint')}</p>
-      </div>`
-    : sessions.map(renderCard).join('');
+  const html = sessions.length === 0 ? onboardingHtml() : sessions.map(renderCard).join('');
   renderInto(grid, html);
 }
 
@@ -126,9 +125,9 @@ function renderCard(s) {
     : `<div class="screen-thumb"><span class="screen-res">${s.rdpWidth}×${s.rdpHeight}</span>
          <span class="screen-fps">${s.rdpFrameRate || 60} fps</span></div>`;
   const power = isBusy
-    ? `<button class="power-btn busy" disabled title="${esc(t(s.state === 'Starting' ? 'btn.starting' : 'btn.stopping'))}">${uiIcon('power')}</button>`
-    : `<button class="power-btn ${isRunning ? 'on' : 'off'}" onclick="${isRunning ? 'stopSession' : 'startSession'}('${s.id}')"
-               title="${esc(t(isRunning ? 'btn.stop' : 'btn.start'))}">${uiIcon('power')}</button>`;
+    ? `<button type="button" class="power-btn busy" disabled title="${esc(t(s.state === 'Starting' ? 'btn.starting' : 'btn.stopping'))}" aria-label="${esc(t(s.state === 'Starting' ? 'btn.starting' : 'btn.stopping'))}">${uiIcon('power')}</button>`
+    : `<button type="button" class="power-btn ${isRunning ? 'on' : 'off'}" onclick="${isRunning ? 'stopSession' : 'startSession'}('${s.id}')"
+               title="${esc(t(isRunning ? 'btn.stop' : 'btn.start'))}" aria-label="${esc(t(isRunning ? 'btn.stop' : 'btn.start'))}: ${esc(s.name)}" aria-pressed="${isRunning}">${uiIcon('power')}</button>`;
 
   const protos = [];
   if (s.streamProtocol !== 'WebRtc')
@@ -148,16 +147,21 @@ function renderCard(s) {
         ${power}
       </div>
       <div class="card-chips">${protos.join('')}${sessionSeatLine(s)}</div>
+      ${startProgress(s)}
+      ${rdpWarning(s)}
       ${s.streamProtocol !== 'Moonlight' && !s.sunshineSupportsWebRtc
         ? `<div class="card-warning">${esc(t('proto.unsupported'))}</div>` : ''}
-      ${s.errorMessage ? `<div class="card-error">${esc(s.errorMessage)}</div>` : ''}
+      ${errorBox(s)}
       <div class="card-footer">
         <label class="toggle" title="${esc(t('card.autostart_title'))}">
           <input type="checkbox" ${s.enabled ? 'checked' : ''} onchange="setEnabled('${s.id}', this.checked)">
           <span class="toggle-track"></span>
           ${esc(t('card.autostart'))}
         </label>
-        <button class="icon-btn more-btn" onclick="sessionMenu(event, '${s.id}')" title="${esc(t('nav.more'))}">${uiIcon('more')}</button>
+        <div class="card-footer-actions">
+          ${isRunning ? `<button type="button" class="btn btn-ghost btn-sm" onclick="openSunMgrModal('${s.id}')">${uiIcon('link')}${esc(t('ux.connect.btn'))}</button>` : ''}
+          <button type="button" class="icon-btn more-btn" onclick="sessionMenu(event, '${s.id}')" title="${esc(t('nav.more'))}" aria-label="${esc(t('nav.more'))}: ${esc(s.name)}" aria-haspopup="menu">${uiIcon('more')}</button>
+        </div>
       </div>
     </div>`;
 }
@@ -169,7 +173,7 @@ function sessionMenu(e, id) {
   const running = s.state === 'Running', busy = s.state === 'Starting' || s.state === 'Stopping';
   openMenu(e, [
     { icon: 'restart',  label: t('btn.restart'),  run: () => restartSession(s.id, s.name) },
-    { icon: 'moon',     label: t('btn.sunshine'), run: () => openSunMgrModal(s.id), disabled: !running, hint: t('btn.sunshine_disabled_title') },
+    { icon: 'link',     label: t('ux.connect.btn'), run: () => openSunMgrModal(s.id), disabled: !running, hint: t('btn.sunshine_disabled_title') },
     { icon: 'external', label: t('btn.panel'),    run: () => openSunshinePanel(s.id), disabled: !running, hint: t('btn.panel_disabled_title') },
     { icon: 'log',      label: t('btn.log'),      run: () => openLogModal(s.id, s.name) },
     { icon: 'gear',     label: t('btn.settings'), run: () => openEditModal(s.id) },
@@ -196,34 +200,33 @@ function portSummary(s) {
   return `${t('card.port')} ${parts.join(' · ')}`;
 }
 
-function getProtocol(prefix) {
-  const checked = document.querySelector(`#${prefix}-modal input[id^="${prefix}-proto-"]:checked`);
+function getProtocol() {
+  const checked = document.querySelector('#sess-modal input[name="SessProto"]:checked');
   return checked ? checked.value : 'Both';
 }
 
-function setProtocolFields(prefix, protocol, webRtcPort, mediaMin, mediaMax) {
+function setProtocolFields(protocol, webRtcPort, mediaMin, mediaMax) {
   const id = { Moonlight: 'moonlight', WebRtc: 'webrtc', Both: 'both' }[protocol] || 'both';
-  document.getElementById(`${prefix}-proto-${id}`).checked = true;
-  document.getElementById(`${prefix}-webrtc-port`).value      = webRtcPort || '';
-  document.getElementById(`${prefix}-webrtc-media-min`).value = mediaMin   || '';
-  document.getElementById(`${prefix}-webrtc-media-max`).value = mediaMax   || '';
-  updateProtocolFields(prefix);
+  byId(`sess-proto-${id}`).checked = true;
+  byId('sess-webrtc-port').value      = webRtcPort || '';
+  byId('sess-webrtc-media-min').value = mediaMin   || '';
+  byId('sess-webrtc-media-max').value = mediaMax   || '';
+  updateProtocolFields();
 }
 
 // Los campos WebRTC solo tienen sentido si el protocolo incluye WebRTC.
-function updateProtocolFields(prefix) {
-  const webrtc = getProtocol(prefix) !== 'Moonlight';
-  document.getElementById(`${prefix}-webrtc-ports`)
-    .querySelectorAll('input').forEach(el => { el.disabled = !webrtc; });
+function updateProtocolFields() {
+  const webrtc = getProtocol() !== 'Moonlight';
+  byId('sess-webrtc-ports').querySelectorAll('input').forEach(el => { el.disabled = !webrtc; });
 }
 
-function readProtocolFields(prefix) {
-  const num = id => parseInt(document.getElementById(id).value, 10) || 0;
+function readProtocolFields() {
+  const num = id => parseInt(byId(id).value, 10) || 0;
   return {
-    streamProtocol:     getProtocol(prefix),
-    webRtcPort:         num(`${prefix}-webrtc-port`),
-    webRtcMediaPortMin: num(`${prefix}-webrtc-media-min`),
-    webRtcMediaPortMax: num(`${prefix}-webrtc-media-max`),
+    streamProtocol:     getProtocol(),
+    webRtcPort:         num('sess-webrtc-port'),
+    webRtcMediaPortMin: num('sess-webrtc-media-min'),
+    webRtcMediaPortMax: num('sess-webrtc-media-max'),
   };
 }
 
@@ -258,7 +261,7 @@ async function stopSession(id) {
 }
 
 async function restartSession(id, name) {
-  if (!confirm(t('confirm.restart', { name }))) return;
+  if (!await ask(t('confirm.restart', { name }), { ok: t('btn.restart') })) return;
   const res = await api('POST', `/api/sessions/${id}/restart`);
   if (!res) return;
   if (!res.ok) { toast(await res.text(), true); return; }
@@ -267,7 +270,7 @@ async function restartSession(id, name) {
 }
 
 async function deleteSession(id, name) {
-  if (!confirm(t('confirm.delete', { name }))) return;
+  if (!await ask(t('confirm.delete', { name }), { danger: true, ok: t('btn.delete') })) return;
   const res = await api('DELETE', `/api/sessions/${id}`);
   if (!res) return;
   if (res.status === 400) { toast(await res.text(), true); return; }
@@ -282,37 +285,43 @@ async function setEnabled(id, enabled) {
   else toast(enabled ? t('toast.autostartOn') : t('toast.autostartOff'));
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  VENTANA DE SESIÓN: la misma para crear y para editar
+// ═══════════════════════════════════════════════════════════════════════════
+let sessEditingId = null;   // null = sesión nueva
+let sessEditLocal = false;  // al editar, el tipo no cambia: es el de la sesión
+
+function byId(id) { return document.getElementById(id); }
+
 // ── Prueba de credenciales ─────────────────────────────────────────────────
 function resetCredTest() {
   credentialsTested = false;
-  document.getElementById('cred-test-result').style.display = 'none';
-  document.getElementById('btn-create').disabled = true;
+  byId('cred-test-result').style.display = 'none';
 }
 
+/** Prueba usuario y contraseña de Windows. Devuelve true si son válidos. */
 async function testCredentials() {
-  const form     = document.getElementById('new-form');
-  const username = form.querySelector('[name=Username]').value.trim();
-  const domain   = form.querySelector('[name=Domain]').value.trim() || '.';
-  const password = form.querySelector('[name=Password]').value;
+  const username = byId('sess-user').value.trim();
+  const domain   = byId('sess-domain').value.trim() || '.';
+  const password = byId('sess-pass').value;
 
   if (!username || !password) {
     showCredTestResult(false, t('credTest.needCreds'));
-    return;
+    return false;
   }
 
-  const btn     = document.getElementById('btn-test-creds');
-  const spinner = document.getElementById('btn-test-spinner');
+  const btn     = byId('btn-test-creds');
+  const spinner = byId('btn-test-spinner');
   btn.disabled          = true;
   spinner.style.display = '';
 
   try {
-    const res = await api('POST', '/api/sessions/test-credentials',
-                          { username, domain, password });
-    if (!res) return;
+    const res = await api('POST', '/api/sessions/test-credentials', { username, domain, password });
+    if (!res) return false;
     const data = await res.json();
     showCredTestResult(data.success, data.message);
     credentialsTested = data.success;
-    document.getElementById('btn-create').disabled = !data.success;
+    return data.success;
   } finally {
     btn.disabled          = false;
     spinner.style.display = 'none';
@@ -320,138 +329,224 @@ async function testCredentials() {
 }
 
 function showCredTestResult(success, message) {
-  const box  = document.getElementById('cred-test-result');
-  const icon = document.getElementById('cred-test-icon');
-  const msg  = document.getElementById('cred-test-msg');
-  box.className         = `cred-test ${success ? 'cred-test-ok' : 'cred-test-err'}`;
-  box.style.display     = '';
-  icon.textContent      = success ? '✓' : '✗';
-  msg.textContent       = message;
+  const box  = byId('cred-test-result');
+  box.className = `cred-test ${success ? 'cred-test-ok' : 'cred-test-err'}`;
+  box.style.display = '';
+  byId('cred-test-icon').textContent = success ? '✓' : '✗';
+  byId('cred-test-msg').textContent  = message;
 }
 
-// Sesión aislada: el servicio crea el usuario, así que se ocultan las credenciales
-// (y su prueba obligatoria) y se muestra la opción de perfil efímero.
-function updateIsolatedUi(prefix) {
-  const isolated = document.getElementById(prefix === 'new' ? 'chk-isolated' : 'edit-isolated').checked;
-  document.getElementById(`${prefix}-ephemeral-row`).style.display = isolated ? '' : 'none';
-  if (prefix !== 'new') return;
-
-  // La sesión local usa el usuario del escritorio: tampoco pide credenciales.
-  const needsCreds = !isolated && !isLocalKind();
-  const block = document.getElementById('new-creds-block');
-  block.style.display = needsCreds ? '' : 'none';
-  block.querySelectorAll('[name=Username],[name=Password]').forEach(el => { el.required = needsCreds; });
-  document.getElementById('btn-create').disabled = needsCreds && !credentialsTested;
-}
-
-// ── Tipo de sesión: RDP en segundo plano o escritorio local ───────────────
+// ── Tipo de sesión y usuario ───────────────────────────────────────────────
 function isLocalKind() {
-  return document.getElementById('new-kind-local').checked;
+  return sessEditingId ? sessEditLocal : byId('sess-kind-local').checked;
 }
 
-function setKindFields(prefix, local) {
-  document.getElementById(`${prefix}-modal`).classList.toggle('kind-local', local);
+// Solo una sesión RDP nueva y no aislada pide usuario y contraseña: la aislada usa un
+// usuario que crea el servicio y la local, el del escritorio.
+function needsCreds() {
+  return !sessEditingId && !isLocalKind() && !byId('sess-isolated').checked;
 }
 
-function updateKindUi(prefix) {
-  setKindFields(prefix, isLocalKind());
-  updateIsolatedUi(prefix);
+function updateIsolatedUi() {
+  byId('sess-ephemeral-row').style.display = byId('sess-isolated').checked ? '' : 'none';
+  byId('sess-creds-block').style.display   = needsCreds() ? '' : 'none';
 }
 
-// ── Modal: nueva sesión ────────────────────────────────────────────────────
+function updateKindUi() {
+  byId('sess-modal').classList.toggle('kind-local', isLocalKind());
+  updateIsolatedUi();
+  updateSessionPreview();
+}
+
+// Título y botón según se cree o se edite (también al cambiar de idioma con la ventana abierta).
+function setSessTexts() {
+  const s = sessEditingId && sessions.find(x => x.id === sessEditingId);
+  byId('sess-title').textContent        = s ? t('edit.titleFor', { name: s.name }) : t('new.title');
+  byId('sess-submit-label').textContent = s ? t('edit.save') : t('new.create');
+}
+
+// ── Abrir, cerrar y guardar ────────────────────────────────────────────────
 function openNewModal() {
-  document.getElementById('new-form').reset();
-  document.getElementById('new-error').style.display = 'none';
-  document.getElementById('chk-bg').checked = true;
-  document.getElementById('new-res-preset').value = '1920x1080';
-  document.getElementById('new-res-custom').style.display = 'none';
-  setProtocolFields('new', 'Both', 8000, 40000, 40019);
-  updateDerivedWebPort('new');
+  sessEditingId = null;
+  byId('sess-form').reset();
+  byId('sess-error').style.display = 'none';
+  byId('sess-modal').classList.remove('mode-edit');
+  byId('sess-kind-rdp').checked = true;
+  byId('sess-domain').value     = '.';
+  byId('sess-bg').checked       = true;
+  byId('sess-fps').value        = 60;
+  byId('sess-bpp').value        = '32';
+  byId('sess-port').value       = 47989;
+  byId('sess-advanced').open    = false;
+  setResPreset(1920, 1080);
+  setProtocolFields('Both', 8000, 40000, 40019);
+  updateDerivedWebPort();
   resetCredTest();
-  updateKindUi('new');
-  show('new-modal');
+  setSessTexts();
+  updateKindUi();
+  show('sess-modal');
   stopRefresh();
   suggestPorts();
+  byId('sess-name').focus();
 }
 
 // Rellena el formulario con puertos que no chocan con ninguna sesión existente.
 async function suggestPorts() {
   const res = await api('GET', '/api/sessions/ports/suggest');
-  if (!res || !res.ok) return;
+  if (!res || !res.ok || sessEditingId) return;
   const p = await res.json();
-  document.getElementById('new-stream-port').value = p.sunshineStreamPort;
-  setProtocolFields('new', getProtocol('new'), p.webRtcPort, p.webRtcMediaPortMin, p.webRtcMediaPortMax);
-  updateDerivedWebPort('new');
+  byId('sess-port').value = p.sunshineStreamPort;
+  setProtocolFields(getProtocol(), p.webRtcPort, p.webRtcMediaPortMin, p.webRtcMediaPortMax);
+  updateDerivedWebPort();
+  updateSessionPreview();
 }
 
-function closeNewModal() {
-  hide('new-modal');
+function openEditModal(id) {
+  const s = sessions.find(x => x.id === id);
+  if (!s) return;
+  sessEditingId = s.id;
+  sessEditLocal = !!s.local;
+
+  byId('sess-form').reset();
+  byId('sess-error').style.display = 'none';
+  byId('sess-modal').classList.add('mode-edit');
+  byId('sess-id').value           = s.id;
+  byId('sess-name').value         = s.name;
+  byId('sess-isolated').checked   = !!s.isolated;
+  byId('sess-ephemeral').checked  = !!s.isolatedEphemeral;
+  byId('sess-enabled').checked    = !!s.enabled;
+  byId('sess-profile').checked    = !!s.useStreamProfile;
+  byId('sess-vdd').checked        = !!s.vddEnabled;
+  byId('sess-bg').checked         = !!s.rdpBackground;
+  byId('sess-fps').value          = s.rdpFrameRate || 60;
+  byId('sess-bpp').value          = String(s.rdpColorDepth || 32);
+  byId('sess-port').value         = s.sunshineStreamPort;
+  byId('sess-exe').value          = s.sunshineExePath || '';
+  byId('sess-sunshine-name').value = s.sunshineName || '';
+  byId('sess-capture').value      = s.capture || '';
+  byId('sess-encoder').value      = s.encoder || '';
+  byId('sess-output').value       = s.outputName || '';
+  byId('sess-origin').value       = s.originWebUiAllowed || '';
+  byId('sess-panel-user').value   = s.sunshineAuthUser || '';
+  byId('sess-panel-pass').value   = s.sunshineAuthPass || '';
+  byId('sess-rotate').checked     = !!s.rotateSunshineCredentials;
+  byId('sess-advanced').open      = false;
+  setResPreset(s.rdpWidth, s.rdpHeight);
+  setProtocolFields(s.streamProtocol, s.webRtcPort, s.webRtcMediaPortMin, s.webRtcMediaPortMax);
+  updateDerivedWebPort();
+  setSessTexts();
+  updateKindUi();
+  show('sess-modal');
+  stopRefresh();
+  byId('sess-name').focus();
+}
+
+function closeSessionModal() {
+  hide('sess-modal');
+  sessEditingId = null;
   startRefresh();
 }
 
-async function submitNew(e) {
+function setSessBusy(busy) {
+  byId('sess-submit').disabled = busy;
+  byId('sess-submit-spinner').style.display = busy ? '' : 'none';
+}
+
+async function submitSession(e) {
   e.preventDefault();
-
-  const local    = isLocalKind();
-  const isolated = !local && document.getElementById('chk-isolated').checked;
-  if (!isolated && !local && !credentialsTested) {
-    const errEl = document.getElementById('new-error');
-    errEl.textContent   = t('new.errorTestCreds');
-    errEl.style.display = '';
-    return;
-  }
-
-  const fd  = new FormData(e.target);
-  const resolution = getResolution('new');
-  const body = {
-    name:               fd.get('Name'),
-    username:           fd.get('Username'),
-    domain:             fd.get('Domain') || '.',
-    password:           fd.get('Password'),
-    sunshineExePath:    fd.get('SunshineExePath') || null,
-    rdpBackground:      !!fd.get('RdpBackground'),
-    vddEnabled:         !!fd.get('VddEnabled'),
-    rdpWidth:           resolution.w,
-    rdpHeight:          resolution.h,
-    rdpFrameRate:       parseInt(fd.get('RdpFrameRate'), 10) || 60,
-    rdpColorDepth:      parseInt(fd.get('RdpColorDepth'), 10) || 32,
-    sunshineStreamPort: parseInt(fd.get('SunshineStreamPort'), 10) || 47989,
-    enabled:            !!fd.get('Enabled'),
-    useStreamProfile:   !!fd.get('UseStreamProfile'),
-    sunshineName:       (fd.get('SunshineName')       || '').trim() || null,
-    capture:            fd.get('Capture')             || null,
-    encoder:            fd.get('Encoder')             || null,
-    outputName:         (fd.get('OutputName')         || '').trim() || null,
-    originWebUiAllowed: fd.get('OriginWebUiAllowed')  || null,
-    sunshineAuthUser:   (fd.get('SunshineAuthUser')   || '').trim() || null,
-    sunshineAuthPass:   (fd.get('SunshineAuthPass')   || '')        || null,
-    rotateSunshineCredentials: !!fd.get('RotateSunshineCredentials'),
-    isolated,
-    isolatedEphemeral:  isolated && !!fd.get('IsolatedEphemeral'),
-    local,
-    ...readProtocolFields('new'),
-  };
-  if (isolated || local) {
-    // El servicio crea el usuario dedicado o usa el del escritorio: las credenciales del formulario no se usan.
-    body.username = '';
-    body.domain   = '.';
-    body.password = '';
-  }
-
-  const errEl = document.getElementById('new-error');
+  const errEl = byId('sess-error');
   errEl.style.display = 'none';
-
-  const res = await api('POST', '/api/sessions', body);
-  if (!res) return;
-  if (!res.ok) {
-    errEl.textContent  = await res.text();
+  const fail = msg => {
+    errEl.textContent = msg;
     errEl.style.display = '';
+    errEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  };
+
+  const name = byId('sess-name').value.trim();
+  if (!name) { fail(t('ux.err.name')); byId('sess-name').focus(); return; }
+
+  const editing  = sessEditingId;
+  const local    = isLocalKind();
+  const isolated = !local && byId('sess-isolated').checked;
+  const port     = parseInt(byId('sess-port').value, 10);
+  if (!(port >= 1024 && port <= 65514)) {
+    byId('sess-advanced').open = true;
+    fail(t('ux.err.port'));
+    byId('sess-port').focus();
     return;
   }
 
-  closeNewModal();
-  toast(t('toast.created'));
-  loadSessions();
+  setSessBusy(true);
+  try {
+    // "Crear" prueba las credenciales si no se ha hecho: no hace falta pulsar antes "Probar".
+    if (needsCreds() && !credentialsTested) {
+      if (!byId('sess-user').value.trim() || !byId('sess-pass').value) {
+        fail(t('credTest.needCreds'));
+        byId(byId('sess-user').value.trim() ? 'sess-pass' : 'sess-user').focus();
+        return;
+      }
+      if (!await testCredentials()) { fail(t('new.errorTestCreds')); return; }
+    }
+
+    const resolution = getResolution();
+    const current = editing && sessions.find(x => x.id === editing);
+    const body = {
+      name,
+      sunshineExePath:    byId('sess-exe').value.trim() || null,
+      rdpBackground:      byId('sess-bg').checked,
+      // En RDP la pantalla virtual no hace nada y no se ofrece: se conserva lo que hubiera.
+      vddEnabled:         local ? byId('sess-vdd').checked : !!(current && current.vddEnabled),
+      rdpWidth:           resolution.w,
+      rdpHeight:          resolution.h,
+      rdpFrameRate:       parseInt(byId('sess-fps').value, 10) || 60,
+      rdpColorDepth:      parseInt(byId('sess-bpp').value, 10) || 32,
+      sunshineStreamPort: port,
+      useStreamProfile:   !local && byId('sess-profile').checked,
+      sunshineName:       byId('sess-sunshine-name').value.trim() || null,
+      capture:            byId('sess-capture').value || null,
+      encoder:            byId('sess-encoder').value || null,
+      outputName:         byId('sess-output').value.trim() || null,
+      originWebUiAllowed: byId('sess-origin').value || null,
+      sunshineAuthUser:   byId('sess-panel-user').value.trim() || null,
+      sunshineAuthPass:   byId('sess-panel-pass').value || null,
+      rotateSunshineCredentials: byId('sess-rotate').checked,
+      isolated,
+      isolatedEphemeral:  isolated && byId('sess-ephemeral').checked,
+      ...readProtocolFields(),
+    };
+
+    let res;
+    if (editing) {
+      res = await api('PATCH', `/api/sessions/${editing}/config`, body);
+    } else {
+      Object.assign(body, {
+        enabled:  byId('sess-enabled').checked,
+        local,
+        // La aislada y la local no usan las credenciales del formulario.
+        username: needsCreds() ? byId('sess-user').value.trim() : '',
+        domain:   needsCreds() ? (byId('sess-domain').value.trim() || '.') : '.',
+        password: needsCreds() ? byId('sess-pass').value : '',
+      });
+      res = await api('POST', '/api/sessions', body);
+    }
+    if (!res) return;
+    if (!res.ok) {
+      const msg = await res.text();
+      if (/port|puerto/i.test(msg)) byId('sess-advanced').open = true;
+      fail(msg || t('toast.connectionError'));
+      return;
+    }
+
+    // El autoarranque va por su propio endpoint (también lo cambia el interruptor de la tarjeta).
+    if (editing && current && byId('sess-enabled').checked !== !!current.enabled)
+      await api('PATCH', `/api/sessions/${editing}/enabled`, { enabled: byId('sess-enabled').checked });
+
+    closeSessionModal();
+    toast(t(editing ? 'toast.saved' : 'toast.created'));
+    loadSessions();
+  } finally {
+    setSessBusy(false);
+  }
 }
 
 // ── Modal: log ─────────────────────────────────────────────────────────────
@@ -503,12 +598,9 @@ async function fetchLogs() {
 }
 
 // ── Puerto derivado (stream + 1 = panel HTTPS interno) ────────────────────
-function updateDerivedWebPort(prefix) {
-  const input   = document.getElementById(prefix === 'new' ? 'new-stream-port' : 'edit-port');
-  const derived = document.getElementById(`${prefix}-port-derived`);
-  if (!input || !derived) return;
-  const v = parseInt(input.value, 10);
-  derived.textContent = Number.isFinite(v) && v > 0
+function updateDerivedWebPort() {
+  const v = parseInt(byId('sess-port').value, 10);
+  byId('sess-port-derived').textContent = Number.isFinite(v) && v > 0
     ? t('new.portDerived', { web: v + 1 })
     : '';
 }
@@ -519,37 +611,33 @@ const RES_PRESETS = [
   '2560x1080', '2560x1440', '3440x1440', '3840x2160',
 ];
 
-function onResPreset(prefix) {
-  const sel    = document.getElementById(`${prefix}-res-preset`);
-  const custom = document.getElementById(`${prefix}-res-custom`);
-  custom.style.display = sel.value === 'custom' ? '' : 'none';
+function onResPreset() {
+  byId('sess-res-custom').style.display = byId('sess-res-preset').value === 'custom' ? '' : 'none';
 }
 
-function getResolution(prefix) {
-  const sel = document.getElementById(`${prefix}-res-preset`);
+function getResolution() {
+  const sel = byId('sess-res-preset');
   if (sel.value === 'custom') {
     return {
-      w: parseInt(document.getElementById(`${prefix}-res-w`).value, 10) || 1920,
-      h: parseInt(document.getElementById(`${prefix}-res-h`).value, 10) || 1080,
+      w: parseInt(byId('sess-res-w').value, 10) || 1920,
+      h: parseInt(byId('sess-res-h').value, 10) || 1080,
     };
   }
   const [w, h] = sel.value.split('x').map(Number);
   return { w, h };
 }
 
-function setResPreset(prefix, w, h) {
+function setResPreset(w, h) {
   const key = `${w}x${h}`;
-  const sel  = document.getElementById(`${prefix}-res-preset`);
-  const custom = document.getElementById(`${prefix}-res-custom`);
-
+  const sel = byId('sess-res-preset');
   if (RES_PRESETS.includes(key)) {
     sel.value = key;
-    custom.style.display = 'none';
+    byId('sess-res-custom').style.display = 'none';
   } else {
     sel.value = 'custom';
-    document.getElementById(`${prefix}-res-w`).value = w;
-    document.getElementById(`${prefix}-res-h`).value = h;
-    custom.style.display = '';
+    byId('sess-res-w').value = w;
+    byId('sess-res-h').value = h;
+    byId('sess-res-custom').style.display = '';
   }
 }
 
@@ -563,109 +651,29 @@ function esc(str) {
 function show(id) {
   document.getElementById(id).classList.remove('hidden');
   // Las ventanas de configuración enseñan arriba una vista previa de lo que se está configurando.
-  if (id === 'new-modal' || id === 'edit-modal') updateSessionPreview(id.split('-')[0]);
+  if (id === 'sess-modal') updateSessionPreview();
   if (id === 'seat-modal' && typeof updateSeatPreview === 'function') updateSeatPreview();
 }
 function hide(id) { document.getElementById(id).classList.add('hidden'); }
 
 function handleBackdropClick(e, id) {
-  if (e.target.id === id) {
-    if (id === 'new-modal')    closeNewModal();
-    else if (id === 'log-modal')    closeLogModal();
-    else if (id === 'edit-modal')   closeEditModal();
-    else if (id === 'rdp-modal')    closeRdpModal();
-    else if (id === 'vigem-modal')  closeDriverModal('vigem');
-    else if (id === 'hidhide-modal') closeDriverModal('hidhide');
-    else if (id === 'sunmgr-modal') closeSunMgrModal();
-    else if (id === 'power-modal')  closePowerModal();
-  }
+  if (e.target.id === id) closeModal(id);
 }
 
-// ── Modal: editar sesión ───────────────────────────────────────────────────
-function openEditModal(id) {
-  const s = sessions.find(x => x.id === id);
-  if (!s) return;
-
-  document.getElementById('edit-id').value      = s.id;
-  document.getElementById('edit-title').textContent = t('edit.titleFor', { name: s.name });
-  document.getElementById('edit-name').value    = s.name;
-  document.getElementById('edit-exe').value     = s.sunshineExePath || '';
-  document.getElementById('edit-port').value    = s.sunshineStreamPort;
-  updateDerivedWebPort('edit');
-  setProtocolFields('edit', s.streamProtocol, s.webRtcPort, s.webRtcMediaPortMin, s.webRtcMediaPortMax);
-  document.getElementById('edit-bg').checked    = s.rdpBackground;
-  document.getElementById('edit-vdd').checked   = s.vddEnabled;
-  document.getElementById('edit-profile').checked = s.useStreamProfile;
-  document.getElementById('edit-rdp-fps').value = s.rdpFrameRate || 60;
-  document.getElementById('edit-rdp-bpp').value = String(s.rdpColorDepth || 32);
-  document.getElementById('edit-sunshine-name').value = s.sunshineName || '';
-  document.getElementById('edit-capture').value       = s.capture     || '';
-  document.getElementById('edit-encoder').value       = s.encoder     || '';
-  document.getElementById('edit-output-name').value   = s.outputName  || '';
-  document.getElementById('edit-origin').value        = s.originWebUiAllowed || '';
-  document.getElementById('edit-panel-user').value    = s.sunshineAuthUser || '';
-  document.getElementById('edit-panel-pass').value    = s.sunshineAuthPass || '';
-  document.getElementById('edit-rotate-creds').checked = !!s.rotateSunshineCredentials;
-  document.getElementById('edit-isolated').checked = !!s.isolated;
-  document.getElementById('edit-isolated-ephemeral').checked = !!s.isolatedEphemeral;
-  updateIsolatedUi('edit');
-  setKindFields('edit', !!s.local);
-  document.getElementById('edit-error').style.display = 'none';
-  setResPreset('edit', s.rdpWidth, s.rdpHeight);
-
-  show('edit-modal');
-  stopRefresh();
-}
-
-function closeEditModal() {
-  hide('edit-modal');
-  startRefresh();
-}
-
-async function submitEdit(e) {
-  e.preventDefault();
-
-  const id  = document.getElementById('edit-id').value;
-  const resolution = getResolution('edit');
-  const body = {
-    name:               document.getElementById('edit-name').value.trim(),
-    sunshineExePath:    document.getElementById('edit-exe').value.trim() || null,
-    rdpWidth:           resolution.w,
-    rdpHeight:          resolution.h,
-    rdpFrameRate:       parseInt(document.getElementById('edit-rdp-fps').value, 10) || 60,
-    rdpColorDepth:      parseInt(document.getElementById('edit-rdp-bpp').value, 10) || 32,
-    sunshineStreamPort: parseInt(document.getElementById('edit-port').value, 10) || 47989,
-    rdpBackground:      document.getElementById('edit-bg').checked,
-    vddEnabled:         document.getElementById('edit-vdd').checked,
-    useStreamProfile:   document.getElementById('edit-profile').checked,
-    sunshineName:       document.getElementById('edit-sunshine-name').value.trim() || null,
-    capture:            document.getElementById('edit-capture').value   || null,
-    encoder:            document.getElementById('edit-encoder').value   || null,
-    outputName:         document.getElementById('edit-output-name').value.trim() || null,
-    originWebUiAllowed: document.getElementById('edit-origin').value    || null,
-    sunshineAuthUser:   document.getElementById('edit-panel-user').value.trim() || null,
-    sunshineAuthPass:   document.getElementById('edit-panel-pass').value        || null,
-    rotateSunshineCredentials: document.getElementById('edit-rotate-creds').checked,
-    isolated:           document.getElementById('edit-isolated').checked,
-    isolatedEphemeral:  document.getElementById('edit-isolated').checked &&
-                        document.getElementById('edit-isolated-ephemeral').checked,
-    ...readProtocolFields('edit'),
-  };
-
-  const errEl = document.getElementById('edit-error');
-  errEl.style.display = 'none';
-
-  const res = await api('PATCH', `/api/sessions/${id}/config`, body);
-  if (!res) return;
-  if (!res.ok) {
-    errEl.textContent   = await res.text();
-    errEl.style.display = '';
-    return;
-  }
-
-  closeEditModal();
-  toast(t('toast.saved'));
-  loadSessions();
+// Cierra una ventana con su propia función de cierre (que también para sondeos y timers).
+function closeModal(id) {
+  const close = {
+    'sess-modal':     closeSessionModal,
+    'log-modal':      closeLogModal,
+    'rdp-modal':      closeRdpModal,
+    'vigem-modal':    () => closeDriverModal('vigem'),
+    'hidhide-modal':  () => closeDriverModal('hidhide'),
+    'sunmgr-modal':   closeSunMgrModal,
+    'power-modal':    closePowerModal,
+    'confirm-modal':  () => resolveConfirm(false),
+    'seat-modal':     () => typeof closeSeatModal === 'function' && closeSeatModal(),
+  }[id];
+  if (close) close(); else hide(id);
 }
 
 // ── RDP Wrapper ────────────────────────────────────────────────────────────
@@ -704,6 +712,7 @@ function updateRdpPill(st) {
   pill.classList.add(cls);
   state.textContent = t(key);
   updateSystemPill();
+  renderSessions();
 }
 
 function renderRdpStatus(st) {
@@ -766,7 +775,7 @@ function closeRdpModal() {
 
 async function rdpInstall() {
   const msg = t('rdp.confirm.install') + (rdpLastStatus?.remoteIdd ? '\n\n' + t('rdp.confirm.leaveRemoteIdd') : '');
-  if (!confirm(msg)) return;
+  if (!await ask(msg, { ok: t('rdp.btn.install') })) return;
   const res = await api('POST', '/api/rdpwrap/install');
   if (!res) return;
   if (!res.ok) { toast(await res.text(), true); return; }
@@ -774,7 +783,7 @@ async function rdpInstall() {
 }
 
 async function rdpUpdate() {
-  if (!confirm(t('rdp.confirm.update'))) return;
+  if (!await ask(t('rdp.confirm.update'), { ok: t('rdp.btn.update') })) return;
   const res = await api('POST', '/api/rdpwrap/update');
   if (!res) return;
   if (!res.ok) { toast(await res.text(), true); return; }
@@ -782,7 +791,7 @@ async function rdpUpdate() {
 }
 
 async function rdpUninstall() {
-  if (!confirm(t('rdp.confirm.uninstall'))) return;
+  if (!await ask(t('rdp.confirm.uninstall'), { danger: true, ok: t('rdp.btn.uninstall') })) return;
   const res = await api('POST', '/api/rdpwrap/uninstall');
   if (!res) return;
   if (!res.ok) { toast(await res.text(), true); return; }
@@ -824,13 +833,15 @@ function openSunMgrModal(id) {
   const s = sessions.find(x => x.id === id);
   if (!s) return;
   sunmgrSessionId = id;
-  document.getElementById('sunmgr-title').textContent = t('sunmgr.title', { name: s.name });
+  document.getElementById('sunmgr-title').textContent = t('ux.connect.title', { name: s.name });
   document.getElementById('sunmgr-pair-form').reset();
   document.getElementById('sunmgr-pair-result').style.display = 'none';
   sunmgrSetPendingPairings(null);
   document.getElementById('sunmgr-clients-list').innerHTML = `<span class="sunmgr-empty">${esc(t('sunmgr.loading'))}</span>`;
   show('sunmgr-modal');
+  renderConnectInfo(s);
   sunmgrLoadClients();
+  document.getElementById('sunmgr-pin').focus();
 }
 
 function closeSunMgrModal() {
@@ -953,7 +964,7 @@ async function sunmgrLoadClients() {
 
 async function sunmgrUnpair(uuid, name) {
   if (!sunmgrSessionId) return;
-  if (!confirm(t('sunmgr.confirm.unpair', { name }))) return;
+  if (!await ask(t('sunmgr.confirm.unpair', { name }), { danger: true, ok: t('sunmgr.clients.unpair') })) return;
   const res = await api('DELETE', `/api/sessions/${sunmgrSessionId}/clients/${encodeURIComponent(uuid)}`);
   if (!res) return;
   if (!res.ok && res.status !== 204) { toast(await sunmgrTranslateError(res), true); return; }
@@ -962,7 +973,7 @@ async function sunmgrUnpair(uuid, name) {
 
 async function sunmgrUnpairAll() {
   if (!sunmgrSessionId) return;
-  if (!confirm(t('sunmgr.confirm.unpairAll'))) return;
+  if (!await ask(t('sunmgr.confirm.unpairAll'), { danger: true, ok: t('sunmgr.clients.unpairAll') })) return;
   const res = await api('DELETE', `/api/sessions/${sunmgrSessionId}/clients`);
   if (!res) return;
   if (!res.ok && res.status !== 204) { toast(await sunmgrTranslateError(res), true); return; }
@@ -1010,6 +1021,7 @@ function updateDriverPill(k, st) {
   pill.classList.add(cls);
   state.textContent = st.rebootRequired ? '⟳' : t(key);
   updateSystemPill();
+  renderSessions();
 }
 
 function renderDriverStatus(k, st) {
@@ -1063,7 +1075,7 @@ function closeDriverModal(k) {
 }
 
 async function driverInstall(k) {
-  if (!confirm(t(`${k}.confirm.install`))) return;
+  if (!await ask(t(`${k}.confirm.install`), { ok: t('vigem.btn.install') })) return;
   const res = await api('POST', `${drivers[k].api}/install`);
   if (!res) return;
   if (!res.ok) { toast(await res.text(), true); return; }
@@ -1071,20 +1083,13 @@ async function driverInstall(k) {
 }
 
 async function driverUninstall(k) {
-  if (!confirm(t(`${k}.confirm.uninstall`))) return;
+  if (!await ask(t(`${k}.confirm.uninstall`), { danger: true, ok: t('vigem.btn.uninstall') })) return;
   const res = await api('POST', `${drivers[k].api}/uninstall`);
   if (!res) return;
   if (!res.ok) { toast(await res.text(), true); return; }
   driverRefresh(k);
 }
 
-function toast(msg, isError = false) {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.className   = isError ? 'error' : '';
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { el.classList.add('hidden'); }, 3500);
-}
 
 // ── Power (apagar/reiniciar) ──────────────────────────────────────────────
 let powerLastAction = null;
@@ -1117,7 +1122,8 @@ async function powerAction(kind) {
   const delayInput = document.getElementById('power-delay');
   const delay = Math.max(0, Math.min(3600, parseInt(delayInput?.value ?? '10', 10) || 0));
 
-  if (confirmKey && !confirm(t(confirmKey, { delay }))) return;
+  if (confirmKey && !await ask(t(confirmKey, { delay }), {
+        danger: kind === 'shutdown', ok: t(kind === 'shutdown' ? 'power.btn.shutdown' : 'power.btn.restart') })) return;
 
   const body = (kind === 'cancel') ? undefined : { delaySeconds: delay };
   const res  = await api('POST', path, body);
@@ -1153,6 +1159,7 @@ const UI_ICONS = {
   gear:     '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
   trash:    '<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>',
   screen:   '<rect x="2" y="3" width="20" height="13" rx="2"/><path d="M8 21h8M12 16v5"/>',
+  link:     '<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>',
   pc:       '<rect x="2" y="3" width="20" height="13" rx="2"/><path d="M8 21h8M12 16v5"/><path d="M7 8h4"/>',
   seat:     '<rect x="3" y="4" width="18" height="11" rx="2"/><path d="M7 19h10M9 15v4M15 15v4"/>',
 };
@@ -1269,18 +1276,17 @@ function setPreview(box, html, popKey) {
   if (pop) box.querySelector('.preview-screen')?.classList.add('preview-pop');
 }
 
-function updateSessionPreview(prefix) {
-  const box = document.getElementById(`${prefix}-preview`);
+function updateSessionPreview() {
+  const box = byId('sess-preview');
   if (!box) return;
-  const field = (newSel, editId) => prefix === 'new' ? document.querySelector(`#new-form ${newSel}`) : document.getElementById(editId);
-  const local = document.getElementById(`${prefix}-modal`).classList.contains('kind-local');
-  const name = field('[name=Name]', 'edit-name')?.value.trim();
-  const fps = field('[name=RdpFrameRate]', 'edit-rdp-fps')?.value || 60;
-  const { w, h } = getResolution(prefix);
-  const proto = getProtocol(prefix);
-  const port = document.getElementById(prefix === 'new' ? 'new-stream-port' : 'edit-port')?.value;
-  const webPort = document.getElementById(`${prefix}-webrtc-port`)?.value;
-  const isolated = document.getElementById(prefix === 'new' ? 'chk-isolated' : 'edit-isolated')?.checked;
+  const local = isLocalKind();
+  const name = byId('sess-name').value.trim();
+  const fps = byId('sess-fps').value || 60;
+  const { w, h } = getResolution();
+  const proto = getProtocol();
+  const port = byId('sess-port').value;
+  const webPort = byId('sess-webrtc-port').value;
+  const isolated = byId('sess-isolated').checked;
   // La miniatura toma la forma de la resolución (ultrapanorámicas más anchas).
   const ratio = w > 0 && h > 0 ? w / h : 16 / 9;
   const pw = Math.round(Math.min(170, Math.max(110, 82 * ratio)));
@@ -1299,10 +1305,224 @@ function updateSessionPreview(prefix) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  for (const prefix of ['new', 'edit']) {
-    const form = document.getElementById(`${prefix}-form`);
-    const update = () => updateSessionPreview(prefix);
-    form?.addEventListener('input', update);
-    form?.addEventListener('change', update);
-  }
+  const form = byId('sess-form');
+  form?.addEventListener('input', updateSessionPreview);
+  form?.addEventListener('change', updateSessionPreview);
 });
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  DIÁLOGOS, AVISOS Y AJUSTES
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── Confirmación propia (en vez de confirm() del navegador) ───────────────
+// Explica qué va a pasar y, si es destructivo, el botón va en rojo y el foco en "Cancelar".
+let confirmResolver = null;
+
+function ask(message, { title, ok, danger = false } = {}) {
+  return new Promise(resolve => {
+    if (confirmResolver) confirmResolver(false);
+    confirmResolver = resolve;
+    byId('confirm-title').textContent = title || t(danger ? 'ux.confirm.dangerTitle' : 'ux.confirm.title');
+    byId('confirm-msg').textContent   = message;
+    const okBtn = byId('confirm-ok');
+    okBtn.textContent = plainLabel(ok || t('ux.confirm.ok'));
+    okBtn.className   = `btn ${danger ? 'btn-danger' : 'btn-primary'}`;
+    okBtn.onclick     = () => resolveConfirm(true);
+    byId('confirm-cancel').onclick = () => resolveConfirm(false);
+    show('confirm-modal');
+    (danger ? byId('confirm-cancel') : okBtn).focus();
+  });
+}
+
+function resolveConfirm(value) {
+  hide('confirm-modal');
+  const resolve = confirmResolver;
+  confirmResolver = null;
+  if (resolve) resolve(value);
+}
+
+// Algunas traducciones llevan un símbolo delante ("↻ Reiniciar"): en los botones del diálogo, fuera.
+function plainLabel(label) { return String(label).replace(/^[^\p{L}\p{N}]+/u, ''); }
+
+// ── Avisos: los de éxito se van solos; los de error se quedan hasta cerrarlos ──
+function toast(msg, isError = false) {
+  const el = byId('toast');
+  el.innerHTML = `<span class="toast-msg"></span>${isError
+    ? `<button type="button" class="toast-close" aria-label="${esc(t('btn.close'))}" onclick="hide('toast')">×</button>` : ''}`;
+  el.querySelector('.toast-msg').textContent = msg;
+  el.className = isError ? 'error' : '';
+  el.setAttribute('role', isError ? 'alert' : 'status');
+  clearTimeout(toastTimer);
+  if (!isError) toastTimer = setTimeout(() => { el.classList.add('hidden'); }, 3500);
+}
+
+// ── Ajustes globales: nivel de log ────────────────────────────────────────
+async function openSettingsModal() {
+  document.querySelectorAll('.nav-pop').forEach(p => p.classList.add('hidden'));
+  const res = await api('GET', '/api/settings');
+  if (!res) return;
+  if (!res.ok) { toast(t('toast.connectionError'), true); return; }
+  const st = await res.json();
+  const radio = document.querySelector(`#settings-log-level input[value="${st.logLevel}"]`);
+  if (radio) radio.checked = true;
+  show('settings-modal');
+  (radio || document.querySelector('#settings-log-level input')).focus();
+}
+
+async function saveSettings() {
+  const sel = document.querySelector('#settings-log-level input:checked');
+  if (!sel) return;
+  if (sel.value === 'Off' &&
+      !await ask(t('settings.confirmOff'), { danger: true, ok: t('settings.log.Off') })) return;
+  const btn = byId('settings-save');
+  btn.disabled = true;
+  try {
+    const res = await api('PUT', '/api/settings/logging', { logLevel: sel.value });
+    if (!res) return;
+    if (!res.ok) { toast(await res.text() || t('toast.connectionError'), true); return; }
+    hide('settings-modal');
+    toast(t('settings.saved', { level: t('settings.log.' + sel.value) }));
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ── Conectar un dispositivo: dirección del PC y puertos de la sesión ──────
+let networkInfo = null;
+
+async function loadNetworkInfo() {
+  if (networkInfo) return networkInfo;
+  const res = await api('GET', '/api/system/network');
+  if (res && res.ok) networkInfo = await res.json();
+  return networkInfo;
+}
+
+async function renderConnectInfo(s) {
+  const box = byId('connect-info');
+  box.innerHTML = '';
+  const info = await loadNetworkInfo();
+  if (sunmgrSessionId !== s.id) return;   // se cerró o se abrió otra mientras tanto
+  const addresses = info && info.addresses && info.addresses.length ? info.addresses : [location.hostname];
+  const ip = addresses[0];
+  const row = (icon, title, how, addr) => `
+    <div class="connect-row">
+      <span class="connect-icon">${uiIcon(icon)}</span>
+      <div class="connect-text"><strong>${esc(title)}</strong><div class="hint">${esc(how)}</div></div>
+      <button type="button" class="connect-addr" onclick="copyText(this.dataset.addr)" data-addr="${esc(addr)}"
+              title="${esc(t('ux.copy'))}">${esc(addr)}</button>
+    </div>`;
+  const rows = [];
+  if (s.streamProtocol !== 'WebRtc')
+    rows.push(row('moon', t('ux.connect.moonlight'), t('ux.connect.moonlightHow'),
+                  s.sunshineStreamPort === 47989 ? ip : `${ip}:${s.sunshineStreamPort}`));
+  if (s.streamProtocol !== 'Moonlight')
+    rows.push(row('web', t('ux.connect.webrtc'), t('ux.connect.webrtcHow'),
+                  s.webRtcPort === 8000 ? ip : `${ip}:${s.webRtcPort}`));
+  const others = addresses.slice(1);
+  box.innerHTML = `
+    <h4 class="dep-log-label">${esc(t('ux.connect.addTitle'))}</h4>
+    ${rows.join('')}
+    ${others.length ? `<div class="hint">${esc(t('ux.connect.otherIps', { ips: others.join(', ') }))}</div>` : ''}`;
+}
+
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); toast(t('ux.copied', { text })); }
+  catch { /* sin permiso de portapapeles (http sin localhost): se ve igualmente */ }
+}
+
+// ── Tarjeta de sesión: progreso, errores con acción y avisos de componentes ──
+const START_PHASES = ['user', 'rdp', 'profile', 'unlock', 'sunshine'];
+
+function startProgress(s) {
+  if (s.state !== 'Starting') return '';
+  const phase = s.startPhase || (s.local ? 'sunshine' : 'user');
+  const label = esc(t('ux.phase.' + phase));
+  if (s.local) return `<div class="start-steps" role="status"><div class="start-steps-label">${label}</div></div>`;
+  const idx = Math.max(0, START_PHASES.indexOf(phase));
+  const pct = Math.round(((idx + 0.5) / START_PHASES.length) * 100);
+  return `
+    <div class="start-steps" role="status">
+      <div class="start-steps-bar"><span style="width:${pct}%"></span></div>
+      <div class="start-steps-label">${label} <span class="start-steps-count">${idx + 1}/${START_PHASES.length}</span></div>
+    </div>`;
+}
+
+function errorBox(s) {
+  if (!s.errorMessage) return '';
+  // Mientras se reinicia sola (Sunshine caído) el mensaje informa; los botones, solo si se quedó en error.
+  const actions = s.state === 'Error' || s.state === 'Stopped' || s.state === 'Created'
+    ? `<div class="card-error-actions">
+         <button type="button" class="btn btn-ghost btn-xs" onclick="openSessionLog('${s.id}')">${esc(t('ux.viewLog'))}</button>
+         <button type="button" class="btn btn-ghost btn-xs" onclick="retrySession('${s.id}')">${esc(t('ux.retry'))}</button>
+       </div>` : '';
+  return `<div class="card-error" role="alert"><span>${esc(s.errorMessage)}</span>${actions}</div>`;
+}
+
+// Una sesión RDP necesita el multi-RDP: si falta, se dice en la tarjeta con su botón.
+function rdpWarning(s) {
+  if (s.local || !rdpLastStatus || rdpLastStatus.busy || rdpLastStatus.installed) return '';
+  return `<div class="card-warning card-warning-action">
+      <span>${esc(t(rdpLastStatus.wrapper ? 'ux.rdpBroken' : 'ux.rdpMissing'))}</span>
+      <button type="button" class="btn btn-ghost btn-xs" onclick="openRdpModal()">${esc(t('ux.review'))}</button>
+    </div>`;
+}
+
+function openSessionLog(id) {
+  const s = sessions.find(x => x.id === id);
+  if (s) openLogModal(s.id, s.name);
+}
+
+// Reintentar tras un error: reinicio completo sin pedir confirmación (no hay nada que cortar).
+async function retrySession(id) {
+  const res = await api('POST', `/api/sessions/${id}/restart`);
+  if (!res) return;
+  if (!res.ok) { toast(await res.text(), true); return; }
+  toast(t('toast.restarting'));
+  loadSessions();
+}
+
+// ── Primeros pasos (sin sesiones todavía) ─────────────────────────────────
+function onboardingHtml() {
+  const deps = [
+    { name: t('rdp.pill'), st: rdpLastStatus,            open: 'openRdpModal()' },
+    { name: 'ViGEmBus',    st: drivers.vigem.lastStatus,   open: "openDriverModal('vigem')" },
+    { name: 'HidHide',     st: drivers.hidhide.lastStatus, open: "openDriverModal('hidhide')" },
+  ];
+  const depsOk = deps.every(d => d.st && d.st.installed && !d.st.rebootRequired);
+  const depRow = d => {
+    const state = !d.st ? 'pending' : d.st.busy ? 'working' : d.st.rebootRequired ? 'reboot'
+                : d.st.installed ? 'ok' : 'missing';
+    return `<li class="dep-line dep-${state}">
+        <span class="dep-dot"></span><span>${esc(d.name)}</span>
+        <span class="dep-state">${esc(t('ux.dep.' + state))}</span>
+        ${state === 'missing' || state === 'reboot'
+          ? `<button type="button" class="btn btn-ghost btn-xs" onclick="${d.open}">${esc(t(state === 'missing' ? 'ux.install' : 'ux.review'))}</button>` : ''}
+      </li>`;
+  };
+  const step = (n, done, title, body) => `
+    <li class="onb-step${done ? ' done' : ''}">
+      <span class="onb-num">${done ? '✓' : n}</span>
+      <div class="onb-body"><div class="onb-title">${esc(title)}</div>${body}</div>
+    </li>`;
+  return `
+    <div class="onboarding" id="onboarding">
+      <div class="onb-head">
+        <div class="empty-icon">${uiIcon('screen')}</div>
+        <div><h2>${esc(t('ux.onb.title'))}</h2><p class="hint">${esc(t('ux.onb.subtitle'))}</p></div>
+      </div>
+      <ol class="onb-steps">
+        ${step(1, depsOk, t('ux.onb.step1'), `<p class="hint">${esc(t('ux.onb.step1Hint'))}</p><ul class="dep-lines">${deps.map(depRow).join('')}</ul>`)}
+        ${step(2, false, t('ux.onb.step2'), `<p class="hint">${esc(t('ux.onb.step2Hint'))}</p>
+            <button type="button" class="btn btn-primary btn-sm" onclick="openNewModal()">${esc(t('toolbar.newSession'))}</button>`)}
+        ${step(3, false, t('ux.onb.step3'), `<p class="hint">${esc(t('ux.onb.step3Hint'))}</p>`)}
+      </ol>
+    </div>`;
+}
+
+// ── Teclado: Esc cierra la ventana de arriba ──────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape' || menuEl || document.querySelector('.nav-pop:not(.hidden)')) return;
+  if (!byId('confirm-modal').classList.contains('hidden')) { closeModal('confirm-modal'); return; }
+  const open = [...document.querySelectorAll('.modal-backdrop:not(.hidden)')];
+  if (open.length) closeModal(open[open.length - 1].id);
+}, { capture: true });   // antes que el que cierra los menús: con un menú abierto, Esc solo cierra el menú
