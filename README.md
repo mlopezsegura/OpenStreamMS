@@ -82,6 +82,7 @@ Edit `service.config.json` in the install directory (created automatically on fi
   "RdpBackground":   true,
   "VddEnabled":      false,
   "ApiPort":         5000,
+  "LogLevel":        "Info",
   "AdminUsername":   "",
   "AdminPasswordHash": "",
   "AuthSecret":      ""
@@ -98,6 +99,7 @@ Edit `service.config.json` in the install directory (created automatically on fi
 | `VddEnabled` | `false` | Enable virtual display patch in Sunshine's `apps.json` |
 | `ApiPort` | `5000` | Port for the web dashboard and REST API |
 | `AdminUsername` | — | Web UI admin username (configured on first run) |
+| `LogLevel` | `Info` | Minimum log level for the service, tray icon, seats and Sunshine: `Info`, `Warning`, `Error` or `Off`. Also in the dashboard under **More → Settings** |
 
 ---
 

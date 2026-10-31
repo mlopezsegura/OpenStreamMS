@@ -10,6 +10,18 @@ namespace OpenStreamMS.Services
         Error
     }
 
+    /// <summary>
+    /// Nivel mínimo que se escribe. Global: lo fija el panel y vale para el servicio, la bandeja,
+    /// los agentes de puesto y Sunshine. <see cref="Off"/> no escribe nada, ni los errores.
+    /// </summary>
+    public enum LogThreshold
+    {
+        Info,
+        Warning,
+        Error,
+        Off
+    }
+
     public static class Logger
     {
         private static readonly string GlobalLogFile = Path.Combine(
@@ -17,6 +29,60 @@ namespace OpenStreamMS.Services
         private static string _globalLogFile = GlobalLogFile;
 
         private static readonly object _lock = new();
+
+        // ── Nivel mínimo ─────────────────────────────────────────────────────────
+        // El servicio lo fija al arrancar y al cambiarlo en el panel, y lo publica en el registro
+        // (HKLM\SOFTWARE\OpenStreamMS\LogLevel). Los demás procesos (bandeja, agentes y
+        // presentadores de puesto) no pueden leer service.config.json: lo leen de ahí, como
+        // mucho cada 10 s, así un cambio les llega sin reiniciarlos.
+        private const string RegistryKey   = @"SOFTWARE\OpenStreamMS";
+        private const string RegistryValue = "LogLevel";
+        private static LogThreshold _threshold = LogThreshold.Info;
+        private static bool _thresholdFixed;              // true en el servicio: manda su config
+        private static long _thresholdReadAt = long.MinValue;
+
+        /// <summary>Nivel mínimo actual.</summary>
+        public static LogThreshold Threshold
+        {
+            get
+            {
+                if (!_thresholdFixed && Environment.TickCount64 - _thresholdReadAt > 10_000)
+                {
+                    _thresholdReadAt = Environment.TickCount64;
+                    _threshold = ReadPublishedThreshold() ?? _threshold;
+                }
+                return _threshold;
+            }
+        }
+
+        /// <summary>Fija el nivel en este proceso y lo publica para los demás (solo el servicio).</summary>
+        public static void SetThreshold(LogThreshold threshold)
+        {
+            _threshold = threshold;
+            _thresholdFixed = true;
+            try
+            {
+                using var key = Microsoft.Win32.Registry.LocalMachine.CreateSubKey(RegistryKey);
+                key.SetValue(RegistryValue, threshold.ToString(), Microsoft.Win32.RegistryValueKind.String);
+            }
+            catch { /* sin permiso: los demás procesos se quedan con el último publicado */ }
+        }
+
+        /// <summary>Texto de configuración ("Info", "Warning", "Error", "Off") a nivel; null si no es válido.</summary>
+        public static LogThreshold? ParseThreshold(string? value) =>
+            Enum.TryParse<LogThreshold>(value?.Trim(), ignoreCase: true, out var t) && Enum.IsDefined(t) ? t : null;
+
+        private static LogThreshold? ReadPublishedThreshold()
+        {
+            try
+            {
+                using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(RegistryKey);
+                return ParseThreshold(key?.GetValue(RegistryValue) as string);
+            }
+            catch { return null; }
+        }
+
+        private static bool Enabled(LogLevel level) => (int)level >= (int)Threshold;
 
         // AsyncLocal permite que cada tarea en segundo plano tenga su propio contexto de sesión,
         // haciendo que todas las llamadas a Log() dentro de esa tarea también escriban al log
@@ -37,6 +103,7 @@ namespace OpenStreamMS.Services
 
         public static void Log(string message, LogLevel level, Guid? sessionId = null)
         {
+            if (!Enabled(level)) return;
             string line = $"[{DateTime.Now:HH:mm:ss.fff}] [{FormatLevel(level)}] {message}";
             if (level == LogLevel.Error)
                 Console.Error.WriteLine(line);

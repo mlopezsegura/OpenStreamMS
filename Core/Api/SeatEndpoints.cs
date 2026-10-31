@@ -66,7 +66,7 @@ public static class SeatEndpoints
                  catch (InvalidOperationException ex) { return Results.BadRequest(ex.Message); }
                  catch (ArgumentException ex) { return Results.BadRequest(ex.Message); }
              })
-             .WithSummary("Edita un puesto (debe estar detenido).");
+             .WithSummary("Edita un puesto. Encendido solo admite cambiar el nombre y el autoarranque.");
 
         group.MapPatch("/{id:guid}/autostart", (Guid id, SetEnabledRequest req, SeatManager mgr) =>
              {

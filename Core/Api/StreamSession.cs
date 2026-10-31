@@ -165,4 +165,9 @@ public class StreamSession
     public DateTime?    StartedAt       { get; set; }
     public DateTime?    StoppedAt       { get; set; }
     public string?      ErrorMessage    { get; set; }
+    /// <summary>
+    /// Paso del arranque en curso, para el panel: "user", "rdp", "profile", "unlock", "sunshine".
+    /// Null fuera del arranque. No se persiste.
+    /// </summary>
+    public string?      StartPhase      { get; set; }
 }

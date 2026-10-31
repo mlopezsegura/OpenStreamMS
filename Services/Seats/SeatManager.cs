@@ -137,9 +137,18 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
     public Seat Update(Guid id, Seat changes)
     {
         var seat = Require(id);
-        if (seat.State == SeatState.Running)
-            throw new InvalidOperationException("Detén el puesto antes de editarlo.");
         if (string.IsNullOrWhiteSpace(changes.Name)) throw new ArgumentException("El puesto necesita un nombre.");
+        if (seat.State is SeatState.Running or SeatState.Starting)
+        {
+            // Encendido solo se cambia lo que no toca el hardware ni la sesión: nombre y autoarranque.
+            if (!SameHardware(seat, changes))
+                throw new InvalidOperationException("Detén el puesto antes de cambiar su pantalla, audio, dispositivos o sesión.");
+            if (changes.AutoStart && UsesConsoleUser(seat.SessionId)) throw new ArgumentException(ConsoleUserAutoStartError);
+            seat.Name      = changes.Name;
+            seat.AutoStart = changes.AutoStart;
+            Save();
+            return seat;
+        }
         Validate(changes, id);
         seat.Name             = changes.Name;
         seat.Monitor          = changes.Monitor;
@@ -151,6 +160,20 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
         seat.ExclusiveSession = changes.ExclusiveSession;
         Save();
         return seat;
+    }
+
+    /// <summary>Misma pantalla, audio, dispositivos, sesión y modo exclusivo: lo que exige apagar el puesto para cambiarlo.</summary>
+    private static bool SameHardware(Seat a, Seat b)
+    {
+        static string Monitor(SeatMonitor? m) =>
+            m is null ? "" : $"{m.DevicePath}|{m.Area}|{m.Width}|{m.Height}|{m.RefreshHz}";
+        static string Devices(Seat s) =>
+            string.Join(",", s.Devices.Select(d => $"{d.Kind}:{d.UsbPort}").OrderBy(x => x, StringComparer.Ordinal));
+        return Monitor(a.Monitor) == Monitor(b.Monitor) &&
+               (a.AudioOutId ?? "") == (b.AudioOutId ?? "") &&
+               Devices(a) == Devices(b) &&
+               a.SessionId == b.SessionId &&
+               a.ExclusiveSession == b.ExclusiveSession;
     }
 
     /// <summary>El autoarranque solo afecta al próximo arranque del servicio: se puede cambiar con el puesto encendido.</summary>

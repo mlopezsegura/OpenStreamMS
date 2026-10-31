@@ -103,6 +103,7 @@ switch (command)
 static async Task RunService(string[] args)
 {
     var config = ServiceConfig.Load();
+    Logger.SetThreshold(config.LogThreshold);
 
     // Secretos fuera del alcance de los demás usuarios del equipo (puestos, sesiones de streaming).
     SecureFile.RestrictToAdmins(ServiceConfig.FilePath);
@@ -304,6 +305,9 @@ static async Task RunService(string[] args)
     // ── Power API ─────────────────────────────────────────────────────────────
     app.MapPowerApi();
 
+    // ── Ajustes globales (nivel de log) y datos de red ───────────────────────
+    app.MapSettingsApi();
+
     Logger.Log($"[Service] Web disponible en http://localhost:{config.ApiPort}");
     Logger.Log($"[Service] API docs en http://localhost:{config.ApiPort}/scalar/v1");
 
@@ -342,11 +346,12 @@ static bool IsTrayRequest(HttpContext ctx)
 {
     if (!ctx.Request.Headers.ContainsKey(TrayApp.LocalHeader)) return false;
     var segments = (ctx.Request.Path.Value ?? "").Trim('/').ToLowerInvariant().Split('/');
-    // GET /api/sessions  ·  GET /api/sessions/pairings (aviso de emparejamiento)  ·  POST /api/sessions/{id}/start|stop
-    return segments is ["api", "sessions"] or ["api", "sessions", "pairings"]
+    // GET /api/sessions  ·  GET /api/sessions/pairings (aviso de emparejamiento)  ·  GET /api/seats
+    // POST /api/sessions/{id}/start|stop  ·  POST /api/seats/{id}/start|stop
+    return segments is ["api", "sessions"] or ["api", "sessions", "pairings"] or ["api", "seats"]
         ? HttpMethods.IsGet(ctx.Request.Method)
         : HttpMethods.IsPost(ctx.Request.Method) &&
-          segments is ["api", "sessions", var id, "start" or "stop"] && Guid.TryParse(id, out _);
+          segments is ["api", "sessions" or "seats", var id, "start" or "stop"] && Guid.TryParse(id, out _);
 }
 
 /// <summary>
@@ -603,5 +608,6 @@ static void PrintHelp()
           RdpBackground    — true para ocultar la ventana RDP (producción)
           ApiPort          — puerto del servidor web/API (defecto: 5000)
           AdminUsername    — usuario del panel web (se configura en el primer arranque)
+          LogLevel         — Info, Warning, Error u Off (también en el panel: Más → Ajustes)
         """);
 }

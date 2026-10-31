@@ -216,7 +216,9 @@ public record SessionResponse(
     DateTime     CreatedAt,
     DateTime?    StartedAt,
     DateTime?    StoppedAt,
-    string?      ErrorMessage
+    string?      ErrorMessage,
+    /// <summary>Paso del arranque en curso (user, rdp, profile, unlock, sunshine); null fuera del arranque.</summary>
+    string?      StartPhase
 );
 
 /// <summary>Respuesta con las últimas líneas del log de una sesión.</summary>
@@ -851,5 +853,6 @@ public static class SessionEndpoints
         s.SunshineAuthUser, s.SunshineAuthPass, s.RotateSunshineCredentials,
         s.Isolated, s.IsolatedEphemeral, s.Local,
         s.State, s.RdpSessionId, s.SunshinePid,
-        s.CreatedAt, s.StartedAt, s.StoppedAt, s.ErrorMessage);
+        s.CreatedAt, s.StartedAt, s.StoppedAt, s.ErrorMessage,
+        s.State == SessionState.Starting ? s.StartPhase : null);
 }
