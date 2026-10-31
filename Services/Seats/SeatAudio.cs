@@ -2,9 +2,26 @@ using NAudio.CoreAudioApi;
 
 namespace OpenStreamMS.Services.Seats;
 
-/// <summary>Enumeración de dispositivos de salida de audio para asignarlos a un puesto.</summary>
+/// <summary>Enumeración de dispositivos de audio (salidas y micrófonos) para asignarlos a un puesto.</summary>
 public static class SeatAudio
 {
+    /// <summary>Micrófonos activos: (id MMDevice, nombre amigable).</summary>
+    public static IReadOnlyList<(string Id, string Name)> Inputs()
+    {
+        try
+        {
+            using var mm = new MMDeviceEnumerator();
+            return mm.EnumerateAudioEndPoints(DataFlow.Capture, DeviceState.Active)
+                     .Select(d => (d.ID, d.FriendlyName))
+                     .ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"[Seats] No se pudieron enumerar los micrófonos: {ex.Message}");
+            return [];
+        }
+    }
+
     /// <summary>Dispositivos de salida activos: (id MMDevice, nombre amigable).</summary>
     public static IReadOnlyList<(string Id, string Name)> Outputs()
     {

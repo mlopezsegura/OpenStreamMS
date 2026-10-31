@@ -380,7 +380,10 @@ public class StreamSessionService
     /// Vuelve a conectar la sesión RDP con otra resolución y frecuencia (las de un puesto
     /// local, o las propias de la sesión al liberarlo). Bloquea ~1-2 s.
     /// </summary>
-    public void ReconnectRdp(Guid id, int width, int height, int frameRate)
+    /// <param name="microphone">
+    /// Id de endpoint del micrófono que se redirige a la sesión (el de un puesto local); null, ninguno.
+    /// </param>
+    public void ReconnectRdp(Guid id, int width, int height, int frameRate, string? microphone = null)
     {
         var session = RequireSession(id);
         if (session.State != SessionState.Running || session.RdpSessionId == 0 || session.Local)
@@ -390,13 +393,15 @@ public class StreamSessionService
         var rdpId = RdpSessionCreator.Reconnect(user, session.RdpSessionId, width, height,
                                                 frameRate, session.RdpColorDepth, out int clientPid,
                                                 preferMstsc: !string.Equals(_defaultConfig.RdpClient, "freerdp", StringComparison.OrdinalIgnoreCase),
-                                                remoteIdd: UsesRemoteIdd(session));
+                                                remoteIdd: UsesRemoteIdd(session),
+                                                microphone: microphone);
         session.RdpSessionId = rdpId;
         session.FreeRdpPid   = clientPid;
         // El audio sale por el cliente RDP del host: el nuevo cliente también se silencia.
         if (clientPid > 0) AudioSessionMuter.StartPersistentMute((uint)clientPid);
         RdpSessionCreator.ApplyDisplayFrequency(rdpId, frameRate);
-        Logger.Log($"[{session.Name}] Pantalla RDP: {width}x{height} @ {frameRate} fps.", id);
+        Logger.Log($"[{session.Name}] Pantalla RDP: {width}x{height} @ {frameRate} fps" +
+                   (microphone is null ? "." : $", micrófono '{microphone}'."), id);
     }
 
     /// <summary>Usuario de Windows de la sesión (el dedicado si está aislada).</summary>

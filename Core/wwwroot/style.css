@@ -1440,3 +1440,6 @@ section#view-sessions, section#view-seats { animation: viewIn .35s var(--ease); 
 
 #log-level-note { display: flex; align-items: center; justify-content: space-between; gap: .75rem; margin: 0 0 .7rem; }
 #log-level-note.hidden { display: none; }
+
+/* Micrófono del puesto: se elige en el editor, la ficha es informativa. */
+.hw-mic .seat-icon { color: #f472b6; }

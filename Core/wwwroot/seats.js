@@ -5,7 +5,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 let seats         = [];
-let seatInventory = { monitors: [], audioOutputs: [], devices: [] };
+let seatInventory = { monitors: [], audioOutputs: [], audioInputs: [], devices: [] };
 let seatTimer     = null;
 let activeTab     = 'sessions';
 let editingSeat   = null;   // puesto abierto en el modal (null = nuevo)
@@ -63,6 +63,7 @@ const SEAT_ICON_PATHS = {
   Mouse:    '<rect x="6" y="2" width="12" height="20" rx="6"/><path d="M12 6v4"/>',
   Gamepad:  '<path d="M6 11h4M8 9v4M15 12h.01M18 10h.01"/><path d="M17.3 5H6.7a4 4 0 0 0-3.9 3.2l-1 5.2A3 3 0 0 0 7 16.8L8.6 15h6.8l1.6 1.8a3 3 0 0 0 5.2-3.4l-1-5.2A4 4 0 0 0 17.3 5z"/>',
   Audio:    '<path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/>',
+  Mic:      '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4M8 22h8"/>',
 };
 
 function seatIcon(name) {
@@ -97,9 +98,17 @@ function hwChip(kind, id, label, from, draggable) {
     </span>`;
 }
 
+// El micrófono se elige en el editor (no se arrastra): ficha solo informativa.
+function micChip(s) {
+  const label = s.audioInName || s.audioInId;
+  return `<span class="hw-chip hw-mic" title="${esc(t('seat.micLabel'))}: ${esc(label)}">
+      ${seatIcon('Mic')}<span class="hw-label">${esc(label)}</span></span>`;
+}
+
 function renderSeatHardware(s, locked) {
   const chips = [
     ...(s.audioOutId ? [hwChip('Audio', s.audioOutId, s.audioOutName || s.audioOutId, s.id, !locked)] : []),
+    ...(s.audioInId ? [micChip(s)] : []),
     ...SEAT_KINDS.flatMap(k => s.devices.filter(d => d.kind === k).map(d => hwChip(k, d.usbPort, d.label, s.id, !locked))),
   ];
   return `
@@ -196,6 +205,7 @@ async function saveSeatHardware(original, s) {
   const res = await api('PUT', `/api/seats/${original.id}`, {
     name: s.name, sessionId: s.sessionId, monitor: s.monitor,
     audioOutId: s.audioOutId, audioOutName: s.audioOutName,
+    audioInId: s.audioInId, audioInName: s.audioInName,
     devices: s.devices, exclusiveSession: s.exclusiveSession, autoStart: s.autoStart,
   });
   if (res && res.ok) { Object.assign(original, s); return true; }
@@ -503,6 +513,7 @@ async function openSeatModal(id, preset) {
     monitor: seat && seat.monitor ? seat.monitor.devicePath : (preset && preset.monitor) || '',
     area:    seat && seat.monitor ? (seat.monitor.area || 'Full') : (preset && preset.area) || 'Full',
     audio:   seat ? (seat.audioOutId || '') : '',
+    mic:     seat ? (seat.audioInId || '') : '',
     devices: new Set((seat ? seat.devices : []).map(d => d.usbPort)),
   });
   show('seat-modal');
@@ -561,7 +572,7 @@ function stopIdentify() {
 
 async function loadSeatInventory() {
   const res = await api('GET', '/api/seats/inventory' + (editingSeat ? `?seatId=${editingSeat.id}` : ''));
-  seatInventory = res && res.ok ? await res.json() : { monitors: [], audioOutputs: [], devices: [] };
+  seatInventory = res && res.ok ? await res.json() : { monitors: [], audioOutputs: [], audioInputs: [], devices: [] };
 }
 
 // Vuelve a buscar monitores y dispositivos (p. ej. tras enchufar un teclado) sin perder lo elegido.
@@ -571,6 +582,7 @@ async function refreshSeatInventory() {
     monitor: f.Monitor.value,
     area:    f.Area.value || 'Full',
     audio:   f.AudioOut.value,
+    mic:     f.AudioIn.value,
     devices: new Set([...document.querySelectorAll('#seat-devices input:checked')].map(c => c.value)),
   };
   const btn = document.getElementById('seat-refresh');
@@ -606,6 +618,13 @@ function renderSeatInventory(sel) {
     outs.push({ id: seat.audioOutId, name: seat.audioOutName || seat.audioOutId });
   fillSelect('seat-audio', [{ v: '', label: t('seat.noAudio') },
     ...outs.map(o => ({ v: o.id, label: o.name }))], sel.audio);
+
+  // Micrófonos: los libres más el del puesto (aunque ahora no esté conectado).
+  const mics = [...(seatInventory.audioInputs || [])];
+  if (seat && seat.audioInId && !mics.some(o => o.id === seat.audioInId))
+    mics.push({ id: seat.audioInId, name: `${seat.audioInName || seat.audioInId} (${t('seat.micMissing')})` });
+  fillSelect('seat-mic', [{ v: '', label: t('seat.noMic') },
+    ...mics.map(o => ({ v: o.id, label: o.name }))], sel.mic || '');
   updateSeatTestButtons();
 
   // Dispositivos: los libres más los que ya tiene el puesto, agrupados por tipo.
@@ -763,6 +782,12 @@ async function submitSeat(e) {
                      width, height, refreshHz: hz, area: f.Area.value || 'Full' } : null,
     audioOutId: f.AudioOut.value || null,
     audioOutName: f.AudioOut.value ? audioOpt.textContent : null,
+    audioInId: f.AudioIn.value || null,
+    // El nombre guardado es el del dispositivo, sin el "(no conectado)" que se le añade en la lista.
+    audioInName: f.AudioIn.value
+      ? ((seatInventory.audioInputs || []).find(o => o.id === f.AudioIn.value)?.name
+         || (editingSeat && editingSeat.audioInName) || f.AudioIn.selectedOptions[0].textContent)
+      : null,
     devices: [...document.querySelectorAll('#seat-devices input:checked')].map(c => ({
       kind: c.dataset.kind, usbPort: c.value, label: c.dataset.name })),
     exclusiveSession: f.ExclusiveSession.checked,
@@ -806,6 +831,7 @@ function hardwareChanged(seat, body) {
   const devs = list => (list || []).map(d => `${d.kind}:${d.usbPort}`).sort().join(',');
   return mon(seat.monitor) !== mon(body.monitor) ||
          (seat.audioOutId || '') !== (body.audioOutId || '') ||
+         (seat.audioInId || '') !== (body.audioInId || '') ||
          devs(seat.devices) !== devs(body.devices) ||
          (seat.sessionId || null) !== (body.sessionId || null) ||
          !!seat.exclusiveSession !== !!body.exclusiveSession;
@@ -842,6 +868,7 @@ function updateSeatPreview() {
   if (f.SessionId.value) chips.push(`<span class="chip chip-moonlight">${uiIcon('screen')}${esc(sessionOpt.textContent)}</span>`);
   if (mon) chips.push(`<span class="chip">${esc(mon.friendlyName)} · ${esc(t('seat.area.' + area))}</span>`);
   if (f.AudioOut.value) chips.push(`<span class="chip hw-audio">${seatIcon('Audio')}${esc(f.AudioOut.selectedOptions[0].textContent)}</span>`);
+  if (f.AudioIn.value) chips.push(`<span class="chip hw-mic">${seatIcon('Mic')}${esc(f.AudioIn.selectedOptions[0].textContent)}</span>`);
   for (const k of SEAT_KINDS) {
     const n = devices.filter(d => d === k).length;
     if (n) chips.push(`<span class="chip hw-${k.toLowerCase()}">${seatIcon(k)}${n > 1 ? `×${n}` : esc(t('seat.kind.' + k))}</span>`);

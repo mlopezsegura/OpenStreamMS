@@ -11,18 +11,21 @@ public record SeatDeviceDto(SeatDeviceKind Kind, string UsbPort, string Label);
 public record SeatDto(
     Guid Id, string Name, SeatMonitorDto? Monitor, string? AudioOutId, string? AudioOutName,
     List<SeatDeviceDto> Devices, Guid? SessionId, bool AutoStart, bool ExclusiveSession,
-    string State, string? StatusDetail, string? ErrorMessage);
+    string State, string? StatusDetail, string? ErrorMessage,
+    string? AudioInId = null, string? AudioInName = null);
 
 public record SeatUpsertRequest(
     string Name, SeatMonitorDto? Monitor, string? AudioOutId, string? AudioOutName,
-    List<SeatDeviceDto>? Devices, Guid? SessionId, bool AutoStart = true, bool ExclusiveSession = true);
+    List<SeatDeviceDto>? Devices, Guid? SessionId, bool AutoStart = true, bool ExclusiveSession = true,
+    string? AudioInId = null, string? AudioInName = null);
 
 /// <param name="Primary">Monitor principal de la consola: solo admite puestos en pantalla dividida.</param>
 public record MonitorDto(string DevicePath, string FriendlyName, bool Active, int Width, int Height, bool Primary);
 public record AudioOutputDto(string Id, string Name);
 public record InputDeviceDto(string Kind, string UsbPort, string Name);
 public record IdentifyRequest(string Id);
-public record InventoryResponse(List<MonitorDto> Monitors, List<AudioOutputDto> AudioOutputs, List<InputDeviceDto> Devices);
+public record InventoryResponse(List<MonitorDto> Monitors, List<AudioOutputDto> AudioOutputs, List<InputDeviceDto> Devices,
+                                List<AudioOutputDto> AudioInputs);
 
 /// <summary>Endpoints REST de los puestos locales. Mismo estilo que <see cref="SessionEndpoints"/>.</summary>
 public static class SeatEndpoints
@@ -37,8 +40,9 @@ public static class SeatEndpoints
         group.MapGet("/inventory", (SeatManager mgr, Guid? seatId) => TypedResults.Ok(new InventoryResponse(
                 mgr.AvailableMonitors().Select(m => new MonitorDto(m.DevicePath, m.FriendlyName, m.Active, m.Width, m.Height, mgr.IsConsoleMonitor(m))).ToList(),
                 mgr.AvailableAudioOutputs().Select(a => new AudioOutputDto(a.Id, a.Name)).ToList(),
-                mgr.AvailableInputDevices(seatId).Select(d => new InputDeviceDto(d.Kind.ToString(), d.UsbPort, d.Name)).ToList())))
-             .WithSummary("Monitores, salidas de audio y dispositivos USB libres para asignar a un puesto " +
+                mgr.AvailableInputDevices(seatId).Select(d => new InputDeviceDto(d.Kind.ToString(), d.UsbPort, d.Name)).ToList(),
+                mgr.AvailableAudioInputs(seatId).Select(a => new AudioOutputDto(a.Id, a.Name)).ToList())))
+             .WithSummary("Monitores, salidas de audio, micrófonos y dispositivos USB libres para asignar a un puesto " +
                           "(con ?seatId= se incluyen también los de ese puesto).");
 
         // Identificar el hardware al configurar un puesto (ver SeatIdentify).
@@ -109,6 +113,8 @@ public static class SeatEndpoints
         } : null;
         seat.AudioOutId = req.AudioOutId;
         seat.AudioOutName = req.AudioOutName;
+        seat.AudioInId = string.IsNullOrWhiteSpace(req.AudioInId) ? null : req.AudioInId;
+        seat.AudioInName = seat.AudioInId is null ? null : req.AudioInName;
         seat.Devices = req.Devices?.Select(d => new SeatDevice { Kind = d.Kind, UsbPort = d.UsbPort, Label = d.Label }).ToList() ?? [];
         seat.SessionId = req.SessionId;
         seat.AutoStart = req.AutoStart;
@@ -122,5 +128,6 @@ public static class SeatEndpoints
         s.AudioOutId, s.AudioOutName,
         s.Devices.Select(d => new SeatDeviceDto(d.Kind, d.UsbPort, d.Label)).ToList(),
         s.SessionId, s.AutoStart, s.ExclusiveSession,
-        s.State.ToString(), s.StatusDetail, s.ErrorMessage);
+        s.State.ToString(), s.StatusDetail, s.ErrorMessage,
+        s.AudioInId, s.AudioInName);
 }

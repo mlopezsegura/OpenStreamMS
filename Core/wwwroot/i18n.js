@@ -1692,6 +1692,10 @@ const MESSAGES = {
 // ── Textos de la ventana de sesión unificada, ajustes, conexión y primeros pasos ──
 // Van aparte para no mezclarlos con el bloque de cada idioma; sustituyen a los que repiten clave.
 Object.assign(MESSAGES.en, {
+  'seat.micLabel': 'Microphone',
+  'seat.noMic': 'No microphone',
+  'seat.micMissing': 'not connected',
+  'seat.micHint': 'Inside the session it shows up as the "Remote Audio" microphone.',
   'log.levelNote': 'Log level: {level}. Only part of what happens is saved; for a full log pick Info.',
   'rdp.state.pending': 'Installed',
   'rdp.pendingFirstUse': 'Installed. It turns on by itself with the first RDP session; there is nothing else to do.',
@@ -1793,6 +1797,10 @@ Object.assign(MESSAGES.en, {
 });
 
 Object.assign(MESSAGES.es, {
+  'seat.micLabel': 'Micrófono',
+  'seat.noMic': 'Sin micrófono',
+  'seat.micMissing': 'no conectado',
+  'seat.micHint': 'Dentro de la sesión aparece como el micrófono «Remote Audio».',
   'log.levelNote': 'Nivel de log: {level}. Solo se guarda parte de lo que pasa; para verlo todo, elige Info.',
   'rdp.state.pending': 'Instalado',
   'rdp.pendingFirstUse': 'Instalado. Se activa solo con la primera sesión RDP; no hay que hacer nada más.',
@@ -1894,6 +1902,10 @@ Object.assign(MESSAGES.es, {
 });
 
 Object.assign(MESSAGES.fr, {
+  'seat.micLabel': 'Microphone',
+  'seat.noMic': 'Pas de microphone',
+  'seat.micMissing': 'non connecté',
+  'seat.micHint': 'Dans la session, il apparaît comme le microphone « Remote Audio ».',
   'log.levelNote': 'Niveau de log : {level}. Seule une partie de ce qui se passe est enregistrée ; pour tout voir, choisissez Info.',
   'rdp.state.pending': 'Installé',
   'rdp.pendingFirstUse': 'Installé. Il s’active tout seul avec la première session RDP ; rien d’autre à faire.',
@@ -1995,6 +2007,10 @@ Object.assign(MESSAGES.fr, {
 });
 
 Object.assign(MESSAGES.pt, {
+  'seat.micLabel': 'Microfone',
+  'seat.noMic': 'Sem microfone',
+  'seat.micMissing': 'não ligado',
+  'seat.micHint': 'Dentro da sessão aparece como o microfone «Remote Audio».',
   'log.levelNote': 'Nível de log: {level}. Só se guarda parte do que acontece; para ver tudo, escolha Info.',
   'rdp.state.pending': 'Instalado',
   'rdp.pendingFirstUse': 'Instalado. Ativa-se sozinho com a primeira sessão RDP; não é preciso fazer mais nada.',
