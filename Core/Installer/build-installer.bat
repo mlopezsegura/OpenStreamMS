@@ -56,6 +56,22 @@ if errorlevel 1 (
 )
 
 :: ── Compilar instalador ──────────────────────────────────────────────────────
+:: Driver de pantalla de los puestos (RemoteIdd): compilado, probado y firmado aquí, con un
+:: certificado de prueba de un solo uso (ver package-remoteidd.ps1). Va siempre en el
+:: instalador; instalarlo es una tarea que se puede desmarcar.
+echo [2d/3] Compilando y firmando RemoteIdd...
+set RIDD_NOPERF=1
+call "%~dp0..\..\Native\RemoteIdd\build.cmd"
+if errorlevel 1 (
+    echo ERROR: no se pudo compilar Native\RemoteIdd.
+    exit /b 1
+)
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0package-remoteidd.ps1" -Bin "%~dp0..\..\Native\RemoteIdd\bin" -OutDir "%PUBLISH_DIR%\remoteidd-pkg"
+if errorlevel 1 (
+    echo ERROR: no se pudo preparar el paquete de RemoteIdd.
+    exit /b 1
+)
+
 echo [3/3] Compilando instalador con Inno Setup...
 if not exist %ISCC% (
     echo ERROR: No se encontro Inno Setup en %ISCC%

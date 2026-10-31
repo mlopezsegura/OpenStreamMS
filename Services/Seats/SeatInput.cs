@@ -41,6 +41,9 @@ internal static class SeatInputRouter
 
     private const int ShieldSize = 8;
 
+    /// <summary>El escudo tiene el cursor de la consola congelado (ver <see cref="ConsoleShare"/>).</summary>
+    public static bool CursorFrozen => Volatile.Read(ref _frozen);
+
     /// <summary>Eventos enviados a los puestos desde que arrancó el proceso (diagnóstico).</summary>
     public static int Routed;
     private const uint WM_APP_STOP = 0x8001;
@@ -262,7 +265,7 @@ internal static class SeatInputRouter
         if (_frozen)
         {
             _frozen = false;
-            Native.ClipCursor(IntPtr.Zero);
+            ConsoleShare.ReleaseClip();   // libre, o en su mitad si comparte el monitor principal
         }
         if (_shielded)
         {

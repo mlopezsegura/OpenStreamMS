@@ -61,7 +61,12 @@ switch (command)
             Console.Error.WriteLine("ERROR: Falta el nombre de la tubería para --seat-agent.");
             Environment.Exit(1);
         }
-        Environment.Exit(OpenStreamMS.Services.Seats.SeatAgent.Run(args[1]));
+        {
+            // Opcionales: --output \\.\DISPLAYn (salida a capturar) y --no-audio (mitad de la consola).
+            int outIdx = Array.IndexOf(args, "--output");
+            string? output = outIdx > 0 && outIdx + 1 < args.Length ? args[outIdx + 1] : null;
+            Environment.Exit(OpenStreamMS.Services.Seats.SeatAgent.Run(args[1], output, audio: !args.Contains("--no-audio")));
+        }
         break;
     case "--seat-host":
         // Puestos locales: presentador en la sesión de consola
@@ -584,7 +589,8 @@ static void PrintHelp()
                                                (ProgramData, usuarios osms-, perfiles de stream, temporales)
           OpenStreamMS.exe --tray              Mostrar icono en la bandeja del sistema
           OpenStreamMS.exe --open              Abrir el panel en su ventana (y la bandeja)
-          OpenStreamMS.exe --seat-agent <pipe> Ejecutar agente de puesto en la sesión
+          OpenStreamMS.exe --seat-agent <pipe> [--output \\.\DISPLAYn] [--no-audio]
+                                               Ejecutar agente de puesto en la sesión
           OpenStreamMS.exe --seat-host <pipe>  Ejecutar presentador de puesto en la consola
           OpenStreamMS.exe --help              Mostrar esta ayuda
 

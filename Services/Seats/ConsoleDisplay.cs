@@ -25,7 +25,12 @@ public static class ConsoleDisplay
     public static bool Deactivate(string devicePath) =>
         Run<bool>("deactivate", devicePath);
 
-    private static T? Run<T>(string command, string? devicePath = null)
+    /// <param name="id">Ruta del monitor o <c>target:&lt;adaptador&gt;:&lt;target&gt;</c> (ver <see cref="DisplayTopology.Find"/>).</param>
+    /// <param name="gatherFrom">Monitor cuyas ventanas pasan al nuevo principal (el físico que queda tapado).</param>
+    public static bool MakePrimary(string id, string? gatherFrom = null) =>
+        gatherFrom is null ? Run<bool>("primary", id) : Run<bool>("primary", id, gatherFrom);
+
+    private static T? Run<T>(string command, params string[] ids)
     {
         if (!ConsoleSession.TryGetUser(out var consoleId, out _, out _))
         {
@@ -36,7 +41,7 @@ public static class ConsoleDisplay
         var outFile = Path.Combine(Dir, $"{Guid.NewGuid():N}.json");
         try
         {
-            var args = $"--display {command} \"{outFile}\"" + (devicePath is null ? "" : $" \"{devicePath}\"");
+            var args = $"--display {command} \"{outFile}\"" + string.Concat(ids.Select(id => $" \"{id}\""));
             new ProcessInSession().LaunchInSession(consoleId, Environment.ProcessPath!, args,
                                                    waitForExit: true, waitTimeoutMs: 15000);
             if (!File.Exists(outFile))
@@ -74,7 +79,24 @@ public static class ConsoleDisplay
     }
 
     /// <summary>
-    /// Lado de la consola: <c>OpenStreamMS.exe --display list|activate|deactivate &lt;out&gt; [devicePath]</c>.
+    /// Hace principal a <paramref name="id"/> y le lleva las ventanas de <paramref name="gatherFrom"/>,
+    /// anotadas antes del cambio (ver <see cref="ConsoleWindows"/>).
+    /// </summary>
+    private static bool MakePrimaryAndGather(string id, string? gatherFrom)
+    {
+        var from = gatherFrom is null ? null : DisplayTopology.Find(gatherFrom);
+        var windows = from is { Active: true, Width: > 0 } ? ConsoleWindows.On(ConsoleWindows.Area.Of(from)) : [];
+        if (!DisplayTopology.MakePrimary(id)) return false;
+        if (windows.Count == 0 || DisplayTopology.Find(id) is not { Active: true, Width: > 0 } to) return true;
+
+        var (moved, failed) = ConsoleWindows.Move(windows, ConsoleWindows.Area.Of(from!), ConsoleWindows.Area.Of(to));
+        Logger.Log($"[Seats] Ventanas de la consola llevadas a la pantalla nueva: {moved}" +
+                   (failed.Count > 0 ? $"; no se pudieron mover: {string.Join(", ", failed.Select(ConsoleWindows.Describe))}." : "."));
+        return true;
+    }
+
+    /// <summary>
+    /// Lado de la consola: <c>OpenStreamMS.exe --display list|activate|deactivate|primary &lt;out&gt; [devicePath] [gatherFrom]</c>.
     /// </summary>
     public static int RunCommand(string[] args)
     {
@@ -86,6 +108,7 @@ public static class ConsoleDisplay
             "list"       => DisplayTopology.Enumerate(),
             "activate"   => devicePath is not null && DisplayTopology.Activate(devicePath),
             "deactivate" => devicePath is not null && DisplayTopology.Deactivate(devicePath),
+            "primary"    => devicePath is not null && MakePrimaryAndGather(devicePath, args.Length > 4 ? args[4] : null),
             _            => false,
         };
         File.WriteAllText(outFile, JsonSerializer.Serialize(result));

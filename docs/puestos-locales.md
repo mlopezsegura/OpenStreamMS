@@ -18,6 +18,47 @@ si fuera un PC independiente. Varias personas pueden usar el mismo PC a la vez.
 | Audio | Loopback de "Audio remoto" → salida del puesto | ~70 ms con búferes de 10 ms |
 | Consola | Solo anfitriona (usuario técnico, autologon) | Recomendado; con WinUSB los periféricos del puesto ya no llegan a la consola |
 
+## Pantalla dividida
+
+Hasta cuatro puestos comparten un monitor, que funciona como una cuadrícula de 2×2:
+`SeatMonitor.Area` es `Full`, una mitad (`Left`/`Right`, `Top`/`Bottom`) o un cuarto
+(`TopLeft`…`BottomRight`). `SeatAreas` traduce cada parte a sus celdas.
+
+- **Validación**: dos puestos chocan si comparten alguna celda (`SeatMonitor.Overlaps`).
+- **Resolución**: sin resolución fijada, la sesión toma el tamaño de su parte del modo
+  actual del monitor (`SeatMonitor.Region`); una resolución fijada es la de la sesión.
+- **Presentador**: la ventana de cada puesto ocupa solo su mitad. Con dos ventanas en el
+  mismo monitor DWM compone en vez de hacer *flip* directo: cuenta con ~1 fotograma más.
+- **Monitor**: se activa con el primer puesto y solo se saca del escritorio cuando se
+  apaga el último que lo usa. En una parte sin puesto se ve el escritorio de la consola.
+- **Driver RemoteIdd**: anuncia cada modo base también partido en mitades y cuartos
+  (`AllModes`); un modo que no esté en la lista no llega a la sesión.
+- **Panel**: la pestaña Puestos dibuja cada monitor con sus partes (mapa) y el hardware de
+  cada puesto; teclados, ratones, mandos y salidas de audio se asignan arrastrándolos a un
+  puesto apagado o a la bandeja «sin asignar».
+- **Cambio de modo del monitor**: cada mitad se reajusta por su cuenta, como un puesto normal.
+- **Monitor principal** (activo en 0,0): admite puestos solo en una mitad, nunca entero.
+  Con un solo puesto, la consola se queda la otra mitad **con un escritorio de ese tamaño**
+  (`SeatManager`, "mitad de la consola"):
+  1. Se crea una pantalla virtual SudoVDA (`VirtualDisplay`) del tamaño de la mitad y a la
+     frecuencia del monitor. El servicio la mantiene con pings; si se cae, el driver la quita sola.
+  2. Se hace principal (`DisplayTopology.MakePrimary`, que desplaza todas las pantallas a la
+     vez) y las ventanas de la consola pasan del monitor físico a ella (`ConsoleWindows`).
+  3. Un agente como SYSTEM en la consola la captura (`--seat-agent --output \\.\DISPLAYn
+     --no-audio`; SYSTEM para ver también el UAC) y el presentador la pinta en la mitad libre,
+     igual que un puesto. El cursor de la consola se encierra en la pantalla virtual
+     (`ConsoleShare.SetVirtual`, reaplicado en el bucle del presentador).
+  4. Al apagar el puesto, el físico vuelve a ser principal y se quita la pantalla virtual;
+     Windows devuelve sus ventanas al físico. Si después se enciende un puesto en la otra mitad,
+     la consola queda detrás solo como anfitriona; al apagarlo, recupera su mitad.
+
+  Sin SudoVDA queda el respaldo anterior: la mitad del puesto como barra de aplicación
+  (`SHAppBarMessage`), que solo respetan las ventanas maximizadas (la barra de tareas e Inicio
+  siguen ocupando el monitor entero), y el cursor encerrado en la mitad física.
+  Limitaciones: la mitad de la consola también se ve a través de captura (~1 fotograma más); con
+  el principal dividido, el ratón de la consola no llega a sus otros monitores; las ventanas de
+  programas elevados no se pueden mover a la pantalla virtual.
+
 ## Componentes
 
 ```

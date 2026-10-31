@@ -3,8 +3,10 @@ using System.Runtime.InteropServices;
 namespace OpenStreamMS.Services.Seats;
 
 /// <summary>Un monitor físico que Windows ve, esté o no en el escritorio.</summary>
+/// <param name="Gdi">Nombre GDI (\\.\DISPLAYn) si está activo: el DeviceName de su salida DXGI.</param>
 public record DisplayInfo(string DevicePath, string FriendlyName, bool Active,
-                          int Width, int Height, int PosX, int PosY, uint TargetId, uint AdapterLow);
+                          int Width, int Height, int PosX, int PosY, uint TargetId, uint AdapterLow,
+                          string? Gdi = null, int RefreshHz = 0);
 
 /// <summary>
 /// Gestiona la topología de pantallas con la API CCD (QueryDisplayConfig/SetDisplayConfig).
@@ -67,8 +69,9 @@ public static class DisplayTopology
                 }
                 var tn = new TARGET_NAME { h = new HEADER { type = 2, size = (uint)Marshal.SizeOf<TARGET_NAME>(), lo = p.tLo, hi = p.tHi, id = p.tId } };
                 DisplayConfigGetDeviceInfo(ref tn);
+                int hz = p.rD > 0 ? (int)Math.Round((double)p.rN / p.rD) : 0;
                 byTarget[key] = new DisplayInfo(tn.path ?? "", string.IsNullOrEmpty(tn.friendly) ? (gdi ?? "Monitor") : tn.friendly,
-                                                active, w, h, x, y, p.tId, p.tLo);
+                                                active, w, h, x, y, p.tId, p.tLo, gdi, hz);
             }
             return byTarget.Values.ToList();
         }
@@ -123,6 +126,7 @@ public static class DisplayTopology
     {
         var target = Enumerate().FirstOrDefault(d => d.DevicePath == devicePath);
         if (target is null || !target.Active) return false;
+        if (target.PosX == 0 && target.PosY == 0) return true;   // el principal (pantalla dividida con la consola) no se mueve
 
         GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, out var np, out var nm);
         var paths = new PATH[np];
@@ -157,11 +161,61 @@ public static class DisplayTopology
         finally { Marshal.FreeHGlobal(modes); }
     }
 
+    /// <summary>
+    /// Monitor por su ruta de dispositivo o, para pantallas sin ruta (virtuales), por
+    /// <c>target:&lt;adaptador&gt;:&lt;target&gt;</c>.
+    /// </summary>
+    public static DisplayInfo? Find(string id)
+    {
+        var all = Enumerate();
+        if (!id.StartsWith("target:", StringComparison.Ordinal)) return all.FirstOrDefault(d => d.DevicePath == id);
+        var parts = id.Split(':');
+        return parts.Length == 3 && uint.TryParse(parts[1], out var lo) && uint.TryParse(parts[2], out var t)
+            ? all.FirstOrDefault(d => d.AdapterLow == lo && d.TargetId == t)
+            : null;
+    }
+
+    /// <summary>
+    /// Hace principal a ese monitor activo: lo lleva a (0,0) desplazando todos los demás lo
+    /// mismo, de modo que la colocación relativa (monitores de puesto en la esquina) se mantiene.
+    /// </summary>
+    public static unsafe bool MakePrimary(string id)
+    {
+        var target = Find(id);
+        if (target is null || !target.Active) { Logger.Warning($"[Seats] MakePrimary: monitor no activo: {id}"); return false; }
+        if (target.PosX == 0 && target.PosY == 0) return true;
+
+        GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, out var np, out var nm);
+        var paths = new PATH[np];
+        var modes = Marshal.AllocHGlobal((int)nm * 64);
+        try
+        {
+            if (QueryDisplayConfig(QDC_ONLY_ACTIVE_PATHS, ref np, paths, ref nm, modes, IntPtr.Zero) != 0) return false;
+            byte* m = (byte*)modes;
+            var moved = new HashSet<uint>();
+            foreach (var p in paths.Take((int)np))
+            {
+                if (p.sMode == 0xFFFFFFFF || !moved.Add(p.sMode)) continue;
+                byte* sm = m + p.sMode * 64;
+                *(int*)(sm + 28) -= target.PosX;
+                *(int*)(sm + 32) -= target.PosY;
+            }
+            int r = SetDisplayConfig(np, paths.Take((int)np).ToArray(), nm, modes,
+                                     SDC_APPLY | SDC_USE_SUPPLIED_DISPLAY_CONFIG | SDC_SAVE_TO_DATABASE);
+            if (r != 0) { Logger.Warning($"[Seats] SetDisplayConfig (principal) err={r}"); return false; }
+            Logger.Log($"[Seats] Monitor principal: {target.FriendlyName} (estaba en {target.PosX},{target.PosY}).");
+            return true;
+        }
+        catch (Exception ex) { Logger.Warning($"[Seats] No se pudo cambiar el monitor principal: {ex.Message}"); return false; }
+        finally { Marshal.FreeHGlobal(modes); }
+    }
+
     /// <summary>Saca el monitor del escritorio (queda libre para el siguiente puesto).</summary>
     public static bool Deactivate(string devicePath)
     {
         var target = Enumerate().FirstOrDefault(d => d.DevicePath == devicePath);
         if (target is null || !target.Active) return true;
+        if (target.PosX == 0 && target.PosY == 0) return true;   // el principal es de la consola: nunca se saca
 
         GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, out var np, out var nm);
         var paths = new PATH[np];

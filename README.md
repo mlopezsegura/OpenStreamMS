@@ -158,7 +158,8 @@ decoded, with no jitter buffer, and the picture no longer waits for the audio. S
 A **seat** is a set of physical devices — a monitor, an audio output, and USB keyboards, mice and
 gamepads — linked to a session. While the seat is on, the session is shown on that monitor and
 controlled only by those devices, as if it were a separate computer. Seats are managed from the
-**Seats** tab of the dashboard.
+**Seats** tab of the dashboard, which draws every monitor with its seats and lets you assign keyboards, mice,
+gamepads and audio outputs by dragging them onto a seat.
 
 | | What happens |
 |---|---|
@@ -170,6 +171,8 @@ controlled only by those devices, as if it were a separate computer. Seats are m
 
 **Exclusive and shared seats.** An *exclusive* seat pauses Moonlight/WebRTC for its session while it
 is on. A *shared* seat keeps streaming, so the same desktop can be used at the desk and on a TV.
+
+**Split screen.** Up to four seats can share one monitor, which works as a 2×2 grid: each seat takes the whole screen, a half (vertical: left/right; horizontal: top/bottom) or a quarter, as long as their parts don't overlap. The session is set to the size of its part (e.g. 960×1080 for a vertical half of a 1920×1080 monitor, 960×540 for a quarter), and the monitor stays on the desktop while any part is in use. Each half has its own keyboard, mouse, gamepads and audio output, like any seat. Two windows share the monitor, so Windows composes them instead of flipping each one directly: expect about one extra frame of latency compared with a full-screen seat. The **main monitor** can be split too: a seat takes one half and the console keeps the other with a real desktop of that size (taskbar, Start and notifications included). With [SudoVDA](https://github.com/SudoMaker/SudoVDA) installed, the console moves to a virtual display of that half that is shown on the monitor like a seat; without it, only maximized windows respect the half. The console takes the largest free part; if what's left is L-shaped, the rest is blacked out. When seats fill the whole monitor, the console stays behind as host only. A seat can never take the whole main monitor.
 
 **Rules that keep a shared PC safe:**
 

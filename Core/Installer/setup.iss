@@ -51,6 +51,9 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Tasks]
 Name: "desktopicon"; Description: "Crear acceso directo en el escritorio"; GroupDescription: "Iconos adicionales:"
 Name: "startservice"; Description: "Iniciar el servicio ahora tras la instalación"; GroupDescription: "Servicio:"
+; RemoteIdd (pantalla de los puestos). Firma de prueba: mete su certificado en los de confianza,
+; cambia la DLL de TermService (TermWrap) y reinicia Escritorio remoto. Ver package-remoteidd.ps1.
+Name: "remoteidd"; Description: "Instalar el driver de pantalla de los puestos (RemoteIdd, experimental: certificado de prueba; reinicia Escritorio remoto)"; GroupDescription: "Puestos locales:"
 
 [Files]
 ; Toda la salida de dotnet publish (runtime incluido)
@@ -71,6 +74,19 @@ Filename: "{app}\{#AppExeName}"; Parameters: "--install --silent"; \
   Flags: runhidden waituntilterminated; \
   StatusMsg: "Registrando servicio de Windows e instalando drivers (ViGEmBus, HidHide)..."
 
+; 1b. Driver de pantalla de los puestos: quita la instalación anterior (si la hay) y pone la
+;     del paquete firmado. NO reinicia TermService (se quedaba colgado al pararse y dejaba el
+;     sistema a medias): todo entra al reiniciar el equipo, que el instalador pide al final
+;     (NeedRestart). Log en %ProgramData%\OpenStreamMS\remoteidd-setup.log.
+Filename: "powershell.exe"; \
+  Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\remoteidd-pkg\uninstall.ps1"""; \
+  Flags: runhidden waituntilterminated; Tasks: remoteidd; \
+  StatusMsg: "Quitando el driver de pantalla anterior (RemoteIdd)..."
+Filename: "powershell.exe"; \
+  Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\remoteidd-pkg\install.ps1"" -Package ""{app}\remoteidd-pkg"" -RefreshHz 120 -SkipTestSigningCheck"; \
+  Flags: runhidden waituntilterminated; Tasks: remoteidd; \
+  StatusMsg: "Instalando el driver de pantalla de los puestos (RemoteIdd)..."
+
 ; 2. Iniciar el servicio (solo si el usuario marcó la tarea)
 Filename: "net.exe"; Parameters: "start ""{#AppService}"""; \
   Flags: runhidden waituntilterminated; \
@@ -83,6 +99,13 @@ Filename: "{app}\{#AppExeName}"; Parameters: "--open"; \
   Description: "Iniciar {#AppName} ahora"
 
 [UninstallRun]
+; Driver de pantalla de los puestos: RDP-Tcp vuelve a su protocolo y TermService a su DLL
+; anterior; entra en vigor al reiniciar (UninstallNeedRestart). Sin RemoteIdd no hace nada.
+Filename: "powershell.exe"; \
+  Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\remoteidd-pkg\uninstall.ps1"""; \
+  Flags: runhidden waituntilterminated; \
+  RunOnceId: "UninstallRemoteIdd"
+
 ; Detener y eliminar el servicio antes de borrar archivos
 Filename: "{app}\{#AppExeName}"; Parameters: "--uninstall --silent"; \
   Flags: runhidden waituntilterminated; \
@@ -130,6 +153,20 @@ begin
   Result := '';
 end;
 
+// El driver de pantalla (RemoteIdd) cambia TermService: entra en vigor al reiniciar el equipo.
+function NeedRestart(): Boolean;
+begin
+  Result := WizardIsTaskSelected('remoteidd');
+end;
+
+var
+  RemoteIddWasInstalled: Boolean;
+
+function UninstallNeedRestart(): Boolean;
+begin
+  Result := RemoteIddWasInstalled;
+end;
+
 var
   PurgeData:  Boolean;
   RemoveDeps: Boolean;
@@ -141,6 +178,7 @@ var
 //  - Quitar también RDP Wrapper, ViGEmBus y HidHide (otras aplicaciones pueden usarlos).
 function InitializeUninstall(): Boolean;
 begin
+  RemoteIddWasInstalled := FileExists(ExpandConstant('{commonappdata}\OpenStreamMS\remoteidd-install.json'));
   if UninstallSilent then
   begin
     PurgeData  := Pos('/PURGEDATA',  Uppercase(GetCmdTail)) > 0;

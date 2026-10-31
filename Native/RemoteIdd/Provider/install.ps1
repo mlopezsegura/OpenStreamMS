@@ -19,6 +19,10 @@
 # resto de conexiones RDP siguen enteras con el protocolo y el RdpIdd de Microsoft.
 #
 # Uso (administrador):  .\install.ps1 -Bin <salida de build.cmd> [-RefreshHz 120] [-AllConnections] [-RestartTermService] [-SkipTestSigningCheck]
+#                       .\install.ps1 -Package <paquete firmado> ...  (lo que usa el instalador)
+# -Package: carpeta de Core\Installer\package-remoteidd.ps1, con el driver, su catálogo y el
+#                  proveedor ya firmados y la parte pública del certificado (RemoteIdd.cer). No
+#                  necesita el SDK ni el WDK: solo importa el certificado y registra lo firmado.
 # -AllConnections: RemoteIdd también en las sesiones RDP que llegan por la red, no solo en los
 #                  puestos locales. Por defecto, solo conexiones desde el propio equipo.
 # -RefreshHz: Hz de la pantalla del puesto (RDP no los transmite). Por defecto, 60.
@@ -26,13 +30,18 @@
 #                  sin él con el certificado de test en Root y TrustedPublisher; útil con
 #                  BitLocker, donde activar testsigning pide la clave de recuperación.
 param(
-    [Parameter(Mandatory)] [string] $Bin,
+    [string] $Bin,
+    [string] $Package,
     [ValidateRange(24, 500)] [int] $RefreshHz = 60,
     [switch] $AllConnections,
     [switch] $RestartTermService,
     [switch] $SkipTestSigningCheck
 )
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'termservice.ps1')
+if ([bool]$Bin -eq [bool]$Package) { throw 'Indica -Bin (desarrollo) o -Package (paquete firmado), uno de los dos.' }
+# Desde el instalador no hay consola que mirar: lo que pase queda en un log.
+if ($Package) { Start-Transcript -Path (Join-Path $env:ProgramData 'OpenStreamMS\remoteidd-setup.log') -Append | Out-Null }
 
 $state = Join-Path $env:ProgramData 'OpenStreamMS\remoteidd-install.json'
 $clsid = '{8B0F3C51-2D7A-4F6E-A1C9-5E4D2B7F0A36}'
@@ -50,8 +59,11 @@ if (-not $SkipTestSigningCheck -and
     (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control').SystemStartOptions -notmatch 'TESTSIGNING') {
     throw 'testsigning no está activo. Solo para pruebas: bcdedit /set testsigning on y reiniciar (en una VM).'
 }
-foreach ($f in 'RemoteIdd.dll', 'RemoteIdd.inf', 'OsmsRdsProvider.dll') {
-    if (-not (Test-Path (Join-Path $Bin $f))) { throw "Falta $f en $Bin (ejecuta build.cmd)." }
+$src = if ($Package) { $Package } else { $Bin }
+$needed = 'RemoteIdd.dll', 'RemoteIdd.inf', 'OsmsRdsProvider.dll'
+if ($Package) { $needed += 'RemoteIdd.cat', 'RemoteIdd.cer' }
+foreach ($f in $needed) {
+    if (-not (Test-Path (Join-Path $src $f))) { throw "Falta $f en $src (ejecuta build.cmd o package-remoteidd.ps1)." }
 }
 $rdpTcp = "$ws\RDP-Tcp"
 $original = (Get-ItemProperty $rdpTcp).LoadableProtocol_Object
@@ -72,25 +84,36 @@ function RegSvr($arguments) {
 }
 function Save { New-Item -ItemType Directory -Force (Split-Path $state) | Out-Null; $done | ConvertTo-Json | Set-Content -Encoding utf8 $state }
 
-# 1) certificado de test
-$cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject 'CN=OpenStreamMS RemoteIdd Test' `
-        -CertStoreLocation Cert:\LocalMachine\My -NotAfter (Get-Date).AddYears(1)
-$cer = Join-Path $env:TEMP 'osms-remoteidd-test.cer'
-Export-Certificate -Cert $cert -FilePath $cer | Out-Null
-Import-Certificate -FilePath $cer -CertStoreLocation Cert:\LocalMachine\Root | Out-Null
-Import-Certificate -FilePath $cer -CertStoreLocation Cert:\LocalMachine\TrustedPublisher | Out-Null
-Remove-Item $cer
+# 1) certificado de test: con -Package, el público que viene firmado en el paquete; si no, uno
+#    nuevo de este equipo.
+if ($Package) {
+    $cer = Join-Path $Package 'RemoteIdd.cer'
+    $cert = Import-Certificate -FilePath $cer -CertStoreLocation Cert:\LocalMachine\Root
+    Import-Certificate -FilePath $cer -CertStoreLocation Cert:\LocalMachine\TrustedPublisher | Out-Null
+} else {
+    $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject 'CN=OpenStreamMS RemoteIdd Test' `
+            -CertStoreLocation Cert:\LocalMachine\My -NotAfter (Get-Date).AddYears(1)
+    $cer = Join-Path $env:TEMP 'osms-remoteidd-test.cer'
+    Export-Certificate -Cert $cert -FilePath $cer | Out-Null
+    Import-Certificate -FilePath $cer -CertStoreLocation Cert:\LocalMachine\Root | Out-Null
+    Import-Certificate -FilePath $cer -CertStoreLocation Cert:\LocalMachine\TrustedPublisher | Out-Null
+    Remove-Item $cer
+}
 $done.Thumbprint = $cert.Thumbprint; Save
 
-# 2) paquete del driver firmado
-$pkg = Join-Path $env:TEMP 'osms-remoteidd-pkg'
-Remove-Item -Recurse -Force $pkg -ErrorAction SilentlyContinue
-New-Item -ItemType Directory $pkg | Out-Null
-Copy-Item (Join-Path $Bin 'RemoteIdd.dll'), (Join-Path $Bin 'RemoteIdd.inf') $pkg
-Sign "$pkg\RemoteIdd.dll"
-& "$wdk\bin\10.0.26100.0\x86\Inf2Cat.exe" /driver:$pkg /os:10_X64 | Out-Null
-if ($LASTEXITCODE) { throw 'Inf2Cat falló.' }
-Sign "$pkg\RemoteIdd.cat"
+# 2) paquete del driver firmado (con -Package ya viene con su catálogo)
+if ($Package) {
+    $pkg = $Package
+} else {
+    $pkg = Join-Path $env:TEMP 'osms-remoteidd-pkg'
+    Remove-Item -Recurse -Force $pkg -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory $pkg | Out-Null
+    Copy-Item (Join-Path $Bin 'RemoteIdd.dll'), (Join-Path $Bin 'RemoteIdd.inf') $pkg
+    Sign "$pkg\RemoteIdd.dll"
+    & "$wdk\bin\10.0.26100.0\x86\Inf2Cat.exe" /driver:$pkg /os:10_X64 | Out-Null
+    if ($LASTEXITCODE) { throw 'Inf2Cat falló.' }
+    Sign "$pkg\RemoteIdd.cat"
+}
 $out = pnputil /add-driver "$pkg\RemoteIdd.inf" /install
 # 3010 = requiere reinicio; 259 = añadido al Driver Store sin dispositivo aún (lo crea
 # Terminal Services al abrir la sesión del puesto). Ambos son éxito aquí.
@@ -100,8 +123,9 @@ $done.DriverInf = ([regex]::Match(($out -join "`n"), 'oem\d+\.inf')).Value; Save
 # 3) proveedor COM
 $dir = Join-Path $env:ProgramFiles 'OpenStreamMS\RemoteIdd'
 New-Item -ItemType Directory -Force $dir | Out-Null
-Copy-Item (Join-Path $Bin 'OsmsRdsProvider.dll') $dir -Force
-Sign "$dir\OsmsRdsProvider.dll"
+# Sin reiniciar TermService (el instalador pide reiniciar el equipo) la DLL anterior puede seguir cargada.
+Copy-InUse (Join-Path $src 'OsmsRdsProvider.dll') (Join-Path $dir 'OsmsRdsProvider.dll')
+if (-not $Package) { Sign "$dir\OsmsRdsProvider.dll" }   # en el paquete ya va firmada
 RegSvr "/s `"$dir\OsmsRdsProvider.dll`""
 $done.ProviderDir = $dir; Save
 
@@ -144,8 +168,10 @@ if ($serviceDll -notmatch 'TermWrap\.dll$') {
         if ((Get-FileHash $src -Algorithm SHA256).Hash -ne $twHashes[$f]) { throw "$f no tiene el hash esperado." }
         $dst = Join-Path $twDir $f
         # Solo se anota lo que no estaba: uninstall.ps1 no borra un TermWrap/Zydis ajeno.
+        # La misma versión ya puesta (y quizá cargada en TermService) no se toca.
         if (-not (Test-Path $dst)) { $copied += $dst }
-        Copy-Item $src $dst -Force
+        elseif ((Get-FileHash $dst -Algorithm SHA256).Hash -eq $twHashes[$f]) { continue }
+        Copy-InUse $src $dst
     }
     Remove-Item -Recurse -Force $twTmp
     $done.OriginalServiceDll = $serviceDll; $done.TermWrapFiles = $copied; Save
@@ -177,7 +203,7 @@ $done.RdpTcpPatched = $true; Save
 
 if ($RestartTermService) {
     Write-Warning 'Reiniciando TermService: se cierran TODAS las sesiones remotas abiertas.'
-    Restart-Service TermService -Force
+    Restart-TermService
 } else {
     Write-Host 'Listo. El proveedor se carga al reiniciar TermService o el equipo.'
 }

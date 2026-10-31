@@ -4,7 +4,8 @@ using OpenStreamMS.Services.Seats;
 namespace OpenStreamMS.Core.Api;
 
 // ── DTOs ──
-public record SeatMonitorDto(string DevicePath, string FriendlyName, int Width, int Height, int RefreshHz);
+public record SeatMonitorDto(string DevicePath, string FriendlyName, int Width, int Height, int RefreshHz,
+                             SeatScreenArea Area = SeatScreenArea.Full);
 public record SeatDeviceDto(SeatDeviceKind Kind, string UsbPort, string Label);
 
 public record SeatDto(
@@ -16,7 +17,8 @@ public record SeatUpsertRequest(
     string Name, SeatMonitorDto? Monitor, string? AudioOutId, string? AudioOutName,
     List<SeatDeviceDto>? Devices, Guid? SessionId, bool AutoStart = true, bool ExclusiveSession = true);
 
-public record MonitorDto(string DevicePath, string FriendlyName, bool Active, int Width, int Height);
+/// <param name="Primary">Monitor principal de la consola: solo admite puestos en pantalla dividida.</param>
+public record MonitorDto(string DevicePath, string FriendlyName, bool Active, int Width, int Height, bool Primary);
 public record AudioOutputDto(string Id, string Name);
 public record InputDeviceDto(string Kind, string UsbPort, string Name);
 public record IdentifyRequest(string Id);
@@ -33,7 +35,7 @@ public static class SeatEndpoints
              .WithSummary("Lista los puestos locales.");
 
         group.MapGet("/inventory", (SeatManager mgr, Guid? seatId) => TypedResults.Ok(new InventoryResponse(
-                mgr.AvailableMonitors().Select(m => new MonitorDto(m.DevicePath, m.FriendlyName, m.Active, m.Width, m.Height)).ToList(),
+                mgr.AvailableMonitors().Select(m => new MonitorDto(m.DevicePath, m.FriendlyName, m.Active, m.Width, m.Height, mgr.IsConsoleMonitor(m))).ToList(),
                 mgr.AvailableAudioOutputs().Select(a => new AudioOutputDto(a.Id, a.Name)).ToList(),
                 mgr.AvailableInputDevices(seatId).Select(d => new InputDeviceDto(d.Kind.ToString(), d.UsbPort, d.Name)).ToList())))
              .WithSummary("Monitores, salidas de audio y dispositivos USB libres para asignar a un puesto " +
@@ -103,7 +105,7 @@ public static class SeatEndpoints
         seat.Monitor = req.Monitor is { } m ? new SeatMonitor
         {
             DevicePath = m.DevicePath, FriendlyName = m.FriendlyName,
-            Width = m.Width, Height = m.Height, RefreshHz = m.RefreshHz,
+            Width = m.Width, Height = m.Height, RefreshHz = m.RefreshHz, Area = m.Area,
         } : null;
         seat.AudioOutId = req.AudioOutId;
         seat.AudioOutName = req.AudioOutName;
@@ -116,7 +118,7 @@ public static class SeatEndpoints
 
     private static SeatDto ToDto(Seat s) => new(
         s.Id, s.Name,
-        s.Monitor is { } m ? new SeatMonitorDto(m.DevicePath, m.FriendlyName, m.Width, m.Height, m.RefreshHz) : null,
+        s.Monitor is { } m ? new SeatMonitorDto(m.DevicePath, m.FriendlyName, m.Width, m.Height, m.RefreshHz, m.Area) : null,
         s.AudioOutId, s.AudioOutName,
         s.Devices.Select(d => new SeatDeviceDto(d.Kind, d.UsbPort, d.Label)).ToList(),
         s.SessionId, s.AutoStart, s.ExclusiveSession,

@@ -84,8 +84,14 @@ static void KeepSharedObjects(UINT32 session)
 // Sin EDID: el monitor se crea con descripción vacía e IddCx pide los modos por
 // EvtMonitorGetDefaultModes. Con USE_SMALLEST_MODE Windows arranca en el más pequeño y
 // el modo real lo fija IddCxAdapterDisplayConfigUpdate (resolución del cliente).
+//
+// El monitor se anuncia con esta lista antes de que llegue el modo del cliente (IOCTL), y
+// IddCxMonitorUpdateModes solo cambia los modos de destino: un modo que no esté aquí no
+// llega a los modos del monitor y Windows retira la pantalla (OnDriverUnload, motivo 17).
+// Por eso cada modo base va también partido como los puestos en pantalla dividida: mitades
+// (vertical: ancho/2; horizontal: alto/2) y cuartos (ancho/2 y alto/2). Ver AllModes.
 struct ModeDef { DWORD Width, Height, VSync; };
-static const ModeDef kModes[] = {
+static const ModeDef kBaseModes[] = {
     { 3840, 2160,  60 }, { 3840, 2160, 120 },
     { 2560, 1440,  60 }, { 2560, 1440, 120 }, { 2560, 1440, 144 },
     { 1920, 1080,  60 }, { 1920, 1080, 120 }, { 1920, 1080, 144 }, { 1920, 1080, 240 },
@@ -94,11 +100,45 @@ static const ModeDef kModes[] = {
     { 1024,  768,  60 },
     {  800,  600,  60 },
 };
-constexpr UINT kModeCount = ARRAYSIZE(kModes);
+constexpr UINT kBaseCount = ARRAYSIZE(kBaseModes);
+constexpr UINT kModeCount = kBaseCount * 4;     // entero, mitad vertical, mitad horizontal, cuarto
+
+static bool SameMode(const ModeDef& a, const ModeDef& b)
+{
+    return a.Width == b.Width && a.Height == b.Height && a.VSync == b.VSync;
+}
+
+// Los modos base y sus partes, sin repetidos (p. ej. la mitad de 2560x1440 no se repite si ya
+// es un modo base). Se calcula una vez.
+static const ModeDef* AllModes(UINT* count)
+{
+    static ModeDef modes[kModeCount];
+    static UINT n = [] {
+        UINT k = 0;
+        for (const auto& b : kBaseModes)
+        {
+            const ModeDef parts[] = {
+                b,
+                { b.Width / 2, b.Height,     b.VSync },
+                { b.Width,     b.Height / 2, b.VSync },
+                { b.Width / 2, b.Height / 2, b.VSync },
+            };
+            for (const auto& m : parts)
+            {
+                bool seen = false;
+                for (UINT i = 0; i < k && !seen; ++i) seen = SameMode(modes[i], m);
+                if (!seen) modes[k++] = m;
+            }
+        }
+        return k;
+    }();
+    *count = n;
+    return modes;
+}
 constexpr ModeDef kDefaultConfig = { 1920, 1080, 60 };
 
 // Modo del puesto: el que pide el cliente RDP (IOCTL v2) o kDefaultConfig. Si no está en
-// kModes se añade al final de la lista. g_adapter/g_monitor permiten aplicarlo aunque el
+// AllModes se añade al final de la lista. g_adapter/g_monitor permiten aplicarlo aunque el
 // IOCTL llegue con el monitor ya creado. Todo bajo g_modeLock.
 static SRWLOCK g_modeLock = SRWLOCK_INIT;
 static ModeDef g_seatMode = kDefaultConfig;
@@ -145,26 +185,23 @@ static void SeatFromDevice(WDFDEVICE device)
     }
 }
 
-static bool SameMode(const ModeDef& a, const ModeDef& b)
-{
-    return a.Width == b.Width && a.Height == b.Height && a.VSync == b.VSync;
-}
-
-// Lista de modos (kModes + el del puesto si falta). Devuelve cuántos y cuál es el preferido.
+// Lista de modos (AllModes + el del puesto si falta). Devuelve cuántos y cuál es el preferido.
 static UINT BuildModes(ModeDef (&out)[kModeCount + 1], UINT* preferred)
 {
     AcquireSRWLockShared(&g_modeLock);
     ModeDef seat = g_seatMode;
     ReleaseSRWLockShared(&g_modeLock);
 
+    UINT count = 0;
+    const ModeDef* all = AllModes(&count);
     UINT n = 0;
-    *preferred = kModeCount;
-    for (const auto& m : kModes)
+    *preferred = count;
+    for (UINT i = 0; i < count; ++i)
     {
-        if (SameMode(m, seat)) *preferred = n;
-        out[n++] = m;
+        if (SameMode(all[i], seat)) *preferred = n;
+        out[n++] = all[i];
     }
-    if (*preferred == kModeCount)
+    if (*preferred == count)
         out[n++] = seat;            // preferred ya apunta a esa última posición
     return n;
 }

@@ -9,6 +9,7 @@
   <script src="/i18n.js"></script>
 </head>
 <body>
+<div class="bg-glow" aria-hidden="true"><span></span><span></span><span></span></div>
 <div id="app">
 
   <!-- Navbar -->
@@ -18,6 +19,15 @@
       <span class="nav-brand-text">OpenStreamMS</span>
     </div>
     <div class="nav-actions">
+      <!-- Estado del sistema: una sola píldora; las dependencias, en su desplegable. -->
+      <div class="nav-pop-wrap">
+        <button id="sys-pill" class="status-pill sys-pill" type="button" onclick="togglePop('sys-pop', event)" aria-haspopup="true">
+          <span class="status-pill-dot"></span>
+          <span class="status-pill-label" data-i18n="nav.system">Sistema</span>
+          <span class="status-pill-state" id="sys-pill-state">…</span>
+        </button>
+        <div class="nav-pop hidden" id="sys-pop" role="menu">
+          <div class="nav-pop-title" data-i18n="nav.systemTitle">Componentes</div>
       <button id="rdp-pill" class="status-pill" onclick="openRdpModal()" type="button">
         <span class="status-pill-dot"></span>
         <span class="status-pill-label" data-i18n="rdp.pill">Multi-RDP</span>
@@ -33,20 +43,27 @@
         <span class="status-pill-label" data-i18n="hidhide.pill">HidHide</span>
         <span class="status-pill-state" id="hidhide-pill-state">—</span>
       </button>
-      <select id="lang-select" class="lang-select" data-i18n-title="nav.langLabel" title="Idioma"></select>
-      <a href="/scalar/v1" target="_blank" class="btn btn-ghost btn-sm nav-extra" data-i18n="nav.apiDocs">API docs</a>
-      <button class="btn btn-ghost btn-sm nav-extra" onclick="show('about-modal')" data-i18n="nav.about">Acerca de</button>
-      <button class="btn btn-ghost btn-sm nav-extra" onclick="openPowerModal()" data-i18n-title="power.btn" title="Apagar / Reiniciar">
-        <span data-i18n="power.btn">⏻ Energía</span>
+        </div>
+      </div>
+      <button class="icon-btn" type="button" onclick="openPowerModal()" data-i18n-title="power.btn" title="Apagar / Reiniciar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></svg>
       </button>
+      <div class="nav-pop-wrap">
+        <button class="icon-btn" type="button" onclick="togglePop('more-pop', event)" data-i18n-title="nav.more" title="Más">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+        </button>
+        <div class="nav-pop nav-pop-right hidden" id="more-pop" role="menu">
+          <label class="nav-pop-row"><span data-i18n="nav.langLabel">Idioma</span>
+            <select id="lang-select" class="lang-select" data-i18n-title="nav.langLabel" title="Idioma"></select></label>
+          <a href="/scalar/v1" target="_blank" class="nav-pop-item" data-i18n="nav.apiDocs">API docs</a>
+          <button class="nav-pop-item" type="button" onclick="show('about-modal')" data-i18n="nav.about">Acerca de</button>
+        </div>
+      </div>
       <form method="POST" action="/logout" style="margin:0">
-        <button type="submit" class="btn btn-ghost btn-sm nav-logout" data-i18n-title="nav.logout" title="Cerrar sesión">
-          <svg class="nav-logout-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-            <polyline points="16 17 21 12 16 7"/>
-            <line x1="21" y1="12" x2="9" y2="12"/>
+        <button type="submit" class="icon-btn" data-i18n-title="nav.logout" title="Cerrar sesión">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
           </svg>
-          <span class="nav-logout-label" data-i18n="nav.logout">Cerrar sesión</span>
         </button>
       </form>
     </div>
@@ -55,6 +72,7 @@
   <!-- Main content -->
   <main>
     <div class="tabs">
+      <span class="tab-indicator" id="tab-indicator"></span>
       <button class="tab active" id="tab-sessions" onclick="switchTab('sessions')" data-i18n="tab.sessions">Sesiones</button>
       <button class="tab" id="tab-seats" onclick="switchTab('seats')" data-i18n="tab.seats">Puestos</button>
     </div>
@@ -76,6 +94,8 @@
         <span class="toolbar-title"><span data-i18n="toolbar.seats">Puestos</span> — <strong id="seat-count">0</strong></span>
         <button class="btn btn-primary btn-sm" onclick="openSeatModal()" data-i18n="toolbar.newSeat">+ Nuevo puesto</button>
       </div>
+      <div class="monitor-map hidden" id="seat-monitor-map"></div>
+      <div class="hw-pool hidden" id="seat-hw-pool"></div>
       <div class="sessions-grid" id="seats-grid">
         <div class="empty-state"><p data-i18n="empty.loading">Cargando…</p></div>
       </div>
@@ -85,7 +105,7 @@
 
 <!-- ─── Modal: nuevo/editar puesto ──────────────────────────────────────── -->
 <div class="modal-backdrop hidden" id="seat-modal" onclick="handleBackdropClick(event,'seat-modal')">
-  <div class="modal" onclick="event.stopPropagation()">
+  <div class="modal modal-wide" onclick="event.stopPropagation()">
     <div class="modal-header">
       <h3 id="seat-modal-title" data-i18n="seat.newTitle">Nuevo puesto</h3>
       <button class="modal-close" onclick="closeSeatModal()">×</button>
@@ -94,6 +114,10 @@
       <div id="seat-error" class="auth-alert error" style="display:none"></div>
       <form id="seat-form" onsubmit="submitSeat(event)">
         <input type="hidden" name="Id">
+        <div class="form-preview" id="seat-preview"></div>
+        <div class="form-sections">
+<section class="form-section ">
+          <h4 class="form-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="11" rx="2"/><path d="M7 19h10M9 15v4M15 15v4"/></svg><span data-i18n="sec.seat">Puesto</span></h4>
         <div class="form-row">
           <label data-i18n="seat.nameLabel">Nombre *</label>
           <input type="text" name="Name" required data-i18n-placeholder="seat.namePlaceholder" placeholder="Ej: Puesto salón">
@@ -102,6 +126,9 @@
           <label data-i18n="seat.sessionLabel">Sesión asignada</label>
           <select name="SessionId" id="seat-session"></select>
         </div>
+          </section>
+<section class="form-section form-section-tall">
+          <h4 class="form-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="13" rx="2"/><path d="M8 21h8M12 16v5"/></svg><span data-i18n="sec.screen">Pantalla</span></h4>
         <div class="form-row">
           <label data-i18n="seat.monitorLabel">Monitor</label>
           <div class="select-test">
@@ -109,17 +136,27 @@
             <button type="button" class="btn btn-ghost btn-sm" id="seat-monitor-test" onclick="testSeatMonitor()" data-i18n="seat.test" data-i18n-title="seat.testMonitorTitle" title="Muestra el logo de OpenStreamMS en este monitor">Probar</button>
           </div>
         </div>
+        <div class="form-row hidden" id="seat-area-row">
+          <label data-i18n="seat.areaLabel">Pantalla</label>
+          <!-- El select guarda el valor; lo que se ve son las miniaturas (renderAreaPicker). -->
+          <select name="Area" id="seat-area" class="hidden" onchange="updateSeatModePlaceholders()"></select>
+          <div class="area-picker" id="seat-area-picker" role="radiogroup"></div>
+          <div class="hint" data-i18n="seat.areaHint">Pantalla dividida: hasta cuatro puestos comparten el monitor, cada uno en su parte.</div>
+        </div>
         <div class="form-row hidden" id="seat-mode">
           <label data-i18n="seat.modeLabel">Resolución y frecuencia</label>
           <div class="port-range">
             <input type="number" name="Width" min="640" max="7680" data-i18n-title="seat.widthTitle" title="Ancho">
             <span>×</span>
-            <input type="number" name="Height" min="480" max="4320" data-i18n-title="seat.heightTitle" title="Alto">
+            <input type="number" name="Height" min="360" max="4320" data-i18n-title="seat.heightTitle" title="Alto">
             <span>@</span>
             <input type="number" name="RefreshHz" min="24" max="360" data-i18n-placeholder="seat.hzPlaceholder" placeholder="Hz" data-i18n-title="seat.hzTitle" title="Frecuencia (Hz)">
           </div>
           <div class="hint" data-i18n="seat.modeHint">Vacío = la resolución que Windows dé al monitor y la frecuencia de la sesión.</div>
         </div>
+          </section>
+<section class="form-section ">
+          <h4 class="form-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="7" width="13" height="10" rx="2"/><path d="M5 11h.01M8 11h.01M11 11h.01M6 14h6"/><rect x="17" y="7" width="5" height="10" rx="2.5"/></svg><span data-i18n="sec.devices">Audio y periféricos</span></h4>
         <div class="form-row">
           <label data-i18n="seat.audioLabel">Salida de audio</label>
           <div class="select-test">
@@ -137,11 +174,16 @@
           <div class="hint" data-i18n="seat.identifyHint">Pulsa una tecla, un botón o mueve el ratón: su nombre se ilumina.</div>
           <div class="card-warning hidden" id="seat-input-warning" data-i18n="seat.noInputWarning">Sin teclado, ratón ni mando el puesto solo mostrará la imagen.</div>
         </div>
+          </section>
+<section class="form-section ">
+          <h4 class="form-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg><span data-i18n="sec.options">Opciones</span></h4>
         <div class="form-row form-check">
           <label><input type="checkbox" name="ExclusiveSession" checked> <span data-i18n="seat.exclusive">Uso exclusivo (pausa Moonlight/WebRTC mientras el puesto está activo)</span></label>
         </div>
         <div class="form-row form-check">
           <label><input type="checkbox" name="AutoStart" checked> <span data-i18n="seat.autostart">Encender automáticamente al arrancar el servicio</span></label>
+        </div>
+          </section>
         </div>
         <div class="modal-actions">
           <button type="button" class="btn btn-ghost" onclick="closeSeatModal()" data-i18n="btn.cancel">Cancelar</button>
@@ -154,7 +196,7 @@
 
 <!-- ─── Modal: nueva sesión ─────────────────────────────────────────────── -->
 <div class="modal-backdrop hidden" id="new-modal" onclick="handleBackdropClick(event,'new-modal')">
-  <div class="modal" onclick="event.stopPropagation()">
+  <div class="modal modal-wide" onclick="event.stopPropagation()">
     <div class="modal-header">
       <h3 data-i18n="new.title">Nueva sesión</h3>
       <button class="modal-close" onclick="closeNewModal()">×</button>
@@ -162,6 +204,10 @@
     <div class="modal-body">
       <div id="new-error" class="auth-alert error" style="display:none"></div>
       <form id="new-form" onsubmit="submitNew(event)">
+        <div class="form-preview" id="new-preview"></div>
+        <div class="form-sections">
+<section class="form-section ">
+          <h4 class="form-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span data-i18n="sec.general">General</span></h4>
         <div class="form-row">
           <label data-i18n="new.nameLabel">Nombre *</label>
           <input type="text" name="Name" required data-i18n-placeholder="new.namePlaceholder" placeholder="Ej: Sala de juegos">
@@ -213,11 +259,9 @@
         </div>
         </div>
         </div>
-        <div class="form-row">
-          <label data-i18n="new.exeLabel">Ruta a sunshine.exe</label>
-          <input type="text" name="SunshineExePath" data-i18n-placeholder="new.exePlaceholder" placeholder="(usar configuración global)">
-          <div class="hint" data-i18n="new.exeHint">Déjalo vacío para usar la ruta definida en service.config.json.</div>
-        </div>
+          </section>
+<section class="form-section rdp-only">
+          <h4 class="form-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="13" rx="2"/><path d="M8 21h8M12 16v5"/></svg><span data-i18n="sec.screen">Pantalla</span></h4>
         <div class="rdp-only">
         <div class="form-row">
           <label data-i18n="new.resolutionLabel">Resolución</label>
@@ -260,6 +304,9 @@
           </div>
         </div>
         </div>
+          </section>
+<section class="form-section ">
+          <h4 class="form-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5a10 10 0 0 1 14 0"/><path d="M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1" fill="currentColor"/></svg><span data-i18n="sec.stream">Streaming</span></h4>
         <div class="form-row">
           <label data-i18n="new.portLabel">Puerto de stream (Moonlight)</label>
           <input type="number" name="SunshineStreamPort" id="new-stream-port" value="47989" min="1024" max="65514" required
@@ -297,6 +344,9 @@
             <div class="hint" data-i18n="proto.mediaHint">Rango que se abre en el firewall junto al UDP 8000 de descubrimiento de TVs.</div>
           </div>
         </div>
+          </section>
+<section class="form-section ">
+          <h4 class="form-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg><span data-i18n="sec.options">Opciones</span></h4>
         <div class="form-check rdp-only">
           <input type="checkbox" id="chk-bg"  name="RdpBackground" checked>
           <label for="chk-bg" data-i18n="new.bgLabel">Lanzar mstsc en segundo plano (recomendado en producción)</label>
@@ -313,9 +363,16 @@
           <input type="checkbox" id="chk-enabled" name="Enabled">
           <label for="chk-enabled" data-i18n-html="new.enabledLabel_html"><strong>Sesión habilitada</strong> — relanzar automáticamente al reiniciar el servicio</label>
         </div>
-
+          </section>
+<section class="form-section form-section-wide form-section-plain">
+          <h4 class="form-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14.7 6.3 3 3-9.4 9.4H5.3v-3z"/><path d="m16 5 3 3"/></svg><span data-i18n="sec.advanced">Avanzado</span></h4>
         <details class="form-advanced">
           <summary data-i18n="new.advTitle">Opciones avanzadas de Sunshine</summary>
+        <div class="form-row">
+          <label data-i18n="new.exeLabel">Ruta a sunshine.exe</label>
+          <input type="text" name="SunshineExePath" data-i18n-placeholder="new.exePlaceholder" placeholder="(usar configuración global)">
+          <div class="hint" data-i18n="new.exeHint">Déjalo vacío para usar la ruta definida en service.config.json.</div>
+        </div>
           <div class="form-row">
             <label data-i18n="new.advNameLabel">Nombre publicado (sunshine_name)</label>
             <input type="text" name="SunshineName" data-i18n-placeholder="new.advNamePlaceholder" placeholder="(usar nombre de la sesión)">
@@ -374,6 +431,8 @@
             <label for="chk-rotate-sunshine-creds" data-i18n-html="new.rotateCredsLabel_html"><strong>Rotar credenciales Sunshine</strong> — generar credenciales nuevas al arrancar la sesión y reparar desincronizaciones del proxy</label>
           </div>
         </details>
+          </section>
+        </div>
       </form>
     </div>
     <div class="modal-footer">
@@ -386,7 +445,7 @@
 
 <!-- ─── Modal: editar sesión ────────────────────────────────────────────── -->
 <div class="modal-backdrop hidden" id="edit-modal" onclick="handleBackdropClick(event,'edit-modal')">
-  <div class="modal" onclick="event.stopPropagation()">
+  <div class="modal modal-wide" onclick="event.stopPropagation()">
     <div class="modal-header">
       <h3 id="edit-title" data-i18n="edit.title">Editar sesión</h3>
       <button class="modal-close" onclick="closeEditModal()">×</button>
@@ -395,16 +454,28 @@
       <div id="edit-error" class="auth-alert error" style="display:none"></div>
       <form id="edit-form" onsubmit="submitEdit(event)">
         <input type="hidden" id="edit-id">
+        <div class="form-preview" id="edit-preview"></div>
+        <div class="form-sections">
+<section class="form-section ">
+          <h4 class="form-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span data-i18n="sec.general">General</span></h4>
         <div class="form-row">
           <label data-i18n="new.nameLabel">Nombre *</label>
           <input type="text" id="edit-name" required>
         </div>
         <div class="hint local-only" data-i18n="kind.localEditHint">Sesión local: transmite el escritorio físico de este PC con el usuario que lo tenga abierto.</div>
-        <div class="form-row">
-          <label data-i18n="new.exeLabel">Ruta a sunshine.exe</label>
-          <input type="text" id="edit-exe" data-i18n-placeholder="new.exePlaceholder" placeholder="(usar configuración global)">
-          <div class="hint" data-i18n="new.exeHint">Déjalo vacío para usar la ruta definida en service.config.json.</div>
+        <div class="rdp-only">
+        <div class="form-check">
+          <input type="checkbox" id="edit-isolated" onchange="updateIsolatedUi('edit')">
+          <label for="edit-isolated" data-i18n-html="new.isolatedLabel_html"><strong>Sesión aislada (usuario dedicado)</strong></label>
         </div>
+        <div class="form-check" id="edit-ephemeral-row" style="display:none">
+          <input type="checkbox" id="edit-isolated-ephemeral">
+          <label for="edit-isolated-ephemeral" data-i18n-html="new.ephemeralLabel_html"><strong>Perfil efímero</strong></label>
+        </div>
+        </div>
+          </section>
+<section class="form-section rdp-only">
+          <h4 class="form-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="13" rx="2"/><path d="M8 21h8M12 16v5"/></svg><span data-i18n="sec.screen">Pantalla</span></h4>
         <div class="rdp-only">
         <div class="form-row">
           <label data-i18n="new.resolutionLabel">Resolución</label>
@@ -447,6 +518,9 @@
           </div>
         </div>
         </div>
+          </section>
+<section class="form-section ">
+          <h4 class="form-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5a10 10 0 0 1 14 0"/><path d="M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1" fill="currentColor"/></svg><span data-i18n="sec.stream">Streaming</span></h4>
         <div class="form-row">
           <label data-i18n="new.portLabel">Puerto de stream (Moonlight)</label>
           <input type="number" id="edit-port" min="1024" max="65514" required
@@ -484,6 +558,9 @@
             <div class="hint" data-i18n="proto.mediaHint">Rango que se abre en el firewall junto al UDP 8000 de descubrimiento de TVs.</div>
           </div>
         </div>
+          </section>
+<section class="form-section ">
+          <h4 class="form-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg><span data-i18n="sec.options">Opciones</span></h4>
         <div class="form-check rdp-only">
           <input type="checkbox" id="edit-bg">
           <label for="edit-bg" data-i18n="new.bgLabel">Lanzar mstsc en segundo plano (recomendado en producción)</label>
@@ -496,19 +573,16 @@
           <input type="checkbox" id="edit-profile">
           <label for="edit-profile" data-i18n-html="new.profileLabel_html"><strong>Perfil de stream independiente</strong></label>
         </div>
-        <div class="rdp-only">
-        <div class="form-check">
-          <input type="checkbox" id="edit-isolated" onchange="updateIsolatedUi('edit')">
-          <label for="edit-isolated" data-i18n-html="new.isolatedLabel_html"><strong>Sesión aislada (usuario dedicado)</strong></label>
-        </div>
-        <div class="form-check" id="edit-ephemeral-row" style="display:none">
-          <input type="checkbox" id="edit-isolated-ephemeral">
-          <label for="edit-isolated-ephemeral" data-i18n-html="new.ephemeralLabel_html"><strong>Perfil efímero</strong></label>
-        </div>
-        </div>
-
+          </section>
+<section class="form-section form-section-wide form-section-plain">
+          <h4 class="form-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14.7 6.3 3 3-9.4 9.4H5.3v-3z"/><path d="m16 5 3 3"/></svg><span data-i18n="sec.advanced">Avanzado</span></h4>
         <details class="form-advanced">
           <summary data-i18n="new.advTitle">Opciones avanzadas de Sunshine</summary>
+        <div class="form-row">
+          <label data-i18n="new.exeLabel">Ruta a sunshine.exe</label>
+          <input type="text" id="edit-exe" data-i18n-placeholder="new.exePlaceholder" placeholder="(usar configuración global)">
+          <div class="hint" data-i18n="new.exeHint">Déjalo vacío para usar la ruta definida en service.config.json.</div>
+        </div>
           <div class="form-row">
             <label data-i18n="new.advNameLabel">Nombre publicado (sunshine_name)</label>
             <input type="text" id="edit-sunshine-name" data-i18n-placeholder="new.advNamePlaceholder" placeholder="(usar nombre de la sesión)">
@@ -567,6 +641,8 @@
             <label for="edit-rotate-creds" data-i18n-html="new.rotateCredsLabel_html"><strong>Rotar credenciales Sunshine</strong> — generar credenciales nuevas al arrancar la sesión y reparar desincronizaciones del proxy</label>
           </div>
         </details>
+          </section>
+        </div>
       </form>
     </div>
     <div class="modal-footer">

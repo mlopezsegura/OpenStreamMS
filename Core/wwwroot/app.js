@@ -107,83 +107,76 @@ function renderSessions() {
   const count = document.getElementById('session-count');
   count.textContent = sessions.length;
 
-  if (sessions.length === 0) {
-    grid.innerHTML = `
-      <div class="empty-state">
+  const html = sessions.length === 0
+    ? `<div class="empty-state">
+        <div class="empty-icon">${uiIcon('screen')}</div>
         <p>${esc(t('empty.noSessions'))}</p>
         <p>${t('empty.noSessions_hint')}</p>
-      </div>`;
-    return;
-  }
-
-  grid.innerHTML = sessions.map(renderCard).join('');
+      </div>`
+    : sessions.map(renderCard).join('');
+  renderInto(grid, html);
 }
 
+// Una sesión: miniatura de su pantalla, nombre, estado, botón de encender y el resto en "⋯".
 function renderCard(s) {
-  const canStart  = ['Created','Stopped','Error'].includes(s.state);
   const isRunning = s.state === 'Running';
   const isBusy    = s.state === 'Starting' || s.state === 'Stopping';
-  const canDelete = !isBusy && !isRunning;
+  const screen = s.local
+    ? `<div class="screen-thumb screen-local">${uiIcon('pc')}<span class="screen-res">${esc(t('card.localShort'))}</span></div>`
+    : `<div class="screen-thumb"><span class="screen-res">${s.rdpWidth}×${s.rdpHeight}</span>
+         <span class="screen-fps">${s.rdpFrameRate || 60} fps</span></div>`;
+  const power = isBusy
+    ? `<button class="power-btn busy" disabled title="${esc(t(s.state === 'Starting' ? 'btn.starting' : 'btn.stopping'))}">${uiIcon('power')}</button>`
+    : `<button class="power-btn ${isRunning ? 'on' : 'off'}" onclick="${isRunning ? 'stopSession' : 'startSession'}('${s.id}')"
+               title="${esc(t(isRunning ? 'btn.stop' : 'btn.start'))}">${uiIcon('power')}</button>`;
 
-  const startBtn = canStart
-    ? `<button class="btn btn-success btn-sm" onclick="startSession('${s.id}')">${esc(t('btn.start'))}</button>`
-    : isRunning
-    ? `<button class="btn btn-danger btn-sm" onclick="stopSession('${s.id}')">${esc(t('btn.stop'))}</button>`
-    : `<button class="btn btn-ghost btn-sm" disabled><span class="spinner"></span> ${esc(t(s.state === 'Starting' ? 'btn.starting' : 'btn.stopping'))}</button>`;
-
-  const restartBtn = `<button class="btn btn-ghost btn-sm" onclick="restartSession('${s.id}','${esc(s.name)}')" title="${esc(t('btn.restart_title'))}">${esc(t('btn.restart'))}</button>`;
-
-  const sunshineBtn = isRunning
-    ? `<button class="btn btn-ghost btn-sm" onclick="openSunMgrModal('${s.id}')" title="${esc(t('btn.sunshine_title'))}">${esc(t('btn.sunshine'))}</button>`
-    : `<button class="btn btn-ghost btn-sm" disabled title="${esc(t('btn.sunshine_disabled_title'))}">${esc(t('btn.sunshine'))}</button>`;
-
-  const panelBtn = isRunning
-    ? `<button class="btn btn-ghost btn-sm" onclick="openSunshinePanel('${s.id}')" title="${esc(t('btn.panel_title'))}">${esc(t('btn.panel'))}</button>`
-    : `<button class="btn btn-ghost btn-sm" disabled title="${esc(t('btn.panel_disabled_title'))}">${esc(t('btn.panel'))}</button>`;
-
-  const settingsBtn = `<button class="btn btn-ghost btn-sm" onclick="openEditModal('${s.id}')" title="${esc(t('btn.settings_title'))}">${esc(t('btn.settings'))}</button>`;
-
-  const deleteBtn = canDelete
-    ? `<button class="btn btn-ghost btn-sm" onclick="deleteSession('${s.id}','${esc(s.name)}')" title="${esc(t('btn.delete_title'))}">✕</button>`
-    : '';
+  const protos = [];
+  if (s.streamProtocol !== 'WebRtc')
+    protos.push(`<span class="chip chip-moonlight" title="Moonlight">${uiIcon('moon')}Moonlight <b>${s.sunshineStreamPort}</b></span>`);
+  if (s.streamProtocol !== 'Moonlight')
+    protos.push(`<span class="chip chip-webrtc" title="WebRTC · UDP ${s.webRtcMediaPortMin}-${s.webRtcMediaPortMax}">${uiIcon('web')}WebRTC <b>${s.webRtcPort}</b></span>`);
 
   return `
-    <div class="session-card" id="card-${s.id}">
-      <div class="card-header">
-        <div>
+    <div class="session-card state-${s.state.toLowerCase()}" id="card-${s.id}">
+      <div class="card-top">
+        ${screen}
+        <div class="card-title">
           <div class="card-name">${esc(s.name)}</div>
           <div class="card-user">${s.local ? esc(t('card.localUser')) : s.isolated ? esc(t('card.isolatedUser')) : `${esc(s.username)}@${esc(s.domain)}`}</div>
-          ${s.local ? '' : `<div class="card-meta">${s.rdpWidth}×${s.rdpHeight} · ${s.rdpFrameRate || 60} fps · ${s.rdpColorDepth || 32} bpp</div>`}
-          <div class="card-meta">${esc(portSummary(s))}</div>
-          ${sessionSeatLine(s)}
+          ${badge(s.state)}
         </div>
-        ${badge(s.state)}
+        ${power}
       </div>
+      <div class="card-chips">${protos.join('')}${sessionSeatLine(s)}</div>
       ${s.streamProtocol !== 'Moonlight' && !s.sunshineSupportsWebRtc
         ? `<div class="card-warning">${esc(t('proto.unsupported'))}</div>` : ''}
       ${s.errorMessage ? `<div class="card-error">${esc(s.errorMessage)}</div>` : ''}
       <div class="card-footer">
         <label class="toggle" title="${esc(t('card.autostart_title'))}">
-          <input type="checkbox" ${s.enabled ? 'checked' : ''}
-                 onchange="setEnabled('${s.id}', this.checked)">
+          <input type="checkbox" ${s.enabled ? 'checked' : ''} onchange="setEnabled('${s.id}', this.checked)">
           <span class="toggle-track"></span>
           ${esc(t('card.autostart'))}
         </label>
-        <div class="card-actions">
-          ${startBtn}
-          ${restartBtn}
-          ${sunshineBtn}
-          ${panelBtn}
-          <button class="btn btn-ghost btn-sm" onclick="openLogModal('${s.id}','${esc(s.name)}')">
-            ${esc(t('btn.log'))}
-          </button>
-          ${settingsBtn}
-          ${deleteBtn}
-        </div>
+        <button class="icon-btn more-btn" onclick="sessionMenu(event, '${s.id}')" title="${esc(t('nav.more'))}">${uiIcon('more')}</button>
       </div>
     </div>`;
 }
 
+// Acciones secundarias de una sesión (menú "⋯").
+function sessionMenu(e, id) {
+  const s = sessions.find(x => x.id === id);
+  if (!s) return;
+  const running = s.state === 'Running', busy = s.state === 'Starting' || s.state === 'Stopping';
+  openMenu(e, [
+    { icon: 'restart',  label: t('btn.restart'),  run: () => restartSession(s.id, s.name) },
+    { icon: 'moon',     label: t('btn.sunshine'), run: () => openSunMgrModal(s.id), disabled: !running, hint: t('btn.sunshine_disabled_title') },
+    { icon: 'external', label: t('btn.panel'),    run: () => openSunshinePanel(s.id), disabled: !running, hint: t('btn.panel_disabled_title') },
+    { icon: 'log',      label: t('btn.log'),      run: () => openLogModal(s.id, s.name) },
+    { icon: 'gear',     label: t('btn.settings'), run: () => openEditModal(s.id) },
+    { sep: true },
+    { icon: 'trash',    label: t('btn.delete'),   run: () => deleteSession(s.id, s.name), danger: true, disabled: running || busy },
+  ]);
+}
 // Puesto local asociado a la sesión: su nombre y si ahora mismo la está usando.
 function sessionSeatLine(s) {
   const seat = seats.find(x => x.sessionId === s.id);
@@ -192,9 +185,7 @@ function sessionSeatLine(s) {
   const detail = inUse
     ? t(seat.exclusiveSession ? 'card.seatInUseExclusive' : 'card.seatInUse')
     : t('card.seatIdle');
-  return `<div class="card-seat${inUse ? ' active' : ''}" title="${esc(t('card.seat_title'))}">
-      <span class="seat-tag">${esc(t('card.seatTag'))}</span> ${esc(seat.name)} · ${esc(detail)}
-    </div>`;
+  return `<span class="chip chip-seat${inUse ? ' active' : ''}" title="${esc(t('card.seat_title'))}: ${esc(detail)}">${uiIcon('seat')}${esc(seat.name)}</span>`;
 }
 
 // ── Protocolo de streaming (Moonlight / WebRTC / ambos) ───────────────────
@@ -569,7 +560,12 @@ function esc(str) {
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
-function show(id) { document.getElementById(id).classList.remove('hidden'); }
+function show(id) {
+  document.getElementById(id).classList.remove('hidden');
+  // Las ventanas de configuración enseñan arriba una vista previa de lo que se está configurando.
+  if (id === 'new-modal' || id === 'edit-modal') updateSessionPreview(id.split('-')[0]);
+  if (id === 'seat-modal' && typeof updateSeatPreview === 'function') updateSeatPreview();
+}
 function hide(id) { document.getElementById(id).classList.add('hidden'); }
 
 function handleBackdropClick(e, id) {
@@ -707,6 +703,7 @@ function updateRdpPill(st) {
 
   pill.classList.add(cls);
   state.textContent = t(key);
+  updateSystemPill();
 }
 
 function renderRdpStatus(st) {
@@ -1012,6 +1009,7 @@ function updateDriverPill(k, st) {
 
   pill.classList.add(cls);
   state.textContent = st.rebootRequired ? '⟳' : t(key);
+  updateSystemPill();
 }
 
 function renderDriverStatus(k, st) {
@@ -1138,3 +1136,173 @@ async function powerAction(kind) {
   }
   renderPowerPending();
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  PIEZAS DE INTERFAZ: iconos, repintado sin parpadeo, menús y estado del sistema
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Iconos de trazo (heredan el color del texto).
+const UI_ICONS = {
+  power:    '<path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/>',
+  more:     '<circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="19" cy="12" r="1.6" fill="currentColor"/>',
+  restart:  '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
+  moon:     '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
+  web:      '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+  external: '<path d="M14 3h7v7"/><path d="M10 14 21 3"/><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/>',
+  log:      '<path d="M4 6h16M4 12h16M4 18h10"/>',
+  gear:     '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  trash:    '<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>',
+  screen:   '<rect x="2" y="3" width="20" height="13" rx="2"/><path d="M8 21h8M12 16v5"/>',
+  pc:       '<rect x="2" y="3" width="20" height="13" rx="2"/><path d="M8 21h8M12 16v5"/><path d="M7 8h4"/>',
+  seat:     '<rect x="3" y="4" width="18" height="11" rx="2"/><path d="M7 19h10M9 15v4M15 15v4"/>',
+};
+
+function uiIcon(name) {
+  return `<svg class="ui-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${UI_ICONS[name] || ''}</svg>`;
+}
+
+// Repinta un contenedor solo si su HTML cambia: con el refresco de 3 s, rehacerlo siempre
+// reiniciaría las animaciones y el hover. Lo que aparece nuevo (por id) entra animado.
+function renderInto(el, html) {
+  if (el.dataset.html === html) return;
+  const before = new Set([...el.children].map(c => c.id).filter(Boolean));
+  const first = el.dataset.html === undefined;
+  el.dataset.html = html;
+  el.innerHTML = html;
+  [...el.children].forEach((c, i) => {
+    if (c.id && !before.has(c.id)) {
+      c.style.setProperty('--enter-delay', `${first ? i * 60 : 0}ms`);
+      c.classList.add('card-enter');
+      c.addEventListener('animationend', () => c.classList.remove('card-enter'), { once: true });
+    }
+  });
+}
+
+// ── Menú flotante ("⋯" de las tarjetas) ───────────────────────────────────
+// Vive fuera de las tarjetas: el refresco de las tarjetas no lo cierra.
+let menuEl = null;
+
+function openMenu(e, items) {
+  e.stopPropagation();
+  closeMenu();
+  menuEl = document.createElement('div');
+  menuEl.className = 'float-menu';
+  menuEl.setAttribute('role', 'menu');
+  items.forEach(it => {
+    if (it.sep) { menuEl.insertAdjacentHTML('beforeend', '<div class="float-menu-sep"></div>'); return; }
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'float-menu-item' + (it.danger ? ' danger' : '');
+    b.disabled = !!it.disabled;
+    if (it.disabled && it.hint) b.title = it.hint;
+    // Algunas traducciones traen su propio símbolo delante ("↻ Reiniciar"): aquí ya va el icono.
+    b.innerHTML = `${uiIcon(it.icon)}<span>${esc(it.label.replace(/^[^\p{L}\p{N}]+/u, ''))}</span>`;
+    b.onclick = () => { closeMenu(); it.run(); };
+    menuEl.appendChild(b);
+  });
+  document.body.appendChild(menuEl);
+  // Bajo el botón, alineado a su derecha; si no cabe abajo, encima.
+  const r = e.currentTarget.getBoundingClientRect(), m = menuEl.getBoundingClientRect();
+  const top = r.bottom + 6 + m.height > innerHeight ? r.top - m.height - 6 : r.bottom + 6;
+  menuEl.style.top  = `${Math.max(8, top + scrollY)}px`;
+  menuEl.style.left = `${Math.max(8, Math.min(innerWidth - m.width - 8, r.right - m.width)) + scrollX}px`;
+}
+
+function closeMenu() { if (menuEl) { menuEl.remove(); menuEl = null; } }
+
+// ── Desplegables de la barra superior ─────────────────────────────────────
+function togglePop(id, e) {
+  e.stopPropagation();
+  const pop = document.getElementById(id);
+  const open = pop.classList.contains('hidden');
+  document.querySelectorAll('.nav-pop').forEach(p => p.classList.add('hidden'));
+  closeMenu();
+  if (open) pop.classList.remove('hidden');
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.nav-pop')) document.querySelectorAll('.nav-pop').forEach(p => p.classList.add('hidden'));
+  if (menuEl && !menuEl.contains(e.target)) closeMenu();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeMenu(); document.querySelectorAll('.nav-pop').forEach(p => p.classList.add('hidden')); }
+});
+// Solo si cambia el ancho: en el móvil, el alto cambia al hacer scroll (barra del navegador).
+let menuWidth = innerWidth;
+window.addEventListener('resize', () => { if (innerWidth !== menuWidth) { menuWidth = innerWidth; closeMenu(); } });
+
+// Una píldora para las tres dependencias: verde si todas están bien; si no, cuántas faltan.
+function updateSystemPill() {
+  const pills = ['rdp-pill', 'vigem-pill', 'hidhide-pill'].map(id => document.getElementById(id)).filter(Boolean);
+  const sys = document.getElementById('sys-pill'), state = document.getElementById('sys-pill-state');
+  if (!sys || !pills.length) return;
+  const known = pills.filter(p => [...p.classList].some(c => c.startsWith('status-pill-') && c !== 'status-pill'));
+  const working = pills.some(p => p.classList.contains('status-pill-working'));
+  const bad = pills.filter(p => !p.classList.contains('status-pill-ok') && !p.classList.contains('status-pill-working')).length;
+  sys.classList.remove('status-pill-ok', 'status-pill-missing', 'status-pill-working', 'status-pill-warn');
+  if (known.length < pills.length) { state.textContent = '…'; return; }
+  if (working)  { sys.classList.add('status-pill-working'); state.textContent = t('rdp.state.working'); }
+  else if (bad) { sys.classList.add('status-pill-warn');    state.textContent = t('nav.systemIssues', { n: bad }); }
+  else          { sys.classList.add('status-pill-ok');      state.textContent = t('nav.systemOk'); }
+}
+
+// ── Pestañas: indicador que se desliza bajo la activa ─────────────────────
+function moveTabIndicator() {
+  const tab = document.querySelector('.tabs .tab.active'), ind = document.getElementById('tab-indicator');
+  if (!tab || !ind) return;
+  ind.style.width = `${tab.offsetWidth}px`;
+  ind.style.transform = `translateX(${tab.offsetLeft}px)`;
+}
+window.addEventListener('resize', moveTabIndicator);
+window.addEventListener('langchange', () => { moveTabIndicator(); updateSystemPill(); });
+document.addEventListener('DOMContentLoaded', () => requestAnimationFrame(moveTabIndicator));
+
+// ── Vista previa en vivo de las ventanas de configuración ─────────────────
+function setPreview(box, html, popKey) {
+  if (box.dataset.html === html) return;
+  const pop = box.dataset.pop !== undefined && box.dataset.pop !== popKey;
+  box.dataset.html = html;
+  box.dataset.pop = popKey;
+  box.innerHTML = html;
+  // La pantalla "rebota" cuando cambia lo que muestra (resolución, zona).
+  if (pop) box.querySelector('.preview-screen')?.classList.add('preview-pop');
+}
+
+function updateSessionPreview(prefix) {
+  const box = document.getElementById(`${prefix}-preview`);
+  if (!box) return;
+  const field = (newSel, editId) => prefix === 'new' ? document.querySelector(`#new-form ${newSel}`) : document.getElementById(editId);
+  const local = document.getElementById(`${prefix}-modal`).classList.contains('kind-local');
+  const name = field('[name=Name]', 'edit-name')?.value.trim();
+  const fps = field('[name=RdpFrameRate]', 'edit-rdp-fps')?.value || 60;
+  const { w, h } = getResolution(prefix);
+  const proto = getProtocol(prefix);
+  const port = document.getElementById(prefix === 'new' ? 'new-stream-port' : 'edit-port')?.value;
+  const webPort = document.getElementById(`${prefix}-webrtc-port`)?.value;
+  const isolated = document.getElementById(prefix === 'new' ? 'chk-isolated' : 'edit-isolated')?.checked;
+  // La miniatura toma la forma de la resolución (ultrapanorámicas más anchas).
+  const ratio = w > 0 && h > 0 ? w / h : 16 / 9;
+  const pw = Math.round(Math.min(170, Math.max(110, 82 * ratio)));
+  const screen = local
+    ? `<div class="preview-screen">${uiIcon('pc')}<span class="preview-fps">${esc(t('card.localShort'))}</span></div>`
+    : `<div class="preview-screen" style="width:${pw}px"><span class="preview-res">${w}×${h}</span><span class="preview-fps">${esc(fps)} fps</span></div>`;
+  const chips = [];
+  if (proto !== 'WebRtc')    chips.push(`<span class="chip chip-moonlight">${uiIcon('moon')}Moonlight <b>${esc(port || '')}</b></span>`);
+  if (proto !== 'Moonlight') chips.push(`<span class="chip chip-webrtc">${uiIcon('web')}WebRTC <b>${esc(webPort || '')}</b></span>`);
+  if (!local && isolated)    chips.push(`<span class="chip">${uiIcon('seat')}${esc(t('card.isolatedUser'))}</span>`);
+  setPreview(box, `${screen}
+    <div class="preview-body">
+      <div class="preview-name${name ? '' : ' placeholder'}">${esc(name || t('new.namePlaceholder'))}</div>
+      <div class="preview-chips">${chips.join('')}</div>
+    </div>`, local ? 'local' : `${w}x${h}`);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  for (const prefix of ['new', 'edit']) {
+    const form = document.getElementById(`${prefix}-form`);
+    const update = () => updateSessionPreview(prefix);
+    form?.addEventListener('input', update);
+    form?.addEventListener('change', update);
+  }
+});
