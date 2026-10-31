@@ -10,7 +10,7 @@ internal sealed class TrayApp : ApplicationContext
 {
     /// <summary>
     /// Marca las peticiones del icono de bandeja. El servicio solo las acepta sin contraseña si
-    /// vienen de la sesión de la consola, y solo para listar, iniciar y detener sesiones.
+    /// vienen de la sesión de la consola, y solo para listar, iniciar y detener sesiones y puestos.
     /// </summary>
     internal const string LocalHeader = "X-OpenStreamMS-Tray";
 
@@ -99,11 +99,15 @@ internal sealed class TrayApp : ApplicationContext
         {
             var sessions = await _http.GetFromJsonAsync<TraySessionDto[]>($"{_baseUrl}/api/sessions")
                            ?? [];
+            TraySeatDto[] seats;
+            try { seats = await _http.GetFromJsonAsync<TraySeatDto[]>($"{_baseUrl}/api/seats") ?? []; }
+            catch (HttpRequestException) { seats = []; }   // servicio sin puestos para la bandeja
             await NotifyPairingsAsync(sessions);
-            var signature = string.Join("|", sessions.Select(s => $"{s.Id}:{s.Name}:{s.State}"));
+            var signature = string.Join("|", sessions.Select(s => $"{s.Id}:{s.Name}:{s.State}")) + "#" +
+                            string.Join("|", seats.Select(s => $"{s.Id}:{s.Name}:{s.State}:{s.SessionId}"));
             if (signature == _menuSignature) return;
             _menuSignature = signature;
-            UpdateMenu(sessions);
+            UpdateMenu(sessions, seats);
         }
         catch
         {
@@ -136,18 +140,18 @@ internal sealed class TrayApp : ApplicationContext
         if (fresh is null) return;
 
         bool tv = fresh.Kind == "webrtc";
-        string who = fresh.Name is { } n ? (tv ? $"La TV {n}" : n)
-                   : fresh.Address is { } a ? (tv ? $"Una TV en {a}" : $"Un dispositivo en {a}")
-                   : tv ? "Una TV con Moonlight WebRTC" : "Un dispositivo Moonlight";
+        string who = fresh.Name is { } n ? (tv ? TrayText.Get("pair.tvNamed", n) : n)
+                   : fresh.Address is { } a ? TrayText.Get(tv ? "pair.tvAt" : "pair.deviceAt", a)
+                   : TrayText.Get(tv ? "pair.tv" : "pair.device");
         _pairingSession = fresh.SessionId;
-        _icon.ShowBalloonTip(15000, "Solicitud de emparejamiento",
-            $"{who} quiere emparejarse con '{fresh.SessionName}'. Haz clic para introducir el PIN.",
+        _icon.ShowBalloonTip(15000, TrayText.Get("pair.title"),
+            TrayText.Get("pair.body", who, fresh.SessionName),
             ToolTipIcon.Info);
     }
 
     // ── menus ─────────────────────────────────────────────────────────────────────
 
-    private void UpdateMenu(TraySessionDto[] sessions)
+    private void UpdateMenu(TraySessionDto[] sessions, TraySeatDto[] seats)
     {
         var old  = _icon.ContextMenuStrip;
         var menu = new ContextMenuStrip();
@@ -155,31 +159,26 @@ internal sealed class TrayApp : ApplicationContext
         menu.Items.Add(new ToolStripMenuItem("OpenStreamMS") { Enabled = false });
         menu.Items.Add(new ToolStripSeparator());
 
+        menu.Items.Add(new ToolStripMenuItem(TrayText.Get("sessions")) { Enabled = false, Font = BoldFont(menu) });
         if (sessions.Length == 0)
-        {
-            menu.Items.Add(new ToolStripMenuItem("Sin sesiones configuradas") { Enabled = false });
-        }
-        else
-        {
-            foreach (var s in sessions)
-            {
-                var label = new ToolStripMenuItem($"{s.Name}  [{s.State}]") { Enabled = false };
-                menu.Items.Add(label);
+            menu.Items.Add(new ToolStripMenuItem(TrayText.Get("sessions.none")) { Enabled = false });
+        foreach (var s in sessions)
+            menu.Items.Add(PowerItem(s.Name, s.State, $"/api/sessions/{s.Id}"));
 
-                if (s.State is "Running" or "Starting")
+        // Un puesto sin sesión asignada no se puede encender: se ve, pero desactivado.
+        if (seats.Length > 0)
+        {
+            menu.Items.Add(new ToolStripSeparator());
+            menu.Items.Add(new ToolStripMenuItem(TrayText.Get("seats")) { Enabled = false, Font = BoldFont(menu) });
+            foreach (var s in seats)
+            {
+                var item = PowerItem(s.Name, s.State, $"/api/seats/{s.Id}");
+                if (s.SessionId is null && s.State is not ("Running" or "Starting"))
                 {
-                    var id   = s.Id;
-                    var stop = new ToolStripMenuItem($"  Detener '{s.Name}'");
-                    stop.Click += async (_, _) => await PostAsync($"/api/sessions/{id}/stop");
-                    menu.Items.Add(stop);
+                    item.Enabled = false;
+                    item.ToolTipText = TrayText.Get("seat.noSession");
                 }
-                else if (s.State is "Stopped" or "Created" or "Error")
-                {
-                    var id    = s.Id;
-                    var start = new ToolStripMenuItem($"  Iniciar '{s.Name}'");
-                    start.Click += async (_, _) => await PostAsync($"/api/sessions/{id}/start");
-                    menu.Items.Add(start);
-                }
+                menu.Items.Add(item);
             }
         }
 
@@ -192,10 +191,57 @@ internal sealed class TrayApp : ApplicationContext
         old?.Dispose();
     }
 
+    /// <summary>
+    /// Una sesión o un puesto: "Nombre — Estado   Encender/Apagar", con un punto de color. Al
+    /// pulsarlo se enciende o se apaga; los que están arrancando o deteniéndose no responden.
+    /// </summary>
+    private ToolStripMenuItem PowerItem(string name, string state, string apiPath)
+    {
+        bool on   = state is "Running";
+        bool busy = state is "Starting" or "Stopping";
+        var item = new ToolStripMenuItem($"{name} — {TrayText.State(state)}")
+        {
+            Image   = StateDot(state),
+            Enabled = !busy,
+        };
+        if (!busy)
+        {
+            var action = on ? "stop" : "start";
+            item.Click += async (_, _) => await PostAsync($"{apiPath}/{action}");
+            item.ShortcutKeyDisplayString = TrayText.Get(on ? "action.stop" : "action.start");
+        }
+        return item;
+    }
+
+    private static Font BoldFont(ContextMenuStrip menu) => new(menu.Font, FontStyle.Bold);
+
+    private static readonly Dictionary<int, Bitmap> _dots = [];
+
+    /// <summary>Punto de color del estado: verde activo, ámbar en curso, rojo error, gris apagado.</summary>
+    private static Bitmap StateDot(string state)
+    {
+        var color = state switch
+        {
+            "Running"                => Color.FromArgb(34, 197, 94),
+            "Starting" or "Stopping" => Color.FromArgb(245, 158, 11),
+            "Error"                  => Color.FromArgb(239, 68, 68),
+            _                        => Color.FromArgb(148, 163, 184),
+        };
+        if (_dots.TryGetValue(color.ToArgb(), out var bmp)) return bmp;
+        bmp = new Bitmap(16, 16);
+        using (var g = Graphics.FromImage(bmp))
+        {
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            using var brush = new SolidBrush(color);
+            g.FillEllipse(brush, 4, 4, 8, 8);
+        }
+        return _dots[color.ToArgb()] = bmp;
+    }
+
     private ContextMenuStrip BuildOfflineMenu()
     {
         var menu = new ContextMenuStrip();
-        menu.Items.Add(new ToolStripMenuItem("OpenStreamMS — sin conexión") { Enabled = false });
+        menu.Items.Add(new ToolStripMenuItem(TrayText.Get("offline")) { Enabled = false });
         menu.Items.Add(new ToolStripSeparator());
         AddWebItem(menu);
         menu.Items.Add(new ToolStripSeparator());
@@ -205,14 +251,14 @@ internal sealed class TrayApp : ApplicationContext
 
     private void AddWebItem(ContextMenuStrip menu)
     {
-        var item = new ToolStripMenuItem("Abrir OpenStreamMS");
+        var item = new ToolStripMenuItem(TrayText.Get("open")) { Font = BoldFont(menu) };
         item.Click += (_, _) => OpenWeb();
         menu.Items.Add(item);
     }
 
     private void AddExitItem(ContextMenuStrip menu)
     {
-        var item = new ToolStripMenuItem("Salir");
+        var item = new ToolStripMenuItem(TrayText.Get("exit"));
         // Los presentadores primero: el servicio apaga los puestos al ver sus tuberías cerradas.
         item.Click += (_, _) => { _timer.Stop(); OpenStreamMS.Services.Seats.SeatHost.CloseAll(); ExitThread(); };
         menu.Items.Add(item);
@@ -256,4 +302,5 @@ internal sealed class TrayApp : ApplicationContext
 }
 
 internal sealed record TraySessionDto(Guid Id, string Name, string State);
+internal sealed record TraySeatDto(Guid Id, string Name, string State, Guid? SessionId);
 internal sealed record TrayPairingDto(Guid SessionId, string SessionName, string Id, string? Name, string? Address, string? Kind);
