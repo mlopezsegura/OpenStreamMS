@@ -6,6 +6,7 @@
   <title>OpenStreamMS</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="/style.css">
+  <script src="/theme.js"></script>
   <script src="/i18n.js"></script>
 </head>
 <body>
@@ -168,8 +169,14 @@
         </div>
         <div class="form-row">
           <label for="seat-mic" data-i18n="seat.micLabel">Micrófono</label>
-          <select name="AudioIn" id="seat-mic"></select>
-          <div class="hint" data-i18n="seat.micHint">Dentro de la sesión aparece como el micrófono «Remote Audio».</div>
+          <div class="select-test">
+            <select name="AudioIn" id="seat-mic" onchange="stopMicMeter(); updateSeatTestButtons()"></select>
+            <button type="button" class="btn btn-ghost btn-sm" id="seat-mic-test" onclick="toggleMicMeter()" data-i18n="seat.test" data-i18n-title="seat.testMicTitle" title="Muestra el nivel del micrófono">Probar</button>
+          </div>
+          <div class="mic-meter hidden" id="seat-mic-meter" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-i18n-aria="seat.micLevel">
+            <span class="mic-meter-bar" id="seat-mic-bar"></span>
+          </div>
+          <div class="hint" id="seat-mic-status" data-i18n="seat.micHint">Dentro de la sesión aparece como el micrófono «Remote Audio».</div>
         </div>
         <div class="form-row">
           <div class="seat-devices-head">
@@ -468,6 +475,26 @@
       <button class="modal-close" type="button" onclick="hide('settings-modal')" data-i18n-aria="btn.close" aria-label="Cerrar">×</button>
     </div>
     <div class="modal-body">
+      <h4 class="settings-section" data-i18n="appearance.title">Apariencia</h4>
+      <div class="form-row">
+        <label data-i18n="appearance.theme">Tema</label>
+        <div class="theme-picker" id="theme-picker" role="radiogroup"></div>
+      </div>
+      <div class="form-row">
+        <label data-i18n="appearance.effects">Efectos visuales</label>
+        <div class="segmented" role="radiogroup" id="effects-picker">
+          <input type="radio" name="Effects" id="fx-auto" value="auto" onchange="Theme.setEffects(this.value)">
+          <label for="fx-auto" data-i18n="appearance.fx.auto">Automático</label>
+          <input type="radio" name="Effects" id="fx-full" value="full" onchange="Theme.setEffects(this.value)">
+          <label for="fx-full" data-i18n="appearance.fx.full">Completos</label>
+          <input type="radio" name="Effects" id="fx-reduced" value="reduced" onchange="Theme.setEffects(this.value)">
+          <label for="fx-reduced" data-i18n="appearance.fx.reduced">Reducidos</label>
+        </div>
+        <div class="hint" id="effects-hint"></div>
+      </div>
+      <p class="hint" data-i18n="appearance.local">El tema y los efectos se guardan en este navegador; no cambian lo que ven los demás.</p>
+
+      <h4 class="settings-section" data-i18n="settings.logSection">Registro</h4>
       <div class="form-row">
         <label data-i18n="settings.logLabel">Nivel de log</label>
         <div class="level-picker" role="radiogroup" id="settings-log-level">

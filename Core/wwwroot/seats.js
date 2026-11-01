@@ -527,6 +527,62 @@ function updateSeatTestButtons() {
   const f = document.getElementById('seat-form');
   document.getElementById('seat-monitor-test').disabled = !f.Monitor.value;
   document.getElementById('seat-audio-test').disabled = !f.AudioOut.value;
+  document.getElementById('seat-mic-test').disabled = !f.AudioIn.value;
+}
+
+// ── Medidor del micrófono ──────────────────────────────────────────────────
+// Lo abre el servicio, igual que el cliente RDP del puesto: si aquí da error, el puesto
+// tampoco tendrá micrófono. Se para solo a los 20 s, al cambiar de micrófono o al cerrar.
+let micMeterTimer = null, micMeterUntil = 0, micMeterSmooth = 0, micMeterHeard = false;
+
+function toggleMicMeter() {
+  if (micMeterTimer) { stopMicMeter(); return; }
+  const id = document.getElementById('seat-form').AudioIn.value;
+  if (!id) return;
+  micMeterUntil = Date.now() + 20000;
+  micMeterSmooth = 0;
+  micMeterHeard = false;
+  document.getElementById('seat-mic-meter').classList.remove('hidden');
+  document.getElementById('seat-mic-test').textContent = t('seat.micStop');
+  setMicStatus(t('seat.micSpeak'), '');
+  let busy = false;
+  micMeterTimer = setInterval(async () => {
+    if (busy) return;
+    if (Date.now() > micMeterUntil || document.getElementById('seat-modal').classList.contains('hidden')) { stopMicMeter(); return; }
+    busy = true;
+    try {
+      const res = await api('GET', `/api/seats/identify/mic?id=${encodeURIComponent(id)}`);
+      if (!res || !res.ok) return;
+      const { level, error } = await res.json();
+      if (error) { stopMicMeter(); setMicStatus(t('seat.micError', { error }), 'error'); return; }
+      // Escala logarítmica (como un vúmetro): la voz normal queda a media barra.
+      const db = level > 0 ? 20 * Math.log10(level) : -60;
+      const pct = Math.max(0, Math.min(100, (db + 60) / 60 * 100));
+      micMeterSmooth = Math.max(pct, micMeterSmooth * .8);
+      const bar = document.getElementById('seat-mic-bar');
+      bar.style.width = `${micMeterSmooth}%`;
+      document.getElementById('seat-mic-meter').setAttribute('aria-valuenow', String(Math.round(micMeterSmooth)));
+      if (pct > 35 && !micMeterHeard) { micMeterHeard = true; setMicStatus(t('seat.micOk'), 'ok'); }
+    } finally { busy = false; }
+  }, 120);
+}
+
+function stopMicMeter() {
+  clearInterval(micMeterTimer);
+  micMeterTimer = null;
+  const btn = document.getElementById('seat-mic-test');
+  if (btn) btn.textContent = t('seat.test');
+  const meter = document.getElementById('seat-mic-meter');
+  if (meter) meter.classList.add('hidden');
+  const status = document.getElementById('seat-mic-status');
+  if (status && !status.classList.contains('error')) setMicStatus(t('seat.micHint'), '');
+}
+
+function setMicStatus(text, kind) {
+  const el = document.getElementById('seat-mic-status');
+  el.textContent = text;
+  el.classList.toggle('error', kind === 'error');
+  el.classList.toggle('ok', kind === 'ok');
 }
 
 async function testSeatMonitor() {
@@ -625,6 +681,7 @@ function renderSeatInventory(sel) {
     mics.push({ id: seat.audioInId, name: `${seat.audioInName || seat.audioInId} (${t('seat.micMissing')})` });
   fillSelect('seat-mic', [{ v: '', label: t('seat.noMic') },
     ...mics.map(o => ({ v: o.id, label: o.name }))], sel.mic || '');
+  updateSeatTestButtons();
   updateSeatTestButtons();
 
   // Dispositivos: los libres más los que ya tiene el puesto, agrupados por tipo.
@@ -760,7 +817,7 @@ function fillSelect(selId, options, selected) {
   }
 }
 
-function closeSeatModal() { hide('seat-modal'); editingSeat = null; stopIdentify(); }
+function closeSeatModal() { hide('seat-modal'); editingSeat = null; stopIdentify(); stopMicMeter(); setMicStatus(t('seat.micHint'), ''); }
 
 async function submitSeat(e) {
   e.preventDefault();

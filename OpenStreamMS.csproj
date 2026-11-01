@@ -38,6 +38,7 @@
     <Content Include="Core\wwwroot\app.js" />
     <Content Include="Core\wwwroot\seats.js" />
     <Content Include="Core\wwwroot\i18n.js" />
+    <Content Include="Core\wwwroot\theme.js" />
     <Content Include="Core\wwwroot\index.html" />
     <Content Include="Core\wwwroot\login.html" />
     <Content Include="Core\wwwroot\setup.html" />

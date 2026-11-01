@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // dinámicamente por JS se traduzcan inmediatamente.
 window.addEventListener('langchange', () => {
   renderSessions();
+  if (!byId('settings-modal').classList.contains('hidden')) renderAppearance();
   if (rdpLastStatus) {
     updateRdpPill(rdpLastStatus);
     renderRdpStatus(rdpLastStatus);
@@ -91,6 +92,16 @@ async function loadSessions() {
   sessions = await res.json();
   sessionsLoaded = true;
   if (seatRes && seatRes.ok) seats = await seatRes.json();
+  // Con una sesión o un puesto en marcha este PC está codificando vídeo: en automático,
+  // efectos reducidos (sin desenfoque ni animaciones) para no quitarle GPU.
+  if (window.Theme) {
+    // Sin el dato de clientes (Sunshine sin /api/streams) se supone que una sesión activa emite.
+    const streaming = s => s.state === 'Running' &&
+      (s.clientsMoonlight == null || s.clientsWebRtc == null || s.clientsMoonlight + s.clientsWebRtc > 0);
+    Theme.setBusy(sessions.some(streaming) ||
+                  seats.some(s => s.state === 'Running' || s.state === 'Starting'));
+    updateEffectsHint();
+  }
   renderSessions();
   openPairFromHash();
 }
@@ -146,7 +157,7 @@ function renderCard(s) {
         </div>
         ${power}
       </div>
-      <div class="card-chips">${protos.join('')}${sessionSeatLine(s)}</div>
+      <div class="card-chips">${protos.join('')}${sessionSeatLine(s)}${clientsChip(s)}</div>
       ${startProgress(s)}
       ${rdpWarning(s)}
       ${s.streamProtocol !== 'Moonlight' && !s.sunshineSupportsWebRtc
@@ -181,6 +192,16 @@ function sessionMenu(e, id) {
     { icon: 'trash',    label: t('btn.delete'),   run: () => deleteSession(s.id, s.name), danger: true, disabled: running || busy },
   ]);
 }
+// Quién está conectado ahora (lo que cuenta Sunshine). Sin dato (Sunshine antiguo o
+// arrancando), no se muestra nada.
+function clientsChip(s) {
+  if (s.state !== 'Running' || s.clientsMoonlight == null || s.clientsWebRtc == null) return '';
+  const n = s.clientsMoonlight + s.clientsWebRtc;
+  const title = t('ux.clients.detail', { moonlight: s.clientsMoonlight, webrtc: s.clientsWebRtc });
+  return `<span class="chip chip-clients${n ? ' active' : ''}" title="${esc(title)}">${uiIcon('users')}${esc(
+    n === 0 ? t('ux.clients.none') : n === 1 ? t('ux.clients.one') : t('ux.clients.many', { n }))}</span>`;
+}
+
 // Puesto local asociado a la sesión: su nombre y si ahora mismo la está usando.
 function sessionSeatLine(s) {
   const seat = seats.find(x => x.sessionId === s.id);
@@ -1184,6 +1205,7 @@ const UI_ICONS = {
   gear:     '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
   trash:    '<path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/>',
   screen:   '<rect x="2" y="3" width="20" height="13" rx="2"/><path d="M8 21h8M12 16v5"/>',
+  users:    '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/>',
   link:     '<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>',
   pc:       '<rect x="2" y="3" width="20" height="13" rx="2"/><path d="M8 21h8M12 16v5"/><path d="M7 8h4"/>',
   seat:     '<rect x="3" y="4" width="18" height="11" rx="2"/><path d="M7 19h10M9 15v4M15 15v4"/>',
@@ -1383,8 +1405,56 @@ function toast(msg, isError = false) {
 }
 
 // ── Ajustes globales: nivel de log ────────────────────────────────────────
+// Miniaturas fijas de cada tema: se ven con sus propios colores aunque el panel use otro.
+const THEME_PREVIEWS = {
+  system:    null,
+  dark:      { bg: '#0d0d1a', card: '#1a1a2e', accent: '#7c3aed', text: '#e2e8f0', line: '#2d2d50' },
+  light:     { bg: '#f4f5fa', card: '#ffffff', accent: '#6d28d9', text: '#1c2033', line: '#d9deea' },
+  synthwave: { bg: '#12062b', card: '#211046', accent: '#ff2fb3', text: '#fbeaff', line: '#2de2e6' },
+  retro:     { bg: '#0e0a04', card: '#1b1308', accent: '#ffb000', text: '#ffcf70', line: '#4d3812' },
+  matrix:    { bg: '#000000', card: '#03100a', accent: '#00e05a', text: '#b8ffd0', line: '#0f4024' },
+};
+
+function themeSwatch(p) {
+  return `<span class="theme-swatch" style="background:${p.bg}">
+      <span class="ts-card" style="background:${p.card};border-color:${p.line}">
+        <span class="ts-line" style="background:${p.text}"></span>
+        <span class="ts-line short" style="background:${p.text}"></span>
+        <span class="ts-btn" style="background:${p.accent}"></span>
+      </span></span>`;
+}
+
+function renderAppearance() {
+  const picker = byId('theme-picker');
+  picker.innerHTML = Theme.THEMES.map(name => {
+    // "Según el sistema": mitad oscuro, mitad claro
+    const swatch = name === 'system'
+      ? `<span class="theme-swatch split">${themeSwatch(THEME_PREVIEWS.dark)}${themeSwatch(THEME_PREVIEWS.light)}</span>`
+      : themeSwatch(THEME_PREVIEWS[name]);
+    return `<label class="theme-option">
+        <input type="radio" name="Theme" value="${name}" ${Theme.theme === name ? 'checked' : ''}
+               onchange="Theme.setTheme(this.value); updateEffectsHint()">
+        ${swatch}<span class="theme-name">${esc(t('appearance.theme.' + name))}</span>
+      </label>`;
+  }).join('');
+  const fx = document.querySelector(`#effects-picker input[value="${Theme.effects}"]`);
+  if (fx) fx.checked = true;
+  updateEffectsHint();
+}
+
+// En automático, se dice qué está aplicando ahora y por qué.
+function updateEffectsHint() {
+  const hint = byId('effects-hint');
+  if (!hint) return;
+  const key = Theme.effects !== 'auto' ? `appearance.fx.${Theme.effects}Hint`
+            : Theme.resolvedEffects === 'reduced' ? 'appearance.fx.autoReduced' : 'appearance.fx.autoFull';
+  hint.textContent = t(key);
+}
+document.addEventListener('change', e => { if (e.target.name === 'Effects') updateEffectsHint(); });
+
 async function openSettingsModal() {
   document.querySelectorAll('.nav-pop').forEach(p => p.classList.add('hidden'));
+  renderAppearance();
   const res = await api('GET', '/api/settings');
   if (!res) return;
   if (!res.ok) { toast(t('toast.connectionError'), true); return; }
