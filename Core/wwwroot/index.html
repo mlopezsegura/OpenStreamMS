@@ -6,6 +6,7 @@
   <title>OpenStreamMS</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <link rel="stylesheet" href="/style.css">
+  <script src="/theme.js"></script>
   <script src="/i18n.js"></script>
 </head>
 <body>
@@ -43,24 +44,30 @@
         <span class="status-pill-label" data-i18n="hidhide.pill">HidHide</span>
         <span class="status-pill-state" id="hidhide-pill-state">—</span>
       </button>
+          <div class="nav-pop-title" data-i18n="orphans.navTitle">Usuarios de Windows</div>
+          <button class="nav-pop-item orphans-item" type="button" onclick="openOrphansModal()">
+            <span data-i18n="orphans.navItem">Usuarios dedicados sin sesión</span>
+            <b id="orphans-count">—</b>
+          </button>
         </div>
       </div>
-      <button class="icon-btn" type="button" onclick="openPowerModal()" data-i18n-title="power.btn" title="Apagar / Reiniciar">
+      <button class="icon-btn" type="button" onclick="openPowerModal()" data-i18n-title="power.btn" data-i18n-aria="power.btn" title="Apagar / Reiniciar" aria-label="Apagar / Reiniciar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></svg>
       </button>
       <div class="nav-pop-wrap">
-        <button class="icon-btn" type="button" onclick="togglePop('more-pop', event)" data-i18n-title="nav.more" title="Más">
+        <button class="icon-btn" type="button" onclick="togglePop('more-pop', event)" data-i18n-title="nav.more" data-i18n-aria="nav.more" title="Más" aria-label="Más" aria-haspopup="true">
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
         </button>
         <div class="nav-pop nav-pop-right hidden" id="more-pop" role="menu">
           <label class="nav-pop-row"><span data-i18n="nav.langLabel">Idioma</span>
             <select id="lang-select" class="lang-select" data-i18n-title="nav.langLabel" title="Idioma"></select></label>
+          <button class="nav-pop-item" type="button" onclick="openSettingsModal()" data-i18n="settings.title">Ajustes</button>
           <a href="/scalar/v1" target="_blank" class="nav-pop-item" data-i18n="nav.apiDocs">API docs</a>
           <button class="nav-pop-item" type="button" onclick="show('about-modal')" data-i18n="nav.about">Acerca de</button>
         </div>
       </div>
       <form method="POST" action="/logout" style="margin:0">
-        <button type="submit" class="icon-btn" data-i18n-title="nav.logout" title="Cerrar sesión">
+        <button type="submit" class="icon-btn" data-i18n-title="nav.logout" data-i18n-aria="nav.logout" title="Cerrar sesión" aria-label="Cerrar sesión">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
           </svg>
@@ -108,10 +115,11 @@
   <div class="modal modal-wide" onclick="event.stopPropagation()">
     <div class="modal-header">
       <h3 id="seat-modal-title" data-i18n="seat.newTitle">Nuevo puesto</h3>
-      <button class="modal-close" onclick="closeSeatModal()">×</button>
+      <button class="modal-close" type="button" data-i18n-aria="btn.close" aria-label="Cerrar" onclick="closeSeatModal()">×</button>
     </div>
     <div class="modal-body">
       <div id="seat-error" class="auth-alert error" style="display:none"></div>
+      <div id="seat-running-note" class="card-warning hidden" data-i18n="ux.seat.runningNote">El puesto está encendido: puedes cambiar el nombre y el autoarranque. Si cambias la pantalla, el audio, los dispositivos o la sesión, se apagará y volverá a encender al guardar.</div>
       <form id="seat-form" onsubmit="submitSeat(event)">
         <input type="hidden" name="Id">
         <div class="form-preview" id="seat-preview"></div>
@@ -165,6 +173,17 @@
           </div>
         </div>
         <div class="form-row">
+          <label for="seat-mic" data-i18n="seat.micLabel">Micrófono</label>
+          <div class="select-test">
+            <select name="AudioIn" id="seat-mic" onchange="stopMicMeter(); updateSeatTestButtons()"></select>
+            <button type="button" class="btn btn-ghost btn-sm" id="seat-mic-test" onclick="toggleMicMeter()" data-i18n="seat.test" data-i18n-title="seat.testMicTitle" title="Muestra el nivel del micrófono">Probar</button>
+          </div>
+          <div class="mic-meter hidden" id="seat-mic-meter" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-i18n-aria="seat.micLevel">
+            <span class="mic-meter-bar" id="seat-mic-bar"></span>
+          </div>
+          <div class="hint" id="seat-mic-status" data-i18n="seat.micHint">Dentro de la sesión aparece como el micrófono «Remote Audio».</div>
+        </div>
+        <div class="form-row">
           <div class="seat-devices-head">
             <label data-i18n="seat.devicesLabel">Dispositivos (teclado/ratón/mando)</label>
             <button type="button" class="btn btn-ghost btn-sm" id="seat-refresh" onclick="refreshSeatInventory()" data-i18n="seat.refreshDevices">Volver a buscar</button>
@@ -194,67 +213,75 @@
   </div>
 </div>
 
-<!-- ─── Modal: nueva sesión ─────────────────────────────────────────────── -->
-<div class="modal-backdrop hidden" id="new-modal" onclick="handleBackdropClick(event,'new-modal')">
-  <div class="modal modal-wide" onclick="event.stopPropagation()">
+<!-- ─── Modal: nueva / editar sesión (una sola ventana para los dos casos) ─ -->
+<div class="modal-backdrop hidden" id="sess-modal" onclick="handleBackdropClick(event,'sess-modal')">
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="sess-title" onclick="event.stopPropagation()">
     <div class="modal-header">
-      <h3 data-i18n="new.title">Nueva sesión</h3>
-      <button class="modal-close" onclick="closeNewModal()">×</button>
+      <h3 id="sess-title" data-i18n="new.title">Nueva sesión</h3>
+      <button class="modal-close" type="button" onclick="closeSessionModal()" data-i18n-aria="btn.close" aria-label="Cerrar">×</button>
     </div>
     <div class="modal-body">
-      <div id="new-error" class="auth-alert error" style="display:none"></div>
-      <form id="new-form" onsubmit="submitNew(event)">
-        <div class="form-preview" id="new-preview"></div>
+      <div id="sess-error" class="auth-alert error" style="display:none" role="alert"></div>
+      <form id="sess-form" onsubmit="submitSession(event)" novalidate>
+        <input type="hidden" id="sess-id">
+        <div class="form-preview" id="sess-preview"></div>
         <div class="form-sections">
 <section class="form-section ">
           <h4 class="form-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span data-i18n="sec.general">General</span></h4>
         <div class="form-row">
-          <label data-i18n="new.nameLabel">Nombre *</label>
-          <input type="text" name="Name" required data-i18n-placeholder="new.namePlaceholder" placeholder="Ej: Sala de juegos">
+          <label for="sess-name" data-i18n="new.nameLabel">Nombre *</label>
+          <input type="text" id="sess-name" required data-i18n-placeholder="new.namePlaceholder" placeholder="Ej: Sala de juegos">
         </div>
-        <div class="form-row">
+        <div class="form-row create-only">
           <label data-i18n="kind.label">Tipo de sesión</label>
           <div class="segmented" role="radiogroup">
-            <input type="radio" name="SessionKind" id="new-kind-rdp" value="rdp" onchange="updateKindUi('new')" checked>
-            <label for="new-kind-rdp" data-i18n="kind.rdp">Sesión RDP</label>
-            <input type="radio" name="SessionKind" id="new-kind-local" value="local" onchange="updateKindUi('new')">
-            <label for="new-kind-local" data-i18n="kind.local">Escritorio local</label>
+            <input type="radio" name="SessKind" id="sess-kind-rdp" value="rdp" onchange="updateKindUi()" checked>
+            <label for="sess-kind-rdp" data-i18n="kind.rdp">Sesión RDP</label>
+            <input type="radio" name="SessKind" id="sess-kind-local" value="local" onchange="updateKindUi()">
+            <label for="sess-kind-local" data-i18n="kind.local">Escritorio local</label>
           </div>
           <div class="hint rdp-only" data-i18n="kind.rdpHint">Sesión de Windows en segundo plano, independiente del escritorio de este PC.</div>
           <div class="hint local-only" data-i18n="kind.localHint">Sunshine transmite el escritorio físico de este PC con el usuario que lo tenga abierto. Al detenerla no se cierra la sesión de Windows. Solo puede haber una.</div>
         </div>
+        <div class="hint local-only edit-only" data-i18n="kind.localEditHint">Sesión local: transmite el escritorio físico de este PC con el usuario que lo tenga abierto.</div>
         <div class="rdp-only">
         <div class="form-check">
-          <input type="checkbox" id="chk-isolated" name="Isolated" onchange="updateIsolatedUi('new')">
-          <label for="chk-isolated" data-i18n-html="new.isolatedLabel_html"><strong>Sesión aislada (usuario dedicado)</strong> — OpenStreamMS crea un usuario local propio para esta sesión, con su perfil y registro. Permite, por ejemplo, otra cuenta de Steam en paralelo</label>
+          <input type="checkbox" id="sess-isolated" onchange="updateIsolatedUi()">
+          <label for="sess-isolated" data-i18n-html="new.isolatedLabel_html"><strong>Sesión aislada (usuario dedicado)</strong></label>
         </div>
-        <div class="form-check" id="new-ephemeral-row" style="display:none">
-          <input type="checkbox" id="chk-isolated-ephemeral" name="IsolatedEphemeral">
-          <label for="chk-isolated-ephemeral" data-i18n-html="new.ephemeralLabel_html"><strong>Perfil efímero</strong> — borrar el perfil del usuario dedicado al detener la sesión (cada arranque parte de cero)</label>
+        <div class="form-check" id="sess-ephemeral-row" style="display:none">
+          <input type="checkbox" id="sess-ephemeral">
+          <label for="sess-ephemeral" data-i18n-html="new.ephemeralLabel_html"><strong>Perfil efímero</strong></label>
         </div>
-        <div id="new-creds-block">
+        <div class="form-row create-only" id="sess-reuse-row" style="display:none">
+          <label for="sess-reuse" data-i18n="new.reuseLabel">Usuario de Windows</label>
+          <select id="sess-reuse" onchange="updateIsolatedUi(); updateSessionPreview()"></select>
+          <div class="hint" data-i18n="new.reuseHint">Un usuario conservado mantiene su perfil: el login de Steam, las partidas guardadas y los ajustes de los juegos.</div>
+        </div>
+        <div id="sess-creds-block" class="create-only">
         <div class="form-grid">
           <div class="form-row">
-            <label data-i18n="new.userLabel">Usuario Windows *</label>
-            <input type="text" name="Username" required data-i18n-placeholder="new.userPlaceholder" placeholder="streamuser" oninput="resetCredTest()">
+            <label for="sess-user" data-i18n="new.userLabel">Usuario Windows *</label>
+            <input type="text" id="sess-user" autocomplete="off" data-i18n-placeholder="new.userPlaceholder" placeholder="streamuser" oninput="resetCredTest()">
           </div>
           <div class="form-row">
-            <label data-i18n="new.domainLabel">Dominio</label>
-            <input type="text" name="Domain" value="." placeholder="." oninput="resetCredTest()">
+            <label for="sess-domain" data-i18n="new.domainLabel">Dominio</label>
+            <input type="text" id="sess-domain" value="." placeholder="." oninput="resetCredTest()">
           </div>
         </div>
         <div class="form-row">
-          <label data-i18n="new.passwordLabel">Contraseña *</label>
-          <input type="password" name="Password" required oninput="resetCredTest()">
-          <div id="cred-test-result" class="cred-test" style="display:none">
+          <label for="sess-pass" data-i18n="new.passwordLabel">Contraseña *</label>
+          <input type="password" id="sess-pass" autocomplete="new-password" oninput="resetCredTest()">
+          <div id="cred-test-result" class="cred-test" style="display:none" role="status">
             <span id="cred-test-icon"></span>
             <span id="cred-test-msg"></span>
           </div>
-          <div style="margin-top:.6rem">
+          <div class="cred-test-actions">
             <button type="button" class="btn btn-ghost btn-sm" id="btn-test-creds" onclick="testCredentials()">
               <span id="btn-test-spinner" class="spinner" style="display:none"></span>
               <span data-i18n="new.testCreds">Probar credenciales</span>
             </button>
+            <span class="hint" data-i18n="ux.credsAutoTest">Se comprueban solas al crear la sesión.</span>
           </div>
         </div>
         </div>
@@ -262,10 +289,9 @@
           </section>
 <section class="form-section rdp-only">
           <h4 class="form-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="13" rx="2"/><path d="M8 21h8M12 16v5"/></svg><span data-i18n="sec.screen">Pantalla</span></h4>
-        <div class="rdp-only">
         <div class="form-row">
-          <label data-i18n="new.resolutionLabel">Resolución</label>
-          <select id="new-res-preset" onchange="onResPreset('new')">
+          <label for="sess-res-preset" data-i18n="new.resolutionLabel">Resolución</label>
+          <select id="sess-res-preset" onchange="onResPreset()">
             <option value="1280x720">1280×720 – HD</option>
             <option value="1366x768">1366×768</option>
             <option value="1600x900">1600×900</option>
@@ -276,112 +302,112 @@
             <option value="3840x2160">3840×2160 – 4K UHD</option>
             <option value="custom" data-i18n="new.customOption">Personalizada…</option>
           </select>
+          <div class="hint" data-i18n="ux.resolutionHint">La del dispositivo donde vas a jugar (TV, portátil…).</div>
         </div>
-        <div class="form-grid" id="new-res-custom" style="display:none">
+        <div class="form-grid" id="sess-res-custom" style="display:none">
           <div class="form-row">
-            <label data-i18n="new.widthLabel">Ancho (px)</label>
-            <input type="number" id="new-res-w" value="1920" min="640" max="7680">
+            <label for="sess-res-w" data-i18n="new.widthLabel">Ancho (px)</label>
+            <input type="number" id="sess-res-w" value="1920" min="640" max="7680">
           </div>
           <div class="form-row">
-            <label data-i18n="new.heightLabel">Alto (px)</label>
-            <input type="number" id="new-res-h" value="1080" min="480" max="4320">
+            <label for="sess-res-h" data-i18n="new.heightLabel">Alto (px)</label>
+            <input type="number" id="sess-res-h" value="1080" min="480" max="4320">
           </div>
-        </div>
-        <div class="form-grid">
-          <div class="form-row">
-            <label data-i18n="new.frameRateLabel">Framerate RDP</label>
-            <input type="number" name="RdpFrameRate" value="60" min="1" max="240" step="1">
-            <div class="hint" data-i18n="new.frameRateHint">Objetivo de FPS para la sesión RDP. 60 recomendado para streaming.</div>
-          </div>
-          <div class="form-row">
-            <label data-i18n="new.colorDepthLabel">Bits de color RDP</label>
-            <select name="RdpColorDepth">
-              <option value="16">16 bpp</option>
-              <option value="24">24 bpp</option>
-              <option value="32" selected>32 bpp</option>
-            </select>
-            <div class="hint" data-i18n="new.colorDepthHint">Profundidad de color enviada al cliente RDP.</div>
-          </div>
-        </div>
         </div>
           </section>
 <section class="form-section ">
           <h4 class="form-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5a10 10 0 0 1 14 0"/><path d="M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1" fill="currentColor"/></svg><span data-i18n="sec.stream">Streaming</span></h4>
         <div class="form-row">
-          <label data-i18n="new.portLabel">Puerto de stream (Moonlight)</label>
-          <input type="number" name="SunshineStreamPort" id="new-stream-port" value="47989" min="1024" max="65514" required
-                 oninput="updateDerivedWebPort('new')">
-          <div class="hint">
-            <span data-i18n="new.portHint">Puerto base de Moonlight. Cámbialo si tienes varias instancias.</span>
-            <span class="port-derived" id="new-port-derived"></span>
-          </div>
-        </div>
-        <div class="form-row">
-          <label data-i18n="proto.label">Protocolo de streaming</label>
+          <label data-i18n="ux.protoLabel">¿Desde dónde te conectarás?</label>
           <div class="segmented" role="radiogroup">
-            <input type="radio" name="StreamProtocol" id="new-proto-moonlight" value="Moonlight" onchange="updateProtocolFields('new')">
-            <label for="new-proto-moonlight">Moonlight</label>
-            <input type="radio" name="StreamProtocol" id="new-proto-webrtc" value="WebRtc" onchange="updateProtocolFields('new')">
-            <label for="new-proto-webrtc">WebRTC</label>
-            <input type="radio" name="StreamProtocol" id="new-proto-both" value="Both" onchange="updateProtocolFields('new')" checked>
-            <label for="new-proto-both" data-i18n="proto.both">Ambos</label>
+            <input type="radio" name="SessProto" id="sess-proto-moonlight" value="Moonlight" onchange="updateProtocolFields()">
+            <label for="sess-proto-moonlight" data-i18n="ux.protoMoonlight">App Moonlight</label>
+            <input type="radio" name="SessProto" id="sess-proto-webrtc" value="WebRtc" onchange="updateProtocolFields()">
+            <label for="sess-proto-webrtc" data-i18n="ux.protoWebrtc">TV (WebRTC)</label>
+            <input type="radio" name="SessProto" id="sess-proto-both" value="Both" onchange="updateProtocolFields()" checked>
+            <label for="sess-proto-both" data-i18n="proto.both">Ambos</label>
           </div>
-          <div class="hint" data-i18n="proto.hint">Moonlight para apps Moonlight, WebRTC para TVs Samsung con Moonlight WebRTC. Los puertos del protocolo apagado no se abren. WebRTC requiere la build de sunshine-webrtc.</div>
-        </div>
-        <div class="form-grid" id="new-webrtc-ports">
-          <div class="form-row">
-            <label data-i18n="proto.webrtcPortLabel">Puerto WebRTC (TVs)</label>
-            <input type="number" id="new-webrtc-port" min="1024" max="65535">
-            <div class="hint" data-i18n="proto.webrtcPortHint">TCP. La app de la TV usa 8000 salvo que indiques otro puerto junto a la IP del PC.</div>
-          </div>
-          <div class="form-row">
-            <label data-i18n="proto.mediaLabel">Puertos UDP de vídeo/audio WebRTC</label>
-            <div class="port-range">
-              <input type="number" id="new-webrtc-media-min" min="1024" max="65535">
-              <span>–</span>
-              <input type="number" id="new-webrtc-media-max" min="1024" max="65535">
-            </div>
-            <div class="hint" data-i18n="proto.mediaHint">Rango que se abre en el firewall junto al UDP 8000 de descubrimiento de TVs.</div>
-          </div>
+          <div class="hint" data-i18n="ux.protoHint">Moonlight en PC, móvil o consola; WebRTC en TVs Samsung con Moonlight WebRTC (requiere la build de sunshine-webrtc).</div>
         </div>
           </section>
 <section class="form-section ">
           <h4 class="form-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg><span data-i18n="sec.options">Opciones</span></h4>
-        <div class="form-check rdp-only">
-          <input type="checkbox" id="chk-bg"  name="RdpBackground" checked>
-          <label for="chk-bg" data-i18n="new.bgLabel">Lanzar mstsc en segundo plano (recomendado en producción)</label>
-        </div>
         <div class="form-check">
-          <input type="checkbox" id="chk-vdd" name="VddEnabled">
-          <label for="chk-vdd" data-i18n="new.vddLabel">Activar pantalla virtual (VDD) en Sunshine</label>
+          <input type="checkbox" id="sess-enabled">
+          <label for="sess-enabled" data-i18n-html="new.enabledLabel_html"><strong>Sesión habilitada</strong> — relanzar automáticamente al reiniciar el servicio</label>
         </div>
         <div class="form-check rdp-only">
-          <input type="checkbox" id="chk-stream-profile" name="UseStreamProfile">
-          <label for="chk-stream-profile" data-i18n-html="new.profileLabel_html"><strong>Perfil de stream independiente</strong> — permite abrir las mismas apps (Steam, Chrome…) en la sesión local y en la de stream a la vez</label>
+          <input type="checkbox" id="sess-profile">
+          <label for="sess-profile" data-i18n-html="new.profileLabel_html"><strong>Perfil de stream independiente</strong></label>
         </div>
-        <div class="form-check">
-          <input type="checkbox" id="chk-enabled" name="Enabled">
-          <label for="chk-enabled" data-i18n-html="new.enabledLabel_html"><strong>Sesión habilitada</strong> — relanzar automáticamente al reiniciar el servicio</label>
+        <!-- La pantalla virtual solo sirve en el escritorio local: en una sesión RDP no hace nada. -->
+        <div class="form-check local-only">
+          <input type="checkbox" id="sess-vdd">
+          <label for="sess-vdd" data-i18n-html="ux.vddLabel_html"><strong>Pantalla virtual</strong> — Sunshine crea una pantalla con la resolución del cliente</label>
         </div>
           </section>
 <section class="form-section form-section-wide form-section-plain">
           <h4 class="form-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14.7 6.3 3 3-9.4 9.4H5.3v-3z"/><path d="m16 5 3 3"/></svg><span data-i18n="sec.advanced">Avanzado</span></h4>
-        <details class="form-advanced">
-          <summary data-i18n="new.advTitle">Opciones avanzadas de Sunshine</summary>
-        <div class="form-row">
-          <label data-i18n="new.exeLabel">Ruta a sunshine.exe</label>
-          <input type="text" name="SunshineExePath" data-i18n-placeholder="new.exePlaceholder" placeholder="(usar configuración global)">
-          <div class="hint" data-i18n="new.exeHint">Déjalo vacío para usar la ruta definida en service.config.json.</div>
-        </div>
+        <details class="form-advanced" id="sess-advanced">
+          <summary data-i18n="ux.advSummary">Puertos, calidad RDP y opciones de Sunshine</summary>
+          <h5 class="form-subtitle" data-i18n="ux.advPorts">Puertos</h5>
           <div class="form-row">
-            <label data-i18n="new.advNameLabel">Nombre publicado (sunshine_name)</label>
-            <input type="text" name="SunshineName" data-i18n-placeholder="new.advNamePlaceholder" placeholder="(usar nombre de la sesión)">
-            <div class="hint" data-i18n="new.advNameHint">Nombre que Moonlight muestra al descubrir el host. Útil para distinguir varias sesiones.</div>
+            <label for="sess-port" data-i18n="new.portLabel">Puerto de stream (Moonlight)</label>
+            <input type="number" id="sess-port" value="47989" min="1024" max="65514" required oninput="updateDerivedWebPort()">
+            <div class="hint">
+              <span data-i18n="ux.portHint">Se elige solo para no chocar con otras sesiones. Cámbialo solo si tu red lo necesita.</span>
+              <span class="port-derived" id="sess-port-derived"></span>
+            </div>
+          </div>
+          <div class="form-grid" id="sess-webrtc-ports">
+            <div class="form-row">
+              <label for="sess-webrtc-port" data-i18n="proto.webrtcPortLabel">Puerto WebRTC (TVs)</label>
+              <input type="number" id="sess-webrtc-port" min="1024" max="65535">
+              <div class="hint" data-i18n="proto.webrtcPortHint">TCP. La app de la TV usa 8000 salvo que indiques otro puerto junto a la IP del PC.</div>
+            </div>
+            <div class="form-row">
+              <label for="sess-webrtc-media-min" data-i18n="proto.mediaLabel">Puertos UDP de vídeo/audio WebRTC</label>
+              <div class="port-range">
+                <input type="number" id="sess-webrtc-media-min" min="1024" max="65535" aria-label="min">
+                <span>–</span>
+                <input type="number" id="sess-webrtc-media-max" min="1024" max="65535" aria-label="max">
+              </div>
+              <div class="hint" data-i18n="proto.mediaHint">Rango que se abre en el firewall junto al UDP 8000 de descubrimiento de TVs.</div>
+            </div>
+          </div>
+          <div class="rdp-only">
+          <h5 class="form-subtitle" data-i18n="ux.advRdp">Sesión RDP</h5>
+          <div class="form-grid">
+            <div class="form-row">
+              <label for="sess-fps" data-i18n="ux.fpsLabel">Fotogramas por segundo</label>
+              <input type="number" id="sess-fps" value="60" min="1" max="240" step="1">
+              <div class="hint" data-i18n="ux.fpsHint">60 es lo recomendado. Más solo si el cliente y la red lo aguantan.</div>
+            </div>
+            <div class="form-row">
+              <label for="sess-bpp" data-i18n="ux.bppLabel">Calidad de color</label>
+              <select id="sess-bpp">
+                <option value="16" data-i18n="ux.bpp16">Baja (16 bits)</option>
+                <option value="24" data-i18n="ux.bpp24">Media (24 bits)</option>
+                <option value="32" selected data-i18n="ux.bpp32">Máxima (32 bits)</option>
+              </select>
+              <div class="hint" data-i18n="ux.bppHint">Colores de la sesión RDP. Déjalo en máxima salvo que haya problemas.</div>
+            </div>
+          </div>
+          <div class="form-check">
+            <input type="checkbox" id="sess-bg">
+            <label for="sess-bg" data-i18n-html="ux.bgLabel_html"><strong>Ocultar la ventana del cliente RDP</strong> — recomendado; desactívalo solo para depurar</label>
+          </div>
+          </div>
+          <h5 class="form-subtitle" data-i18n="ux.advSunshine">Sunshine</h5>
+          <div class="form-row">
+            <label for="sess-sunshine-name" data-i18n="ux.advNameLabel">Nombre visible en Moonlight</label>
+            <input type="text" id="sess-sunshine-name" data-i18n-placeholder="new.advNamePlaceholder" placeholder="(usar nombre de la sesión)">
+            <div class="hint" data-i18n-html="ux.advNameHint_html">Nombre del PC que verás al buscarlo desde Moonlight. <code>sunshine_name</code></div>
           </div>
           <div class="form-grid">
             <div class="form-row">
-              <label data-i18n="new.captureLabel">Captura</label>
-              <select name="Capture">
+              <label for="sess-capture" data-i18n="ux.captureLabel">Método de captura</label>
+              <select id="sess-capture">
                 <option value="" data-i18n="new.captureAuto">Auto (remoteidd si está instalado)</option>
                 <option value="wgc" data-i18n="new.capture_wgc">wgc (recomendado en RDP)</option>
                 <option value="ddx" data-i18n="new.capture_ddx">ddx</option>
@@ -390,8 +416,8 @@
               </select>
             </div>
             <div class="form-row">
-              <label data-i18n="new.encoderLabel">Encoder</label>
-              <select name="Encoder">
+              <label for="sess-encoder" data-i18n="ux.encoderLabel">Codificador de vídeo</label>
+              <select id="sess-encoder">
                 <option value="" data-i18n="new.encoderAuto">Auto-detección</option>
                 <option value="nvenc" data-i18n="new.encoder_nvenc">nvenc (NVIDIA)</option>
                 <option value="quicksync" data-i18n="new.encoder_quicksync">quicksync (Intel)</option>
@@ -401,34 +427,39 @@
             </div>
           </div>
           <div class="form-row">
-            <label data-i18n="new.outputLabel">Monitor a capturar (output_name)</label>
-            <input type="text" name="OutputName" data-i18n-placeholder="new.outputPlaceholder" placeholder="(principal)">
-            <div class="hint" data-i18n="new.outputHint">Nombre de dispositivo (p.ej. \\.\DISPLAY1). Útil cuando hay varios monitores o VDD.</div>
+            <label for="sess-output" data-i18n="ux.outputLabel">Pantalla que se transmite</label>
+            <input type="text" id="sess-output" data-i18n-placeholder="new.outputPlaceholder" placeholder="(principal)">
+            <div class="hint" data-i18n-html="ux.outputHint_html">Solo si hay varias: nombre de Windows, p. ej. \\.\DISPLAY2. <code>output_name</code></div>
           </div>
           <div class="form-row">
-            <label data-i18n="new.originLabel">Acceso al panel web (origin_web_ui_allowed)</label>
-            <select name="OriginWebUiAllowed">
+            <label for="sess-origin" data-i18n="ux.originLabel">Quién puede abrir el panel de Sunshine</label>
+            <select id="sess-origin">
               <option value="" data-i18n="new.originDefault">Defecto (lan)</option>
               <option value="pc" data-i18n="new.origin_pc">pc — solo localhost</option>
               <option value="lan" data-i18n="new.origin_lan">lan — red local</option>
               <option value="wan" data-i18n="new.origin_wan">wan — cualquier origen</option>
             </select>
-            <div class="hint" data-i18n="new.originHint">"pc" puede bloquear el acceso desde otra sesión Windows del mismo equipo aunque la IP sea 127.0.0.1.</div>
+            <div class="hint" data-i18n-html="ux.originHint_html">"Solo este PC" puede bloquear el acceso desde otra sesión de Windows del mismo equipo. <code>origin_web_ui_allowed</code></div>
           </div>
           <div class="form-grid">
             <div class="form-row">
-              <label data-i18n="new.panelUserLabel">Usuario panel Sunshine</label>
-              <input type="text" name="SunshineAuthUser" autocomplete="off" data-i18n-placeholder="new.panelUserPlaceholder" placeholder="(generar automáticamente)">
+              <label for="sess-panel-user" data-i18n="new.panelUserLabel">Usuario panel Sunshine</label>
+              <input type="text" id="sess-panel-user" autocomplete="off" data-i18n-placeholder="new.panelUserPlaceholder" placeholder="(generar automáticamente)">
             </div>
             <div class="form-row">
-              <label data-i18n="new.panelPassLabel">Contraseña panel Sunshine</label>
-              <input type="text" name="SunshineAuthPass" autocomplete="off" data-i18n-placeholder="new.panelPassPlaceholder" placeholder="(generar automáticamente)">
+              <label for="sess-panel-pass" data-i18n="new.panelPassLabel">Contraseña panel Sunshine</label>
+              <input type="text" id="sess-panel-pass" autocomplete="off" data-i18n-placeholder="new.panelPassPlaceholder" placeholder="(generar automáticamente)">
             </div>
           </div>
           <div class="hint" data-i18n="new.panelHint">Credenciales fijas para iniciar sesión en el panel web de Sunshine. Si dejas los campos vacíos, OpenStreamMS las genera la primera vez.</div>
           <div class="form-check">
-            <input type="checkbox" id="chk-rotate-sunshine-creds" name="RotateSunshineCredentials">
-            <label for="chk-rotate-sunshine-creds" data-i18n-html="new.rotateCredsLabel_html"><strong>Rotar credenciales Sunshine</strong> — generar credenciales nuevas al arrancar la sesión y reparar desincronizaciones del proxy</label>
+            <input type="checkbox" id="sess-rotate">
+            <label for="sess-rotate" data-i18n-html="new.rotateCredsLabel_html"><strong>Rotar credenciales Sunshine</strong></label>
+          </div>
+          <div class="form-row">
+            <label for="sess-exe" data-i18n="new.exeLabel">Ruta a sunshine.exe</label>
+            <input type="text" id="sess-exe" data-i18n-placeholder="new.exePlaceholder" placeholder="(usar configuración global)">
+            <div class="hint" data-i18n="new.exeHint">Déjalo vacío para usar la ruta definida en service.config.json.</div>
           </div>
         </details>
           </section>
@@ -436,218 +467,82 @@
       </form>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeNewModal()" data-i18n="new.cancel">Cancelar</button>
-      <button class="btn btn-primary" id="btn-create" disabled
-              onclick="document.getElementById('new-form').requestSubmit()" data-i18n="new.create">Crear sesión</button>
+      <button class="btn btn-ghost" type="button" onclick="closeSessionModal()" data-i18n="btn.cancel">Cancelar</button>
+      <button class="btn btn-primary" type="button" id="sess-submit"
+              onclick="document.getElementById('sess-form').requestSubmit()">
+        <span id="sess-submit-spinner" class="spinner" style="display:none"></span>
+        <span id="sess-submit-label" data-i18n="new.create">Crear sesión</span>
+      </button>
     </div>
   </div>
 </div>
 
-<!-- ─── Modal: editar sesión ────────────────────────────────────────────── -->
-<div class="modal-backdrop hidden" id="edit-modal" onclick="handleBackdropClick(event,'edit-modal')">
-  <div class="modal modal-wide" onclick="event.stopPropagation()">
+<!-- ─── Modal: ajustes globales ─────────────────────────────────────────── -->
+<div class="modal-backdrop hidden" id="settings-modal" onclick="handleBackdropClick(event,'settings-modal')">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title" onclick="event.stopPropagation()">
     <div class="modal-header">
-      <h3 id="edit-title" data-i18n="edit.title">Editar sesión</h3>
-      <button class="modal-close" onclick="closeEditModal()">×</button>
+      <h3 id="settings-title" data-i18n="settings.title">Ajustes</h3>
+      <button class="modal-close" type="button" onclick="hide('settings-modal')" data-i18n-aria="btn.close" aria-label="Cerrar">×</button>
     </div>
     <div class="modal-body">
-      <div id="edit-error" class="auth-alert error" style="display:none"></div>
-      <form id="edit-form" onsubmit="submitEdit(event)">
-        <input type="hidden" id="edit-id">
-        <div class="form-preview" id="edit-preview"></div>
-        <div class="form-sections">
-<section class="form-section ">
-          <h4 class="form-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg><span data-i18n="sec.general">General</span></h4>
-        <div class="form-row">
-          <label data-i18n="new.nameLabel">Nombre *</label>
-          <input type="text" id="edit-name" required>
+      <h4 class="settings-section" data-i18n="appearance.title">Apariencia</h4>
+      <div class="form-row">
+        <label data-i18n="appearance.theme">Tema</label>
+        <div class="theme-picker" id="theme-picker" role="radiogroup"></div>
+      </div>
+      <div class="form-row">
+        <label data-i18n="appearance.effects">Efectos visuales</label>
+        <div class="segmented" role="radiogroup" id="effects-picker">
+          <input type="radio" name="Effects" id="fx-auto" value="auto" onchange="Theme.setEffects(this.value)">
+          <label for="fx-auto" data-i18n="appearance.fx.auto">Automático</label>
+          <input type="radio" name="Effects" id="fx-full" value="full" onchange="Theme.setEffects(this.value)">
+          <label for="fx-full" data-i18n="appearance.fx.full">Completos</label>
+          <input type="radio" name="Effects" id="fx-reduced" value="reduced" onchange="Theme.setEffects(this.value)">
+          <label for="fx-reduced" data-i18n="appearance.fx.reduced">Reducidos</label>
         </div>
-        <div class="hint local-only" data-i18n="kind.localEditHint">Sesión local: transmite el escritorio físico de este PC con el usuario que lo tenga abierto.</div>
-        <div class="rdp-only">
-        <div class="form-check">
-          <input type="checkbox" id="edit-isolated" onchange="updateIsolatedUi('edit')">
-          <label for="edit-isolated" data-i18n-html="new.isolatedLabel_html"><strong>Sesión aislada (usuario dedicado)</strong></label>
+        <div class="hint" id="effects-hint"></div>
+      </div>
+      <p class="hint" data-i18n="appearance.local">El tema y los efectos se guardan en este navegador; no cambian lo que ven los demás.</p>
+
+      <h4 class="settings-section" data-i18n="settings.logSection">Registro</h4>
+      <div class="form-row">
+        <label data-i18n="settings.logLabel">Nivel de log</label>
+        <div class="level-picker" role="radiogroup" id="settings-log-level">
+          <label class="level-option"><input type="radio" name="LogLevel" value="Info">
+            <span><strong data-i18n="settings.log.Info">Info</strong><small data-i18n="settings.log.InfoHint">Todo: arranques, conexiones, avisos y errores. Útil para diagnosticar.</small></span></label>
+          <label class="level-option"><input type="radio" name="LogLevel" value="Warning">
+            <span><strong data-i18n="settings.log.Warning">Avisos</strong><small data-i18n="settings.log.WarningHint">Solo avisos y errores.</small></span></label>
+          <label class="level-option"><input type="radio" name="LogLevel" value="Error">
+            <span><strong data-i18n="settings.log.Error">Errores</strong><small data-i18n="settings.log.ErrorHint">Solo lo que ha fallado.</small></span></label>
+          <label class="level-option"><input type="radio" name="LogLevel" value="Off">
+            <span><strong data-i18n="settings.log.Off">Desactivado</strong><small data-i18n="settings.log.OffHint">No se escribe nada. Si algo falla, no quedará rastro.</small></span></label>
         </div>
-        <div class="form-check" id="edit-ephemeral-row" style="display:none">
-          <input type="checkbox" id="edit-isolated-ephemeral">
-          <label for="edit-isolated-ephemeral" data-i18n-html="new.ephemeralLabel_html"><strong>Perfil efímero</strong></label>
-        </div>
-        </div>
-          </section>
-<section class="form-section rdp-only">
-          <h4 class="form-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="13" rx="2"/><path d="M8 21h8M12 16v5"/></svg><span data-i18n="sec.screen">Pantalla</span></h4>
-        <div class="rdp-only">
-        <div class="form-row">
-          <label data-i18n="new.resolutionLabel">Resolución</label>
-          <select id="edit-res-preset" onchange="onResPreset('edit')">
-            <option value="1280x720">1280×720 – HD</option>
-            <option value="1366x768">1366×768</option>
-            <option value="1600x900">1600×900</option>
-            <option value="1920x1080">1920×1080 – Full HD</option>
-            <option value="2560x1080">2560×1080 – UltraWide FHD</option>
-            <option value="2560x1440">2560×1440 – QHD / 2K</option>
-            <option value="3440x1440">3440×1440 – UltraWide QHD</option>
-            <option value="3840x2160">3840×2160 – 4K UHD</option>
-            <option value="custom" data-i18n="new.customOption">Personalizada…</option>
-          </select>
-        </div>
-        <div class="form-grid" id="edit-res-custom" style="display:none">
-          <div class="form-row">
-            <label data-i18n="new.widthLabel">Ancho (px)</label>
-            <input type="number" id="edit-res-w" value="1920" min="640" max="7680">
-          </div>
-          <div class="form-row">
-            <label data-i18n="new.heightLabel">Alto (px)</label>
-            <input type="number" id="edit-res-h" value="1080" min="480" max="4320">
-          </div>
-        </div>
-        <div class="form-grid">
-          <div class="form-row">
-            <label data-i18n="new.frameRateLabel">Framerate RDP</label>
-            <input type="number" id="edit-rdp-fps" value="60" min="1" max="240" step="1">
-            <div class="hint" data-i18n="new.frameRateHint">Objetivo de FPS para la sesión RDP. 60 recomendado para streaming.</div>
-          </div>
-          <div class="form-row">
-            <label data-i18n="new.colorDepthLabel">Bits de color RDP</label>
-            <select id="edit-rdp-bpp">
-              <option value="16">16 bpp</option>
-              <option value="24">24 bpp</option>
-              <option value="32">32 bpp</option>
-            </select>
-            <div class="hint" data-i18n="new.colorDepthHint">Profundidad de color enviada al cliente RDP.</div>
-          </div>
-        </div>
-        </div>
-          </section>
-<section class="form-section ">
-          <h4 class="form-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5a10 10 0 0 1 14 0"/><path d="M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1" fill="currentColor"/></svg><span data-i18n="sec.stream">Streaming</span></h4>
-        <div class="form-row">
-          <label data-i18n="new.portLabel">Puerto de stream (Moonlight)</label>
-          <input type="number" id="edit-port" min="1024" max="65514" required
-                 oninput="updateDerivedWebPort('edit')">
-          <div class="hint">
-            <span data-i18n="new.portHint">Puerto base de Moonlight. Cámbialo si tienes varias instancias.</span>
-            <span class="port-derived" id="edit-port-derived"></span>
-          </div>
-        </div>
-        <div class="form-row">
-          <label data-i18n="proto.label">Protocolo de streaming</label>
-          <div class="segmented" role="radiogroup">
-            <input type="radio" name="EditStreamProtocol" id="edit-proto-moonlight" value="Moonlight" onchange="updateProtocolFields('edit')">
-            <label for="edit-proto-moonlight">Moonlight</label>
-            <input type="radio" name="EditStreamProtocol" id="edit-proto-webrtc" value="WebRtc" onchange="updateProtocolFields('edit')">
-            <label for="edit-proto-webrtc">WebRTC</label>
-            <input type="radio" name="EditStreamProtocol" id="edit-proto-both" value="Both" onchange="updateProtocolFields('edit')" checked>
-            <label for="edit-proto-both" data-i18n="proto.both">Ambos</label>
-          </div>
-          <div class="hint" data-i18n="proto.hint">Moonlight para apps Moonlight, WebRTC para TVs Samsung con Moonlight WebRTC. Los puertos del protocolo apagado no se abren. WebRTC requiere la build de sunshine-webrtc.</div>
-        </div>
-        <div class="form-grid" id="edit-webrtc-ports">
-          <div class="form-row">
-            <label data-i18n="proto.webrtcPortLabel">Puerto WebRTC (TVs)</label>
-            <input type="number" id="edit-webrtc-port" min="1024" max="65535">
-            <div class="hint" data-i18n="proto.webrtcPortHint">TCP. La app de la TV usa 8000 salvo que indiques otro puerto junto a la IP del PC.</div>
-          </div>
-          <div class="form-row">
-            <label data-i18n="proto.mediaLabel">Puertos UDP de vídeo/audio WebRTC</label>
-            <div class="port-range">
-              <input type="number" id="edit-webrtc-media-min" min="1024" max="65535">
-              <span>–</span>
-              <input type="number" id="edit-webrtc-media-max" min="1024" max="65535">
-            </div>
-            <div class="hint" data-i18n="proto.mediaHint">Rango que se abre en el firewall junto al UDP 8000 de descubrimiento de TVs.</div>
-          </div>
-        </div>
-          </section>
-<section class="form-section ">
-          <h4 class="form-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg><span data-i18n="sec.options">Opciones</span></h4>
-        <div class="form-check rdp-only">
-          <input type="checkbox" id="edit-bg">
-          <label for="edit-bg" data-i18n="new.bgLabel">Lanzar mstsc en segundo plano (recomendado en producción)</label>
-        </div>
-        <div class="form-check">
-          <input type="checkbox" id="edit-vdd">
-          <label for="edit-vdd" data-i18n="new.vddLabel">Activar pantalla virtual (VDD) en Sunshine</label>
-        </div>
-        <div class="form-check rdp-only">
-          <input type="checkbox" id="edit-profile">
-          <label for="edit-profile" data-i18n-html="new.profileLabel_html"><strong>Perfil de stream independiente</strong></label>
-        </div>
-          </section>
-<section class="form-section form-section-wide form-section-plain">
-          <h4 class="form-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m14.7 6.3 3 3-9.4 9.4H5.3v-3z"/><path d="m16 5 3 3"/></svg><span data-i18n="sec.advanced">Avanzado</span></h4>
-        <details class="form-advanced">
-          <summary data-i18n="new.advTitle">Opciones avanzadas de Sunshine</summary>
-        <div class="form-row">
-          <label data-i18n="new.exeLabel">Ruta a sunshine.exe</label>
-          <input type="text" id="edit-exe" data-i18n-placeholder="new.exePlaceholder" placeholder="(usar configuración global)">
-          <div class="hint" data-i18n="new.exeHint">Déjalo vacío para usar la ruta definida en service.config.json.</div>
-        </div>
-          <div class="form-row">
-            <label data-i18n="new.advNameLabel">Nombre publicado (sunshine_name)</label>
-            <input type="text" id="edit-sunshine-name" data-i18n-placeholder="new.advNamePlaceholder" placeholder="(usar nombre de la sesión)">
-            <div class="hint" data-i18n="new.advNameHint">Nombre que Moonlight muestra al descubrir el host.</div>
-          </div>
-          <div class="form-grid">
-            <div class="form-row">
-              <label data-i18n="new.captureLabel">Captura</label>
-              <select id="edit-capture">
-                <option value="" data-i18n="new.captureAuto">Auto (remoteidd si está instalado)</option>
-                <option value="wgc" data-i18n="new.capture_wgc">wgc (recomendado en RDP)</option>
-                <option value="ddx" data-i18n="new.capture_ddx">ddx</option>
-                <option value="nvfbc" data-i18n="new.capture_nvfbc">nvfbc</option>
-                <option value="remoteidd" data-i18n="new.capture_remoteidd">remoteidd (driver propio)</option>
-              </select>
-            </div>
-            <div class="form-row">
-              <label data-i18n="new.encoderLabel">Encoder</label>
-              <select id="edit-encoder">
-                <option value="" data-i18n="new.encoderAuto">Auto-detección</option>
-                <option value="nvenc" data-i18n="new.encoder_nvenc">nvenc (NVIDIA)</option>
-                <option value="quicksync" data-i18n="new.encoder_quicksync">quicksync (Intel)</option>
-                <option value="amdvce" data-i18n="new.encoder_amdvce">amdvce (AMD)</option>
-                <option value="software" data-i18n="new.encoder_software">software</option>
-              </select>
-            </div>
-          </div>
-          <div class="form-row">
-            <label data-i18n="new.outputLabel">Monitor a capturar (output_name)</label>
-            <input type="text" id="edit-output-name" data-i18n-placeholder="new.outputPlaceholder" placeholder="(principal)">
-            <div class="hint" data-i18n="new.outputHint">Nombre de dispositivo (p.ej. \\.\DISPLAY1).</div>
-          </div>
-          <div class="form-row">
-            <label data-i18n="new.originLabel">Acceso al panel web (origin_web_ui_allowed)</label>
-            <select id="edit-origin">
-              <option value="" data-i18n="new.originDefault">Defecto (lan)</option>
-              <option value="pc" data-i18n="new.origin_pc">pc — solo localhost</option>
-              <option value="lan" data-i18n="new.origin_lan">lan — red local</option>
-              <option value="wan" data-i18n="new.origin_wan">wan — cualquier origen</option>
-            </select>
-            <div class="hint" data-i18n="new.originHint">"pc" puede bloquear el acceso desde otra sesión Windows del mismo equipo aunque la IP sea 127.0.0.1.</div>
-          </div>
-          <div class="form-grid">
-            <div class="form-row">
-              <label data-i18n="new.panelUserLabel">Usuario panel Sunshine</label>
-              <input type="text" id="edit-panel-user" autocomplete="off">
-            </div>
-            <div class="form-row">
-              <label data-i18n="new.panelPassLabel">Contraseña panel Sunshine</label>
-              <input type="text" id="edit-panel-pass" autocomplete="off">
-            </div>
-          </div>
-          <div class="hint" data-i18n="new.panelHint">Credenciales fijas para iniciar sesión en el panel web de Sunshine. Si dejas los campos vacíos, OpenStreamMS las genera la primera vez.</div>
-          <div class="form-check">
-            <input type="checkbox" id="edit-rotate-creds">
-            <label for="edit-rotate-creds" data-i18n-html="new.rotateCredsLabel_html"><strong>Rotar credenciales Sunshine</strong> — generar credenciales nuevas al arrancar la sesión y reparar desincronizaciones del proxy</label>
-          </div>
-        </details>
-          </section>
-        </div>
-      </form>
+        <div class="hint" data-i18n="settings.logHint">Vale para el servicio, la bandeja, los puestos y Sunshine. Cada Sunshine lo aplica la próxima vez que se reinicie su sesión.</div>
+      </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeEditModal()" data-i18n="edit.cancel">Cancelar</button>
-      <button class="btn btn-primary" onclick="document.getElementById('edit-form').requestSubmit()" data-i18n="edit.save">Guardar cambios</button>
+      <button class="btn btn-ghost" type="button" onclick="hide('settings-modal')" data-i18n="btn.cancel">Cancelar</button>
+      <button class="btn btn-primary" type="button" id="settings-save" onclick="saveSettings()" data-i18n="btn.save">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Diálogo de confirmación (sustituye a confirm() del navegador) ────── -->
+<div class="modal-backdrop hidden" id="confirm-modal" onclick="handleBackdropClick(event,'confirm-modal')">
+  <div class="modal modal-confirm" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-msg" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 id="confirm-title"></h3>
+    </div>
+    <div class="modal-body">
+      <p id="confirm-msg" class="confirm-msg"></p>
+      <div class="form-check confirm-check hidden" id="confirm-check-row">
+        <input type="checkbox" id="confirm-check">
+        <label for="confirm-check" id="confirm-check-label"></label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" type="button" id="confirm-cancel" data-i18n="btn.cancel">Cancelar</button>
+      <button class="btn btn-primary" type="button" id="confirm-ok"></button>
     </div>
   </div>
 </div>
@@ -657,7 +552,7 @@
   <div class="modal modal-lg" onclick="event.stopPropagation()">
     <div class="modal-header">
       <h3 id="log-title" data-i18n="log.title">Log</h3>
-      <button class="modal-close" onclick="closeLogModal()">×</button>
+      <button class="modal-close" type="button" data-i18n-aria="btn.close" aria-label="Cerrar" onclick="closeLogModal()">×</button>
     </div>
     <div class="modal-body">
       <div class="log-toolbar">
@@ -671,6 +566,7 @@
           <button class="btn btn-ghost btn-sm" onclick="fetchLogs()" data-i18n="log.refresh">↻ Refrescar</button>
         </div>
       </div>
+      <div id="log-level-note" class="info-note hidden" role="status"></div>
       <div class="log-box" id="log-box"><span class="log-empty" data-i18n="log.empty">Sin entradas de log todavía.</span></div>
     </div>
     <div class="modal-footer">
@@ -686,11 +582,25 @@
 </div>
 
 <!-- ─── Modal: acerca de ─────────────────────────────────────────────────── -->
+<!-- ─── Modal: usuarios dedicados y perfiles sin sesión ─────────────────── -->
+<div class="modal-backdrop hidden" id="orphans-modal" onclick="handleBackdropClick(event,'orphans-modal')">
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="orphans-title" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 id="orphans-title" data-i18n="orphans.title">Usuarios dedicados sin sesión</h3>
+      <button class="modal-close" type="button" data-i18n-aria="btn.close" aria-label="Cerrar" onclick="hide('orphans-modal')">×</button>
+    </div>
+    <div class="modal-body">
+      <p class="orphans-intro" data-i18n="orphans.intro">Usuarios de Windows que creó OpenStreamMS y ya no usa ninguna sesión, y perfiles que quedaron en C:\Users. Los que tienen cuenta se pueden reutilizar al crear una sesión aislada.</p>
+      <div id="orphans-list" class="orphans-list" aria-live="polite"></div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-backdrop hidden" id="about-modal" onclick="if(event.target.id==='about-modal')hide('about-modal')">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-header">
       <h3 data-i18n="about.title">Acerca de</h3>
-      <button class="modal-close" onclick="hide('about-modal')">×</button>
+      <button class="modal-close" type="button" data-i18n-aria="btn.close" aria-label="Cerrar" onclick="hide('about-modal')">×</button>
     </div>
     <div class="modal-body">
       <div class="about-hero">
@@ -721,6 +631,13 @@
           <div>
             <div class="about-feature-title" data-i18n="about.feat2.title">Perfil de stream independiente</div>
             <div class="about-feature-desc" data-i18n="about.feat2.desc">Abre Steam, Chrome o cualquier app simultáneamente en local y en stream sin conflictos</div>
+          </div>
+        </div>
+        <div class="about-feature">
+          <span class="about-feature-icon">🖥️</span>
+          <div>
+            <div class="about-feature-title" data-i18n="about.featSeats.title">Puestos locales</div>
+            <div class="about-feature-desc" data-i18n="about.featSeats.desc">Varias personas en el mismo PC, cada una con su monitor, teclado, ratón, mando y audio</div>
           </div>
         </div>
         <div class="about-feature">
@@ -786,11 +703,14 @@
   <div class="modal modal-lg" onclick="event.stopPropagation()">
     <div class="modal-header">
       <h3 id="sunmgr-title">Sunshine</h3>
-      <button class="modal-close" onclick="closeSunMgrModal()">×</button>
+      <button class="modal-close" type="button" data-i18n-aria="btn.close" aria-label="Cerrar" onclick="closeSunMgrModal()">×</button>
     </div>
     <div class="modal-body">
+      <!-- ── Cómo conectarse: IP del PC y puertos de la sesión ── -->
+      <div id="connect-info" class="connect-info"></div>
+
       <!-- ── Emparejar ── -->
-      <h4 class="dep-log-label" data-i18n="sunmgr.pair.section">Emparejar</h4>
+      <h4 class="dep-log-label" data-i18n="ux.connect.pinTitle">2. Escribe el PIN que muestra el dispositivo</h4>
       <p class="dep-desc" data-i18n="sunmgr.pair.hint"></p>
       <form id="sunmgr-pair-form" onsubmit="sunmgrPair(event)">
         <div class="form-grid">
@@ -835,7 +755,7 @@
   <div class="modal modal-lg" onclick="event.stopPropagation()">
     <div class="modal-header">
       <h3 data-i18n="rdp.title">RDP multi-sesión (RDP Wrapper)</h3>
-      <button class="modal-close" onclick="closeRdpModal()">×</button>
+      <button class="modal-close" type="button" data-i18n-aria="btn.close" aria-label="Cerrar" onclick="closeRdpModal()">×</button>
     </div>
     <div class="modal-body">
       <p class="dep-desc" data-i18n="rdp.description"></p>
@@ -850,6 +770,8 @@
         <tr><td data-i18n="rdp.row.termsrv">termsrv.dll</td><td id="rdp-termsrv">—</td></tr>
         <tr><td data-i18n="rdp.row.serviceDll">ServiceDll</td><td id="rdp-service-dll">—</td></tr>
       </table>
+
+      <div id="rdp-pending-note" class="info-note hidden" role="status"></div>
 
       <div class="dep-actions">
         <button class="btn btn-primary btn-sm" id="rdp-btn-install" onclick="rdpInstall()" data-i18n="rdp.btn.install">Instalar</button>
@@ -872,7 +794,7 @@
   <div class="modal modal-lg" onclick="event.stopPropagation()">
     <div class="modal-header">
       <h3 data-i18n="vigem.title">ViGEmBus (mando virtual)</h3>
-      <button class="modal-close" onclick="closeDriverModal('vigem')">×</button>
+      <button class="modal-close" type="button" data-i18n-aria="btn.close" aria-label="Cerrar" onclick="closeDriverModal('vigem')">×</button>
     </div>
     <div class="modal-body">
       <p class="dep-desc" data-i18n="vigem.description"></p>
@@ -911,7 +833,7 @@
   <div class="modal modal-lg" onclick="event.stopPropagation()">
     <div class="modal-header">
       <h3 data-i18n="hidhide.title">HidHide (aislamiento de mandos)</h3>
-      <button class="modal-close" onclick="closeDriverModal('hidhide')">×</button>
+      <button class="modal-close" type="button" data-i18n-aria="btn.close" aria-label="Cerrar" onclick="closeDriverModal('hidhide')">×</button>
     </div>
     <div class="modal-body">
       <p class="dep-desc" data-i18n="hidhide.description"></p>
@@ -950,7 +872,7 @@
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-header">
       <h3 data-i18n="power.title">Apagar / Reiniciar</h3>
-      <button class="modal-close" onclick="closePowerModal()">×</button>
+      <button class="modal-close" type="button" data-i18n-aria="btn.close" aria-label="Cerrar" onclick="closePowerModal()">×</button>
     </div>
     <div class="modal-body">
       <p class="dep-desc" data-i18n="power.description">
@@ -981,7 +903,7 @@
 </div>
 
 <!-- ─── Toast ────────────────────────────────────────────────────────────── -->
-<div id="toast" class="hidden"></div>
+<div id="toast" class="hidden" role="status" aria-live="polite"></div>
 
 <script src="/app.js"></script>
 <script src="/seats.js"></script>

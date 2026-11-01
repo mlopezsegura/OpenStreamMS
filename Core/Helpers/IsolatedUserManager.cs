@@ -30,7 +30,12 @@ namespace OpenStreamMS.Core.Helpers;
 /// CICLO DE VIDA:
 ///   - EnsureUser            → crea el usuario (o rota la contraseña si ya existe).
 ///   - TryDeleteProfile      → borra C:\Users\osms-... + hive de registro (modo efímero).
-///   - RemoveUser            → perfil + cuenta + entrada de registro (al eliminar la sesión).
+///   - RemoveUser            → perfil + cuenta + entrada de registro (al eliminar la sesión,
+///                             salvo que se pida conservarlo para reutilizarlo en otra).
+///   - ListOrphans/DeleteOrphan → usuarios y perfiles osms-* que ya no usa ninguna sesión.
+///
+/// El nombre sale del Guid de la sesión (<see cref="GetUsername"/>) salvo que la sesión
+/// reutilice un usuario conservado (StreamSession.IsolatedUsername).
 /// </summary>
 internal static class IsolatedUserManager
 {
@@ -51,6 +56,13 @@ internal static class IsolatedUserManager
     [DllImport("netapi32.dll", CharSet = CharSet.Unicode)]
     static extern int NetLocalGroupAddMembers(string? servername, string groupname, int level,
                                               ref LOCALGROUP_MEMBERS_INFO_3 buf, int totalentries);
+
+    [DllImport("netapi32.dll", CharSet = CharSet.Unicode)]
+    static extern int NetUserEnum(string? servername, int level, int filter, out IntPtr bufptr, int prefmaxlen,
+                                  out int entriesread, out int totalentries, ref int resumeHandle);
+
+    [DllImport("netapi32.dll")]
+    static extern int NetApiBufferFree(IntPtr buffer);
 
     [DllImport("userenv.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     static extern bool DeleteProfile(string lpSidString, string? lpProfilePath, string? lpComputerName);
@@ -86,6 +98,9 @@ internal static class IsolatedUserManager
     const int  ERROR_MEMBER_IN_ALIAS = 1378;   // ya es miembro del grupo
     const int  ERROR_FILE_NOT_FOUND  = 2;
     const int  ERROR_ACCESS_DENIED   = 5;
+    const int  ERROR_MORE_DATA       = 234;
+    const int  FILTER_NORMAL_ACCOUNT = 2;
+    const int  MAX_PREFERRED_LENGTH  = -1;
     const uint USER_PRIV_USER        = 1;
     const uint UF_SCRIPT             = 0x0001;  // obligatorio en NetUserAdd
     const uint UF_DONT_EXPIRE_PASSWD = 0x10000;
@@ -110,9 +125,10 @@ internal static class IsolatedUserManager
     /// lo añade a Users + Remote Desktop Users y lo oculta de la pantalla de login.
     /// Devuelve credenciales listas para FreeRDP. La contraseña no se persiste nunca.
     /// </summary>
-    internal static IsolatedCredentials EnsureUser(Guid sessionId, string sessionName)
+    internal static IsolatedCredentials EnsureUser(string username, string sessionName)
     {
-        var username = GetUsername(sessionId);
+        if (!IsManagedName(username))
+            throw new InvalidOperationException($"[IsolatedUser] '{username}' no es un usuario gestionado por OpenStreamMS.");
         var password = GeneratePassword();
 
         var info = new USER_INFO_1
@@ -163,22 +179,23 @@ internal static class IsolatedUserManager
     /// DeleteProfileW. Devuelve true si el perfil quedó eliminado o no existía.
     /// Falla (false + error) mientras el perfil siga cargado tras el logoff.
     /// </summary>
-    internal static bool TryDeleteProfile(Guid sessionId, out string? error)
+    internal static bool TryDeleteProfile(string username, out string? error)
     {
         error = null;
-        var username = GetUsername(sessionId);
-
-        SecurityIdentifier sid;
-        try
-        {
-            sid = (SecurityIdentifier)new NTAccount(username).Translate(typeof(SecurityIdentifier));
-        }
-        catch (IdentityNotMappedException)
-        {
+        var sid = TryGetSid(username);
+        if (sid is null)
             return true; // el usuario no existe → no hay perfil que borrar
-        }
+        return TryDeleteProfileBySid(sid, out error);
+    }
 
-        if (DeleteProfile(sid.Value, null, null))
+    /// <summary>
+    /// Borra un perfil por su SID. Sirve también cuando la cuenta ya no existe: el perfil
+    /// sigue registrado en ProfileList con el SID de la cuenta borrada.
+    /// </summary>
+    static bool TryDeleteProfileBySid(string sid, out string? error)
+    {
+        error = null;
+        if (DeleteProfile(sid, null, null))
             return true;
 
         int err = Marshal.GetLastWin32Error();
@@ -196,15 +213,13 @@ internal static class IsolatedUserManager
     /// en descargar el hive tras el logoff, así que el primer intento suele fallar
     /// con ACCESS_DENIED. Backoff incremental: 2+4+6+8+10+12 s (~42 s máx).
     /// </summary>
-    internal static async Task DeleteProfileWithRetryAsync(Guid sessionId, string sessionName)
+    internal static async Task DeleteProfileWithRetryAsync(string username, string sessionName)
     {
-        var username = GetUsername(sessionId);
-
         for (int attempt = 1; attempt <= 6; attempt++)
         {
             await Task.Delay(TimeSpan.FromSeconds(attempt * 2));
 
-            if (TryDeleteProfile(sessionId, out var error))
+            if (TryDeleteProfile(username, out var error))
             {
                 Logger.Log($"[IsolatedUser] Perfil efímero de '{username}' eliminado ('{sessionName}').");
                 return;
@@ -221,12 +236,22 @@ internal static class IsolatedUserManager
     /// Elimina por completo el usuario aislado: perfil, cuenta local y entrada
     /// de ocultación del login. Para usar al borrar la sesión de stream.
     /// </summary>
-    internal static void RemoveUser(Guid sessionId)
+    internal static void RemoveUser(string username)
     {
-        var username = GetUsername(sessionId);
+        if (!IsManagedName(username))
+            throw new InvalidOperationException($"[IsolatedUser] '{username}' no es un usuario gestionado por OpenStreamMS.");
 
-        if (!TryDeleteProfile(sessionId, out var error) && error is not null)
-            Logger.Warning($"[IsolatedUser] No se pudo eliminar el perfil de '{username}': {error}");
+        // Nunca borrar la cuenta con su sesión de Windows viva: la sesión queda huérfana y a
+        // medio cerrar, y Terminal Services (y el apagado del equipo) se bloquean esperándola.
+        foreach (var live in RdpSessionCreator.FindUserSessions(username))
+        {
+            if (RdpSessionCreator.LogoffAndWait(live, TimeSpan.FromSeconds(30))) continue;
+            Logger.Warning($"[IsolatedUser] '{username}' sigue con la sesión {live} abierta: no se elimina la cuenta.");
+            return;
+        }
+
+        var sid = TryGetSid(username);
+        bool profileGone = TryDeleteProfile(username, out var error);
 
         RemoveLegacySteamDeny(username);   // antes de borrar la cuenta: hace falta su SID
 
@@ -237,6 +262,208 @@ internal static class IsolatedUserManager
             Logger.Warning($"[IsolatedUser] NetUserDel falló para '{username}': error {rc}.");
 
         UnhideFromLoginScreen(username);
+
+        // Justo tras el logoff profsvc aún tiene el perfil cargado y DeleteProfile falla:
+        // antes eso dejaba la carpeta C:\Users\osms-... para siempre. Se reintenta por SID,
+        // que sigue valiendo aunque la cuenta ya no exista.
+        if (!profileGone && sid is not null)
+        {
+            Logger.Log($"[IsolatedUser] Perfil de '{username}' aún cargado ({error}); se reintenta en segundo plano.");
+            _ = DeleteProfileBySidWithRetryAsync(sid, username);
+        }
+    }
+
+    static async Task DeleteProfileBySidWithRetryAsync(string sid, string username)
+    {
+        string? error = null;
+        for (int attempt = 1; attempt <= 6; attempt++)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(attempt * 2));
+            if (TryDeleteProfileBySid(sid, out error))
+            {
+                Logger.Log($"[IsolatedUser] Perfil de '{username}' eliminado.");
+                return;
+            }
+        }
+        Logger.Warning($"[IsolatedUser] No se pudo eliminar el perfil de '{username}' ({error}). " +
+                       "Aparecerá en Sistema → Usuarios dedicados sin sesión para borrarlo a mano.");
+    }
+
+    // ── Usuarios y perfiles sin sesión ────────────────────────────────────────
+
+    /// <summary>
+    /// Usuario dedicado o perfil que ya no usa ninguna sesión. <see cref="Key"/> lo identifica
+    /// para borrarlo: <c>user:osms-…</c> (cuenta, con o sin perfil), <c>sid:S-1-…</c> (perfil
+    /// de una cuenta ya borrada) o <c>dir:osms-…</c> (carpeta suelta en C:\Users).
+    /// </summary>
+    internal sealed record OrphanEntry(string Key, string Name, bool AccountExists,
+                                       string? ProfilePath, long? SizeBytes, bool SignedIn);
+
+    /// <summary>
+    /// Nombres de usuario que OpenStreamMS crea y puede gestionar: "osms-" y hasta 20 caracteres
+    /// SAM sin separadores. Nada fuera de este patrón se crea, reutiliza ni borra.
+    /// </summary>
+    internal static bool IsManagedName(string? username) =>
+        !string.IsNullOrEmpty(username) && username.Length <= 20 &&
+        username.StartsWith("osms-", StringComparison.OrdinalIgnoreCase) &&
+        username.IndexOfAny(['\\', '/', ':', '*', '?', '"', '<', '>', '|', '@', '.', ' ']) < 0;
+
+    /// <summary>Cuentas locales osms-* que existen ahora mismo.</summary>
+    internal static List<string> ListManagedAccounts()
+    {
+        var names = new List<string>();
+        int resume = 0, rc;
+        do
+        {
+            rc = NetUserEnum(null, 0, FILTER_NORMAL_ACCOUNT, out var buf, MAX_PREFERRED_LENGTH,
+                             out int read, out _, ref resume);
+            if (rc is not (NERR_Success or ERROR_MORE_DATA)) break;
+            try
+            {
+                for (int i = 0; i < read; i++)
+                {
+                    var name = Marshal.PtrToStringUni(Marshal.ReadIntPtr(buf, i * IntPtr.Size));
+                    if (IsManagedName(name)) names.Add(name!);
+                }
+            }
+            finally { NetApiBufferFree(buf); }
+        } while (rc == ERROR_MORE_DATA);
+        return names;
+    }
+
+    /// <summary>
+    /// Usuarios dedicados sin sesión, perfiles de cuentas ya borradas y carpetas sueltas
+    /// osms-* en el directorio de perfiles. <paramref name="inUse"/>: usuarios de las sesiones.
+    /// </summary>
+    internal static List<OrphanEntry> ListOrphans(IEnumerable<string> inUse, bool withSizes)
+    {
+        var used = new HashSet<string>(inUse, StringComparer.OrdinalIgnoreCase);
+        var profiles = ReadManagedProfiles();                 // SID → ruta
+        var result = new List<OrphanEntry>();
+        var claimedSids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var name in ListManagedAccounts())
+        {
+            var sid = TryGetSid(name);
+            if (sid is not null) claimedSids.Add(sid);
+            if (used.Contains(name)) continue;
+            var path = sid is not null && profiles.TryGetValue(sid, out var p) ? p : null;
+            result.Add(new OrphanEntry($"user:{name}", name, true, path,
+                                       withSizes ? DirectorySize(path) : null,
+                                       RdpSessionCreator.FindUserSessions(name).Count > 0));
+        }
+
+        foreach (var (sid, path) in profiles)
+        {
+            if (claimedSids.Contains(sid)) continue;          // de una cuenta que existe
+            result.Add(new OrphanEntry($"sid:{sid}", Path.GetFileName(path), false, path,
+                                       withSizes ? DirectorySize(path) : null, false));
+        }
+
+        var registered = new HashSet<string>(profiles.Values, StringComparer.OrdinalIgnoreCase);
+        var profilesDir = ProfilesDirectory();
+        if (profilesDir is not null && Directory.Exists(profilesDir))
+        {
+            foreach (var dir in Directory.EnumerateDirectories(profilesDir, "osms-*"))
+            {
+                if (registered.Contains(dir)) continue;
+                var leaf = Path.GetFileName(dir);
+                result.Add(new OrphanEntry($"dir:{leaf}", leaf, false, dir,
+                                           withSizes ? DirectorySize(dir) : null, false));
+            }
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Borra un elemento de <see cref="ListOrphans"/>. La clave se valida contra la lista
+    /// recién calculada: nunca se borra nada que no sea un usuario o perfil osms-* sin sesión.
+    /// </summary>
+    internal static void DeleteOrphan(string key, IEnumerable<string> inUse)
+    {
+        var entry = ListOrphans(inUse, withSizes: false).FirstOrDefault(e => e.Key == key)
+            ?? throw new InvalidOperationException("Ese usuario o perfil ya no existe o lo usa una sesión.");
+        if (entry.SignedIn)
+            throw new InvalidOperationException($"'{entry.Name}' tiene una sesión de Windows abierta; ciérrala antes.");
+
+        if (key.StartsWith("user:", StringComparison.Ordinal))
+        {
+            RemoveUser(entry.Name);
+        }
+        else if (key.StartsWith("sid:", StringComparison.Ordinal))
+        {
+            if (!TryDeleteProfileBySid(key[4..], out var error))
+                throw new InvalidOperationException($"No se pudo borrar el perfil '{entry.Name}': {error}.");
+            Logger.Log($"[IsolatedUser] Perfil huérfano '{entry.ProfilePath}' eliminado.");
+        }
+        else
+        {
+            // Carpeta sin perfil registrado: ruta reconstruida desde el directorio de perfiles.
+            var dir = Path.Combine(ProfilesDirectory()!, entry.Name);
+            Directory.Delete(dir, recursive: true);
+            Logger.Log($"[IsolatedUser] Carpeta huérfana '{dir}' eliminada.");
+        }
+    }
+
+    /// <summary>Ruta del perfil de un usuario (null si nunca ha iniciado sesión o no existe).</summary>
+    internal static string? GetProfilePath(string accountName)
+    {
+        var sid = TryGetSid(accountName);
+        if (sid is null) return null;
+        using var key = Registry.LocalMachine.OpenSubKey($@"{ProfileListKey}\{sid}");
+        return key?.GetValue("ProfileImagePath") is string p ? Environment.ExpandEnvironmentVariables(p) : null;
+    }
+
+    static string? TryGetSid(string accountName)
+    {
+        try { return ((SecurityIdentifier)new NTAccount(accountName).Translate(typeof(SecurityIdentifier))).Value; }
+        catch (IdentityNotMappedException) { return null; }
+        catch (SystemException) { return null; }
+    }
+
+    const string ProfileListKey = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\ProfileList";
+
+    static string? ProfilesDirectory()
+    {
+        using var key = Registry.LocalMachine.OpenSubKey(ProfileListKey);
+        return key?.GetValue("ProfilesDirectory") is string p ? Environment.ExpandEnvironmentVariables(p) : null;
+    }
+
+    /// <summary>Perfiles registrados cuya carpeta empieza por osms- (SID → ruta).</summary>
+    static Dictionary<string, string> ReadManagedProfiles()
+    {
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        using var list = Registry.LocalMachine.OpenSubKey(ProfileListKey);
+        if (list is null) return map;
+        foreach (var sid in list.GetSubKeyNames())
+        {
+            using var k = list.OpenSubKey(sid);
+            if (k?.GetValue("ProfileImagePath") is not string raw) continue;
+            if (sid.EndsWith(".bak", StringComparison.OrdinalIgnoreCase)) continue;   // copia de un perfil dañado
+            var path = Environment.ExpandEnvironmentVariables(raw);
+            if (Path.GetFileName(path).StartsWith("osms-", StringComparison.OrdinalIgnoreCase))
+                map[sid] = path;
+        }
+        return map;
+    }
+
+    /// <summary>Tamaño en bytes sin seguir uniones (Application Data, etc.). Null si falla.</summary>
+    static long? DirectorySize(string? path)
+    {
+        if (path is null || !Directory.Exists(path)) return null;
+        try
+        {
+            var opts = new EnumerationOptions
+            {
+                RecurseSubdirectories = true,
+                IgnoreInaccessible    = true,
+                AttributesToSkip      = FileAttributes.ReparsePoint,
+            };
+            long total = 0;
+            foreach (var f in new DirectoryInfo(path).EnumerateFiles("*", opts)) total += f.Length;
+            return total;
+        }
+        catch { return null; }
     }
 
     // ── Privados ──────────────────────────────────────────────────────────────

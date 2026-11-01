@@ -1,0 +1,150 @@
+diff --git a/channels/audin/client/winmm/audin_winmm.c b/channels/audin/client/winmm/audin_winmm.c
+index 93c051b..e7abab6 100644
+--- a/channels/audin/client/winmm/audin_winmm.c
++++ b/channels/audin/client/winmm/audin_winmm.c
+@@ -47,6 +47,8 @@ typedef struct
+ 	IAudinDevice iface;
+ 
+ 	char* device_name;
++	/* WAVE_MAPPER, or the waveIn index that matches device_name (see audin_winmm_resolve_device) */
++	UINT device_id;
+ 	AudinReceive receive;
+ 	void* user_data;
+ 	HANDLE thread;
+@@ -135,12 +137,84 @@ static BOOL log_mmresult(AudinWinmmDevice* winmm, const char* what, MMRESULT res
+ 	return TRUE;
+ }
+ 
+-static BOOL test_format_supported(const PWAVEFORMATEX pwfx)
++#ifndef DRV_QUERYFUNCTIONINSTANCEID
++#define DRV_QUERYFUNCTIONINSTANCEID (DRV_RESERVED + 17)
++#define DRV_QUERYFUNCTIONINSTANCEIDSIZE (DRV_RESERVED + 18)
++#endif
++
++/* Endpoint id of a waveIn device, e.g. "{0.0.1.00000000}.{guid}", as UTF-8. Caller frees. */
++static char* audin_winmm_endpoint_id(UINT index)
++{
++	ULONG bytes = 0;
++	if (waveInMessage((HWAVEIN)(UINT_PTR)index, DRV_QUERYFUNCTIONINSTANCEIDSIZE, (DWORD_PTR)&bytes,
++	                  0) != MMSYSERR_NOERROR ||
++	    bytes == 0)
++		return nullptr;
++
++	WCHAR* wid = calloc(bytes + sizeof(WCHAR), 1);
++	if (!wid)
++		return nullptr;
++
++	char* id = nullptr;
++	if (waveInMessage((HWAVEIN)(UINT_PTR)index, DRV_QUERYFUNCTIONINSTANCEID, (DWORD_PTR)wid, bytes) ==
++	    MMSYSERR_NOERROR)
++		id = ConvertWCharToUtf8Alloc(wid, nullptr);
++	free(wid);
++	return id;
++}
++
++/**
++ * Resolves the /microphone dev: option to a waveIn index. Accepts the Windows endpoint id
++ * (unambiguous, what OpenStreamMS passes) or the WAVEINCAPS name. "default" or no match
++ * keep WAVE_MAPPER with the default communication device, as before.
++ */
++static void audin_winmm_resolve_device(AudinWinmmDevice* winmm)
++{
++	winmm->device_id = WAVE_MAPPER;
++	if (!winmm->device_name || strcmp(winmm->device_name, "default") == 0)
++		return;
++
++	const UINT count = waveInGetNumDevs();
++	for (UINT i = 0; i < count; i++)
++	{
++		char* id = audin_winmm_endpoint_id(i);
++		const BOOL match = id && _stricmp(id, winmm->device_name) == 0;
++		free(id);
++		if (match)
++		{
++			winmm->device_id = i;
++			return;
++		}
++	}
++
++	for (UINT i = 0; i < count; i++)
++	{
++		WAVEINCAPSA caps = WINPR_C_ARRAY_INIT;
++		if (waveInGetDevCapsA(i, &caps, sizeof(caps)) == MMSYSERR_NOERROR &&
++		    strcmp(caps.szPname, winmm->device_name) == 0)
++		{
++			winmm->device_id = i;
++			return;
++		}
++	}
++
++	WLog_Print(winmm->log, WLOG_WARN,
++	           "microphone '%s' not found, using the default communication device",
++	           winmm->device_name);
++}
++
++/* With WAVE_MAPPER the default communication device; with a chosen device, that one. */
++static DWORD audin_winmm_open_flags(const AudinWinmmDevice* winmm)
++{
++	return winmm->device_id == WAVE_MAPPER ? WAVE_MAPPED_DEFAULT_COMMUNICATION_DEVICE : 0;
++}
++
++static BOOL test_format_supported(const AudinWinmmDevice* winmm, const PWAVEFORMATEX pwfx)
+ {
+ 	MMRESULT rc;
+ 	WAVEINCAPSA caps = WINPR_C_ARRAY_INIT;
+ 
+-	rc = waveInGetDevCapsA(WAVE_MAPPER, &caps, sizeof(caps));
++	rc = waveInGetDevCapsA(winmm->device_id, &caps, sizeof(caps));
+ 	if (rc != MMSYSERR_NOERROR)
+ 		return FALSE;
+ 
+@@ -162,8 +236,8 @@ static BOOL test_format_supported(const PWAVEFORMATEX pwfx)
+ 			return FALSE;
+ 	}
+ 
+-	rc = waveInOpen(nullptr, WAVE_MAPPER, pwfx, 0, 0,
+-	                WAVE_FORMAT_QUERY | WAVE_MAPPED_DEFAULT_COMMUNICATION_DEVICE);
++	rc = waveInOpen(nullptr, winmm->device_id, pwfx, 0, 0,
++	                WAVE_FORMAT_QUERY | audin_winmm_open_flags(winmm));
+ 	return (rc == MMSYSERR_NOERROR);
+ }
+ 
+@@ -176,9 +250,8 @@ static DWORD WINAPI audin_winmm_thread_func(LPVOID arg)
+ 
+ 	if (!winmm->hWaveIn)
+ 	{
+-		rc = waveInOpen(&winmm->hWaveIn, WAVE_MAPPER, winmm->pwfx_cur, (DWORD_PTR)waveInProc,
+-		                (DWORD_PTR)winmm,
+-		                CALLBACK_FUNCTION | WAVE_MAPPED_DEFAULT_COMMUNICATION_DEVICE);
++		rc = waveInOpen(&winmm->hWaveIn, winmm->device_id, winmm->pwfx_cur, (DWORD_PTR)waveInProc,
++		                (DWORD_PTR)winmm, CALLBACK_FUNCTION | audin_winmm_open_flags(winmm));
+ 		if (!log_mmresult(winmm, "waveInOpen", rc))
+ 			return ERROR_INTERNAL_ERROR;
+ 	}
+@@ -350,7 +423,7 @@ static UINT audin_winmm_set_format(IAudinDevice* device, const AUDIO_FORMAT* for
+ 				ppwfx->nAvgBytesPerSec = ppwfx->nSamplesPerSec * ppwfx->nBlockAlign;
+ 			}
+ 
+-			if (!test_format_supported(ppwfx))
++			if (!test_format_supported(winmm, ppwfx))
+ 				return ERROR_INVALID_PARAMETER;
+ 			winmm->pwfx_cur = ppwfx;
+ 			return CHANNEL_RC_OK;
+@@ -391,7 +464,7 @@ static BOOL audin_winmm_format_supported(IAudinDevice* device, const AUDIO_FORMA
+ 
+ 	pwfx->nAvgBytesPerSec = pwfx->nSamplesPerSec * pwfx->nBlockAlign;
+ 
+-	if (!test_format_supported(pwfx))
++	if (!test_format_supported(winmm, pwfx))
+ 		goto fail;
+ 
+ 	if (winmm->cFormats >= winmm->ppwfx_size)
+@@ -544,6 +617,8 @@ FREERDP_ENTRY_POINT(UINT VCAPITYPE winmm_freerdp_audin_client_subsystem_entry(
+ 		}
+ 	}
+ 
++	audin_winmm_resolve_device(winmm);
++
+ 	winmm->ppwfx_size = 10;
+ 	winmm->ppwfx = calloc(winmm->ppwfx_size, sizeof(PWAVEFORMATEX));
+ 

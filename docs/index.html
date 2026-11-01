@@ -205,6 +205,7 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
       OpenStreamMS
     </a>
     <div class="links">
+      <a href="#new"><span lang="en">What’s new</span><span lang="es">Novedades</span></a>
       <a href="#how"><span lang="en">How it works</span><span lang="es">Cómo funciona</span></a>
       <a href="#seats"><span lang="en">Local seats</span><span lang="es">Puestos locales</span></a>
       <a href="#features"><span lang="en">Features</span><span lang="es">Características</span></a>
@@ -230,8 +231,8 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
       <span lang="es">Varios jugadores.<br><span class="grad">Un solo PC con Windows.</span></span>
     </h1>
     <p class="lead">
-      <span lang="en">OpenStreamMS is a Windows service that runs several independent <strong>Sunshine</strong> game-streaming sessions at once — each one inside its own isolated RDP session, with its own user, desktop, audio and Moonlight clients. Plug in extra monitors, keyboards, mice and gamepads and the same sessions become <strong>local seats</strong>: several people playing on one PC, in the same room. All managed from a web dashboard.</span>
-      <span lang="es">OpenStreamMS es un servicio de Windows que ejecuta varias sesiones de streaming de juegos con <strong>Sunshine</strong> a la vez, cada una dentro de su propia sesión RDP aislada, con su usuario, escritorio, audio y clientes Moonlight. Conecta más monitores, teclados, ratones y mandos y esas mismas sesiones se convierten en <strong>puestos locales</strong>: varias personas jugando en un solo PC, en la misma habitación. Todo se gestiona desde un panel web.</span>
+      <span lang="en">OpenStreamMS is a Windows service that runs several independent <strong>Sunshine</strong> game-streaming sessions at once — each one inside its own isolated RDP session, with its own user, desktop, audio and Moonlight clients. Plug in extra monitors, keyboards, mice and gamepads and the same sessions become <strong>local seats</strong>: several people playing on one PC, in the same room. All managed from one dashboard, in its own window, in the browser or on your phone.</span>
+      <span lang="es">OpenStreamMS es un servicio de Windows que ejecuta varias sesiones de streaming de juegos con <strong>Sunshine</strong> a la vez, cada una dentro de su propia sesión RDP aislada, con su usuario, escritorio, audio y clientes Moonlight. Conecta más monitores, teclados, ratones y mandos y esas mismas sesiones se convierten en <strong>puestos locales</strong>: varias personas jugando en un solo PC, en la misma habitación. Todo se gestiona desde un panel, en su propia ventana, en el navegador o en el móvil.</span>
     </p>
     <div class="cta">
       <a class="btn primary" href="https://github.com/mlopezsegura/OpenStreamMS/releases">
@@ -251,8 +252,73 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
   </div>
 </header>
 
+<!-- ───────────────────────── WHAT'S NEW ───────────────────────── -->
+<section id="new" class="alt">
+  <div class="wrap">
+    <div class="eyebrow"><span lang="en">What’s new</span><span lang="es">Novedades</span></div>
+    <h2><span lang="en">Since 1.3: easier to run, smoother to watch</span><span lang="es">Desde la 1.3: más fácil de usar y más fluido</span></h2>
+    <p class="sub"><span lang="en">A redesigned dashboard, a display driver of its own for RDP sessions, a microphone per seat and Steam logins that survive deleting a session.</span><span lang="es">Un panel rediseñado, un driver de pantalla propio para las sesiones RDP, un micrófono por puesto y logins de Steam que ya no se pierden al borrar una sesión.</span></p>
+
+    <div class="grid">
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg></div>
+        <h3><span lang="en">A dashboard that guides you</span><span lang="es">Un panel que te guía</span></h3>
+        <p><span lang="en">A getting-started guide, start progress step by step, errors with <em>View log</em> and <em>Retry</em>, and a <em>Connect</em> button that shows the PC’s address and ports. One window creates and edits sessions; the rarely used options move to <em>Advanced</em>.</span><span lang="es">Guía de primeros pasos, progreso del arranque paso a paso, errores con <em>Ver log</em> y <em>Reintentar</em>, y un botón <em>Conectar</em> que muestra la dirección y los puertos del PC. Una sola ventana crea y edita sesiones; lo que casi no se toca pasa a <em>Avanzado</em>.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M7 6.5h.01M10 6.5h.01"/></svg></div>
+        <h3><span lang="en">Its own window</span><span lang="es">En su propia ventana</span></h3>
+        <p><span lang="en">The Start menu and desktop shortcuts open the dashboard in a window of its own, without tabs or address bar. Without WebView2 it opens in the browser, as before.</span><span lang="es">Los accesos del menú Inicio y del escritorio abren el panel en una ventana propia, sin pestañas ni barra de direcciones. Sin WebView2 se abre en el navegador, como antes.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M12 3a9 9 0 010 18"/></svg></div>
+        <h3><span lang="en">Themes and a phone layout</span><span lang="es">Temas y versión para móvil</span></h3>
+        <p><span lang="en">System, Dark, Light, Synthwave, Retro and Matrix, all readable (WCAG AA). Effects are reduced automatically while someone is streaming or a seat is on, so the GPU stays with the encoder. On a phone, dialogs open as bottom sheets.</span><span lang="es">Sistema, Oscuro, Claro, Synthwave, Retro y Matrix, todos legibles (WCAG AA). Los efectos se reducen solos mientras alguien juega por streaming o hay un puesto encendido, para dejar la GPU al encoder. En el móvil, las ventanas salen desde abajo.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg></div>
+        <h3><span lang="en">Pairing from the tray</span><span lang="es">Emparejar desde la bandeja</span></h3>
+        <p><span lang="en">When Moonlight or a WebRTC TV asks for a PIN, Windows shows a notification; click it and the dashboard opens on that session’s pairing dialog. The tray menu now lists sessions and seats with their state and turns them on and off.</span><span lang="es">Cuando Moonlight o una TV WebRTC piden un PIN, Windows muestra una notificación; al pulsarla se abre el panel en el emparejamiento de esa sesión. El menú de la bandeja muestra ahora sesiones y puestos con su estado y los enciende y apaga.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0014 0M12 17v4M8 21h8"/></svg></div>
+        <h3><span lang="en">A microphone per seat</span><span lang="es">Un micrófono por puesto</span></h3>
+        <p><span lang="en">Each seat can have its own microphone, which shows up in its session as “Remote Audio”. <em>Test</em> shows its level before you save. No drivers of our own.</span><span lang="es">Cada puesto puede tener su micrófono, que aparece en su sesión como «Audio remoto». <em>Probar</em> muestra su nivel antes de guardar. Sin drivers propios.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.5 3-5.5 6.5-5.5s6.5 2 6.5 5.5"/><path d="M16 4.5a3.5 3.5 0 010 7M18.5 14.8c2 .7 3 2.5 3 5.2"/></svg></div>
+        <h3><span lang="en">Who is connected</span><span lang="es">Quién está conectado</span></h3>
+        <p><span lang="en">Session cards show how many Moonlight clients and WebRTC TVs are watching right now.</span><span lang="es">Las tarjetas de las sesiones muestran cuántos clientes de Moonlight y TV WebRTC están viéndola en ese momento.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4M7 9l3 3-3 3M13 15h4"/></svg></div>
+        <h3><span lang="en">RemoteIdd <small>(experimental)</small></span><span lang="es">RemoteIdd <small>(experimental)</small></span></h3>
+        <p><span lang="en">A display driver of our own for RDP sessions: Sunshine takes each frame straight from a shared GPU texture, with no screen capture in between. Optional in the installer; it uses a test certificate.</span><span lang="es">Un driver de pantalla propio para las sesiones RDP: Sunshine recoge cada fotograma directamente de una textura compartida en la GPU, sin capturar la pantalla. Opcional en el instalador; usa un certificado de prueba.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></div>
+        <h3><span lang="en">A true 60 fps</span><span lang="es">60 fps de verdad</span></h3>
+        <p><span lang="en">Windows only composes RDP sessions at whole-millisecond intervals, so 60 fps became 58.8 and the TV repeated a frame almost every second. Sessions now compose faster and Sunshine paces the stream.</span><span lang="es">Windows solo compone las sesiones RDP a intervalos de milisegundos enteros, así que 60 fps se quedaban en 58,8 y la TV repetía un fotograma casi cada segundo. Ahora la sesión se compone más rápido y Sunshine marca el ritmo del stream.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/><path d="M17 3l4 4M21 3l-4 4"/></svg></div>
+        <h3><span lang="en">Steam stays signed in</span><span lang="es">Steam sigue con la sesión iniciada</span></h3>
+        <p><span lang="en">Deleting an isolated session can now keep its Windows user, so Steam’s saved login, saves and game settings survive and a new session can reuse it. Cards warn when Steam has no saved login, and leftover users and profiles can be cleaned up from the dashboard.</span><span lang="es">Al borrar una sesión aislada se puede conservar su usuario de Windows, así que el login guardado de Steam, las partidas y los ajustes siguen ahí y una sesión nueva puede reutilizarlo. Las tarjetas avisan si Steam no tiene la sesión guardada, y los usuarios y perfiles que sobran se limpian desde el panel.</span></p>
+      </div>
+    </div>
+
+    <ul class="check" style="margin-top:28px">
+      <li><span lang="en"><strong>Steam on the console and in a session with the same Windows user</strong>, each with its own window and browser cache.</span><span lang="es"><strong>Steam en la consola y en una sesión con el mismo usuario de Windows</strong>, cada uno con su ventana y su caché del navegador.</span></li>
+      <li><span lang="en"><strong>Split screen:</strong> up to four seats on one monitor, in halves or quarters.</span><span lang="es"><strong>Pantalla partida:</strong> hasta cuatro puestos en un monitor, en mitades o cuartos.</span></li>
+      <li><span lang="en"><strong>Seats follow their monitor:</strong> change its mode or size and the session reconnects to match.</span><span lang="es"><strong>Los puestos siguen a su monitor:</strong> si cambia de modo o de tamaño, la sesión se reconecta para ajustarse.</span></li>
+      <li><span lang="en"><strong>Windows shuts down cleanly with seats on:</strong> seat sessions now sign out properly instead of being cut.</span><span lang="es"><strong>Windows se apaga bien con puestos encendidos:</strong> las sesiones de los puestos ahora cierran sesión de verdad en lugar de cortarse.</span></li>
+      <li><span lang="en"><strong>One log level</strong> for the service, tray, seats and Sunshine, set in <em>Settings</em>.</span><span lang="es"><strong>Un solo nivel de log</strong> para el servicio, la bandeja, los puestos y Sunshine, en <em>Ajustes</em>.</span></li>
+    </ul>
+  </div>
+</section>
+
 <!-- ───────────────────────── HOW IT WORKS ───────────────────────── -->
-<section id="how" class="alt">
+<section id="how">
   <div class="wrap">
     <div class="eyebrow"><span lang="en">How it works</span><span lang="es">Cómo funciona</span></div>
     <h2><span lang="en">A dedicated streaming host per session</span><span lang="es">Un host de streaming dedicado por sesión</span></h2>
@@ -288,7 +354,7 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
 </section>
 
 <!-- ───────────────────────── LOCAL SEATS ───────────────────────── -->
-<section id="seats">
+<section id="seats" class="alt">
   <div class="wrap">
     <div class="eyebrow"><span lang="en">Local seats</span><span lang="es">Puestos locales</span></div>
     <h2><span lang="en">One PC, several people at the desk</span><span lang="es">Un PC, varias personas delante</span></h2>
@@ -326,7 +392,12 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
       <div class="feat">
         <div class="ico"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
         <h3><span lang="en">Its own monitor</span><span lang="es">Su propio monitor</span></h3>
-        <p><span lang="en">The seat’s monitor joins the desktop only while the seat is on. The session is captured inside its own RDP session and shown full-screen in about 2 ms, uncompressed, at up to 125 Hz. Resolution and refresh rate can be set per seat.</span><span lang="es">El monitor del puesto se añade al escritorio solo mientras el puesto está encendido. La sesión se captura dentro de su propia sesión RDP y se muestra a pantalla completa en unos 2 ms, sin compresión y hasta a 125 Hz. Resolución y frecuencia se fijan por puesto.</span></p>
+        <p><span lang="en">The seat’s monitor joins the desktop only while the seat is on. The session is captured inside its own RDP session and shown full-screen in about 2 ms, uncompressed, at up to 125 Hz. Resolution and refresh rate can be set per seat, or follow the monitor: if its mode changes, the session reconnects to match.</span><span lang="es">El monitor del puesto se añade al escritorio solo mientras el puesto está encendido. La sesión se captura dentro de su propia sesión RDP y se muestra a pantalla completa en unos 2 ms, sin compresión y hasta a 125 Hz. Resolución y frecuencia se fijan por puesto o siguen al monitor: si cambia de modo, la sesión se reconecta para ajustarse.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M12 4v16M2 12h20"/></svg></div>
+        <h3><span lang="en">Split screen</span><span lang="es">Pantalla partida</span></h3>
+        <p><span lang="en">Up to four seats can share one monitor: each takes the whole screen, a half or a quarter, with its own keyboard, mouse, gamepads and sound. The main monitor can be split too, leaving the console the other half.</span><span lang="es">Hasta cuatro puestos pueden compartir un monitor: cada uno ocupa la pantalla entera, una mitad o un cuarto, con su teclado, ratón, mandos y sonido. El monitor principal también se puede partir y la consola se queda con la otra mitad.</span></p>
       </div>
       <div class="feat">
         <div class="ico"><svg viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg></div>
@@ -344,14 +415,19 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
         <p><span lang="en">The session’s audio plays on the seat’s output (headphones, speakers, the TV over HDMI) with about 70 ms of delay and a jitter buffer that prevents pops.</span><span lang="es">El audio de la sesión sale por la salida del puesto (auriculares, altavoces, la TV por HDMI) con unos 70 ms de retraso y un búfer que evita los chasquidos.</span></p>
       </div>
       <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0014 0M12 17v4M8 21h8"/></svg></div>
+        <h3><span lang="en">Its own microphone</span><span lang="es">Su propio micrófono</span></h3>
+        <p><span lang="en">Pick a microphone for the seat and its session gets it as “Remote Audio”, through RDP microphone redirection. Each microphone belongs to one seat only.</span><span lang="es">Elige un micrófono para el puesto y su sesión lo recibe como «Audio remoto», por la redirección de micrófono de RDP. Cada micrófono es de un solo puesto.</span></p>
+      </div>
+      <div class="feat">
         <div class="ico"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M11 8v6M8 11h6"/></svg></div>
         <h3><span lang="en">Identify every device</span><span lang="es">Identifica cada dispositivo</span></h3>
-        <p><span lang="en">While editing a seat, <em>Test</em> shows the OpenStreamMS logo on a monitor or plays a chime on an audio output, and the name of the keyboard, mouse or gamepad you press lights up in the list. No more guessing which “USB Input Device” is which.</span><span lang="es">Al editar un puesto, <em>Probar</em> muestra el logo de OpenStreamMS en el monitor o hace sonar un aviso por la salida de audio, y el nombre del teclado, ratón o mando que pulsas se ilumina en la lista. Se acabó adivinar cuál es cada «Dispositivo de entrada USB».</span></p>
+        <p><span lang="en">While editing a seat, <em>Test</em> shows the OpenStreamMS logo on a monitor or plays a chime on an audio output, shows a microphone’s level, and the name of the keyboard, mouse or gamepad you press lights up in the list. No more guessing which “USB Input Device” is which.</span><span lang="es">Al editar un puesto, <em>Probar</em> muestra el logo de OpenStreamMS en el monitor o hace sonar un aviso por la salida de audio, enseña el nivel de un micrófono, y el nombre del teclado, ratón o mando que pulsas se ilumina en la lista. Se acabó adivinar cuál es cada «Dispositivo de entrada USB».</span></p>
       </div>
       <div class="feat">
         <div class="ico"><svg viewBox="0 0 24 24"><path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 11-12.8 0"/></svg></div>
         <h3><span lang="en">On from the dashboard or at boot</span><span lang="es">Desde el panel o al arrancar</span></h3>
-        <p><span lang="en">Turn seats on and off from their card, or let them start with the PC. Pressing <em>Disconnect</em> on a seat turns it off until it is started again, and the session is right back on Moonlight.</span><span lang="es">Enciende y apaga los puestos desde su tarjeta, o deja que arranquen con el PC. Pulsar <em>Desconectar</em> en un puesto lo apaga hasta que se vuelva a encender, y la sesión vuelve enseguida a Moonlight.</span></p>
+        <p><span lang="en">Turn seats on and off from their card or the tray menu, or let them start with the PC. Pressing <em>Disconnect</em> on a seat turns it off until it is started again, and the session is right back on Moonlight.</span><span lang="es">Enciende y apaga los puestos desde su tarjeta o el menú de la bandeja, o deja que arranquen con el PC. Pulsar <em>Desconectar</em> en un puesto lo apaga hasta que se vuelva a encender, y la sesión vuelve enseguida a Moonlight.</span></p>
       </div>
     </div>
 
@@ -380,7 +456,7 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
       <div class="feat">
         <div class="ico"><svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4z"/><path d="M3 12l9 4 9-4M3 17l9 4 9-4"/></svg></div>
         <h3><span lang="en">Steam per seat</span><span lang="es">Steam por puesto</span></h3>
-        <p><span lang="en">Isolated sessions get a <em>Steam (isolated)</em> shortcut and open <code>steam://</code> links with it, so each seat can sign in to its own Steam account alongside yours.</span><span lang="es">Las sesiones aisladas tienen un acceso directo <em>Steam (aislado)</em> y abren con él los enlaces <code>steam://</code>, así que cada puesto puede iniciar su propia cuenta de Steam a la vez que la tuya.</span></p>
+        <p><span lang="en">Each seat or session runs its own Steam alongside yours, even with the same Windows user. With an isolated user it signs in to its own Steam account, and keeping that user when the session is deleted keeps the login.</span><span lang="es">Cada puesto o sesión abre su propio Steam a la vez que el tuyo, incluso con el mismo usuario de Windows. Con un usuario aislado inicia su propia cuenta de Steam, y conservar ese usuario al borrar la sesión conserva el login.</span></p>
       </div>
       <div class="feat">
         <div class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></div>
@@ -392,7 +468,7 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
 </section>
 
 <!-- ───────────────────────── FEATURES ───────────────────────── -->
-<section id="features" class="alt">
+<section id="features">
   <div class="wrap">
     <div class="eyebrow"><span lang="en">Features</span><span lang="es">Características</span></div>
     <h2><span lang="en">Everything a multi-seat streaming box needs</span><span lang="es">Todo lo que necesita un PC de streaming multipuesto</span></h2>
@@ -408,8 +484,8 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
       </div>
       <div class="feat">
         <div class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/></svg></div>
-        <h3><span lang="en">Native per-session users</span><span lang="es">Usuarios nativos por sesión</span></h3>
-        <p><span lang="en">Optionally runs a session under an auto-managed local user (<code>osms-…</code>): its own profile, HKCU, desktop and audio. Steam or Chrome can run twice without lock conflicts. No drivers, no third-party tools.</span><span lang="es">Opcionalmente ejecuta la sesión con un usuario local gestionado automáticamente (<code>osms-…</code>): perfil, HKCU, escritorio y audio propios. Steam o Chrome pueden abrirse dos veces sin conflictos de bloqueo. Sin drivers ni herramientas externas.</span></p>
+        <h3><span lang="en">Isolated users</span><span lang="es">Usuarios aislados</span></h3>
+        <p><span lang="en">Optionally runs a session under an auto-managed local user (<code>osms-…</code>): its own profile, HKCU, desktop and audio, shown on the session card. Steam or Chrome can run twice without lock conflicts. No drivers, no third-party tools.</span><span lang="es">Opcionalmente ejecuta la sesión con un usuario local gestionado automáticamente (<code>osms-…</code>): perfil, HKCU, escritorio y audio propios, y su nombre se ve en la tarjeta. Steam o Chrome pueden abrirse dos veces sin conflictos de bloqueo. Sin drivers ni herramientas externas.</span></p>
       </div>
       <div class="feat">
         <div class="ico"><svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/><circle cx="7" cy="6" r="1"/></svg></div>
@@ -423,8 +499,8 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
       </div>
       <div class="feat">
         <div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 9h6v6H9z"/></svg></div>
-        <h3><span lang="en">Isolated sessions</span><span lang="es">Sesiones aisladas</span></h3>
-        <p><span lang="en">Optionally run a session under its own local Windows user, with a separate profile and registry, and give its Steam a private IPC name so a second Steam account runs alongside yours.</span><span lang="es">Opcionalmente, una sesión puede correr con su propio usuario local de Windows, con perfil y registro aparte, y su Steam usa un nombre IPC propio para que otra cuenta de Steam funcione a la vez que la tuya.</span></p>
+        <h3><span lang="en">Keep the user, keep the logins</span><span lang="es">Conserva el usuario y sus logins</span></h3>
+        <p><span lang="en">Deleting an isolated session asks whether to keep its user. A kept user can be reused by a new session with its Steam login, saves and settings; <em>System → Dedicated users without a session</em> lists kept users and leftover profiles with their size, to delete them one by one.</span><span lang="es">Al borrar una sesión aislada se pregunta si conservar su usuario. Una sesión nueva puede reutilizarlo con su login de Steam, partidas y ajustes; <em>Sistema → Usuarios dedicados sin sesión</em> lista los usuarios conservados y los perfiles sueltos con su tamaño, para borrarlos uno a uno.</span></p>
       </div>
       <div class="feat">
         <div class="ico"><svg viewBox="0 0 24 24"><path d="M11 5L6 9H2v6h4l5 4z"/><path d="M22 9l-6 6M16 9l6 6"/></svg></div>
@@ -439,7 +515,7 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
       <div class="feat">
         <div class="ico"><svg viewBox="0 0 24 24"><path d="M13 2L3 14h8l-1 8 10-12h-8z"/></svg></div>
         <h3><span lang="en">4K60 RDP tuning</span><span lang="es">RDP optimizado para 4K60</span></h3>
-        <p><span lang="en">Applies frame-rate, GPU-capture and display-refresh policies before each session so the remote desktop composes at the full target rate. Resolution, fps and colour depth are set per session.</span><span lang="es">Aplica políticas de fps, captura por GPU y frecuencia de pantalla antes de cada sesión para que el escritorio remoto se componga a la tasa completa. Resolución, fps y profundidad de color se configuran por sesión.</span></p>
+        <p><span lang="en">Applies frame-rate, GPU-capture and display-refresh policies before each session so the remote desktop composes at the full target rate. When the frame interval isn’t a whole number of milliseconds (60 fps), the session composes faster and Sunshine paces the stream, so 60 really means 60. Resolution, fps and colour depth are set per session.</span><span lang="es">Aplica políticas de fps, captura por GPU y frecuencia de pantalla antes de cada sesión para que el escritorio remoto se componga a la tasa completa. Si el intervalo entre fotogramas no es un número entero de milisegundos (60 fps), la sesión se compone más rápido y Sunshine marca el ritmo, así que 60 son 60. Resolución, fps y profundidad de color se configuran por sesión.</span></p>
       </div>
       <div class="feat">
         <div class="ico"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9zM9 1v3M15 1v3M9 20v3M15 20v3M20 9h3M20 14h3M1 9h3M1 14h3"/></svg></div>
@@ -472,7 +548,17 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
       <div class="feat">
         <div class="ico"><svg viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="13" rx="2"/><path d="M8 21h8M7 10l3 2-3 2M13 14h4"/></svg></div>
         <h3><span lang="en">Moonlight, WebRTC or both</span><span lang="es">Moonlight, WebRTC o los dos</span></h3>
-        <p><span lang="en">With the bundled sunshine-webrtc build, each session serves Moonlight apps, Samsung TVs running Moonlight WebRTC, or both. Switch it live from the session card; only the ports of the active protocols are opened.</span><span lang="es">Con la versión sunshine-webrtc incluida, cada sesión sirve a las apps de Moonlight, a las TV Samsung con Moonlight WebRTC o a ambas. Se cambia en directo desde la tarjeta de la sesión y solo se abren los puertos de los protocolos activos.</span></p>
+        <p><span lang="en">With the bundled sunshine-webrtc build, each session serves Moonlight apps, Samsung TVs running Moonlight WebRTC, or both. Change it in the session’s settings; only the ports of the active protocols are opened. TVs get zero playout delay.</span><span lang="es">Con la versión sunshine-webrtc incluida, cada sesión sirve a las apps de Moonlight, a las TV Samsung con Moonlight WebRTC o a ambas. Se cambia en los ajustes de la sesión y solo se abren los puertos de los protocolos activos. Las TV reciben la imagen sin retardo de reproducción.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4M7 9l3 3-3 3M13 15h4"/></svg></div>
+        <h3><span lang="en">RemoteIdd display <small>(experimental)</small></span><span lang="es">Pantalla RemoteIdd <small>(experimental)</small></span></h3>
+        <p><span lang="en">An IddCx display driver of our own for RDP sessions, built only on documented Windows APIs. Each frame reaches Sunshine through a shared GPU texture; in the hand-off test, from present to pixel takes under 1 ms (p99) even at 4K 240 Hz. Used automatically when installed.</span><span lang="es">Un driver de pantalla IddCx propio para las sesiones RDP, hecho solo con API documentadas de Windows. Cada fotograma llega a Sunshine por una textura compartida en la GPU; en la prueba de entrega, del present al píxel tarda menos de 1 ms (p99) incluso a 4K y 240 Hz. Se usa automáticamente si está instalado.</span></p>
+      </div>
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 00-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg></div>
+        <h3><span lang="en">Pairing notifications</span><span lang="es">Avisos de emparejamiento</span></h3>
+        <p><span lang="en">The tray icon notices when a Moonlight client or a WebRTC TV is waiting for a PIN in any session and shows a Windows notification that opens the right pairing dialog.</span><span lang="es">El icono de la bandeja detecta cuando un cliente Moonlight o una TV WebRTC espera un PIN en cualquier sesión y muestra una notificación de Windows que abre el emparejamiento correcto.</span></p>
       </div>
     </div>
 
@@ -481,8 +567,8 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
     <div class="grid">
       <div class="feat">
         <div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></svg></div>
-        <h3><span lang="en">Web dashboard</span><span lang="es">Panel web</span></h3>
-        <p><span lang="en">Create, start, stop, restart and delete sessions, edit their settings and follow live logs from any browser. Available in English, Spanish, French and Portuguese.</span><span lang="es">Crea, inicia, detiene, reinicia y borra sesiones, edita su configuración y sigue los logs en directo desde cualquier navegador. En inglés, español, francés y portugués.</span></p>
+        <h3><span lang="en">Dashboard</span><span lang="es">Panel</span></h3>
+        <p><span lang="en">Create, start, stop, restart and delete sessions, edit their settings and follow live logs — in its own window on the PC, or from any browser or phone. Six themes, English, Spanish, French and Portuguese.</span><span lang="es">Crea, inicia, detiene, reinicia y borra sesiones, edita su configuración y sigue los logs en directo, en su propia ventana en el PC o desde cualquier navegador o móvil. Seis temas, en inglés, español, francés y portugués.</span></p>
       </div>
       <div class="feat">
         <div class="ico"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7"/></svg></div>
@@ -502,7 +588,7 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
       <div class="feat">
         <div class="ico"><svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg></div>
         <h3><span lang="en">Concurrent RDP helpers</span><span lang="es">Ayudas para RDP concurrente</span></h3>
-        <p><span lang="en">Native Remote Desktop is enabled automatically. For several simultaneous sessions on client editions of Windows, RDP Wrapper can be installed, updated and removed from the UI.</span><span lang="es">Escritorio Remoto nativo se habilita automáticamente. Para varias sesiones simultáneas en ediciones cliente de Windows, RDP Wrapper se puede instalar, actualizar y quitar desde el panel.</span></p>
+        <p><span lang="en">Native Remote Desktop is enabled automatically. For several simultaneous sessions on client editions of Windows, RDP Wrapper can be installed, updated and removed from the UI. With RemoteIdd, TermWrap is used, and if it fails the service falls back to asmtron’s RDP Wrapper by itself.</span><span lang="es">Escritorio Remoto nativo se habilita automáticamente. Para varias sesiones simultáneas en ediciones cliente de Windows, RDP Wrapper se puede instalar, actualizar y quitar desde el panel. Con RemoteIdd se usa TermWrap, y si falla el servicio vuelve solo al RDP Wrapper de asmtron.</span></p>
       </div>
       <div class="feat">
         <div class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg></div>
@@ -514,7 +600,7 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
 </section>
 
 <!-- ───────────────────────── API & OPS ───────────────────────── -->
-<section id="api">
+<section id="api" class="alt">
   <div class="wrap">
     <div class="eyebrow"><span lang="en">Automation</span><span lang="es">Automatización</span></div>
     <h2><span lang="en">REST API, tray icon and CLI</span><span lang="es">API REST, icono de bandeja y CLI</span></h2>
@@ -532,11 +618,17 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
             <tr><td><span class="m post">POST</span></td><td><code>/{id}/pair</code></td><td><span lang="en">Pair Moonlight PIN</span><span lang="es">Emparejar PIN de Moonlight</span></td></tr>
             <tr><td><span class="m get">GET</span></td><td><code>/{id}/clients</code></td><td><span lang="en">Paired clients</span><span lang="es">Clientes emparejados</span></td></tr>
             <tr><td><span class="m get">GET</span></td><td><code>/{id}/logs</code></td><td><span lang="en">Session logs</span><span lang="es">Logs de la sesión</span></td></tr>
-            <tr><td><span class="m del">DELETE</span></td><td><code>/{id}</code></td><td><span lang="en">Delete session</span><span lang="es">Borrar sesión</span></td></tr>
+            <tr><td><span class="m put">PUT</span></td><td><code>/{id}/protocol</code></td><td><span lang="en">Moonlight, WebRTC or both</span><span lang="es">Moonlight, WebRTC o ambos</span></td></tr>
+            <tr><td><span class="m get">GET</span></td><td><code>/api/sessions/pairings</code></td><td><span lang="en">PINs waiting in any session</span><span lang="es">PIN pendientes en cualquier sesión</span></td></tr>
+            <tr><td><span class="m del">DELETE</span></td><td><code>/{id}?keepUser=true</code></td><td><span lang="en">Delete session (optionally keep its user)</span><span lang="es">Borrar sesión (opcionalmente conservando su usuario)</span></td></tr>
+            <tr><td><span class="m get">GET</span></td><td><code>/api/sessions/isolated-users</code></td><td><span lang="en">Kept users and leftover profiles</span><span lang="es">Usuarios conservados y perfiles sueltos</span></td></tr>
+            <tr><td><span class="m put">PUT</span></td><td><code>/api/settings/logging</code></td><td><span lang="en">Global log level</span><span lang="es">Nivel de log global</span></td></tr>
+            <tr><td><span class="m get">GET</span></td><td><code>/api/system/network</code></td><td><span lang="en">PC name and LAN addresses</span><span lang="es">Nombre del PC y direcciones de la red local</span></td></tr>
             <tr><td><span class="m post">POST</span></td><td><code>/api/power/shutdown · restart</code></td><td><span lang="en">Host power</span><span lang="es">Energía del host</span></td></tr>
             <tr><td><span class="m get">GET</span></td><td><code>/api/seats · /inventory</code></td><td><span lang="en">Seats, free monitors and devices</span><span lang="es">Puestos, monitores y dispositivos libres</span></td></tr>
             <tr><td><span class="m post">POST</span></td><td><code>/api/seats/{id}/start · stop</code></td><td><span lang="en">Turn a seat on or off</span><span lang="es">Encender o apagar un puesto</span></td></tr>
             <tr><td><span class="m post">POST</span></td><td><code>/api/seats/identify/monitor · audio</code></td><td><span lang="en">Test a monitor or output</span><span lang="es">Probar un monitor o una salida</span></td></tr>
+            <tr><td><span class="m get">GET</span></td><td><code>/api/seats/identify/mic</code></td><td><span lang="en">Microphone level</span><span lang="es">Nivel de un micrófono</span></td></tr>
           </tbody>
         </table>
       </div>
@@ -544,6 +636,7 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
 <pre><span class="c"># Service &amp; tools</span>
 <span class="k">OpenStreamMS.exe</span> --install     <span class="c"># register the Windows service</span>
 <span class="k">OpenStreamMS.exe</span> --uninstall   <span class="c"># stop and remove it</span>
+<span class="k">OpenStreamMS.exe</span> --open        <span class="c"># dashboard in its own window</span>
 <span class="k">OpenStreamMS.exe</span> --tray        <span class="c"># notification-area icon</span>
 <span class="k">OpenStreamMS.exe</span> --run         <span class="c"># run (called by the SCM)</span>
 
@@ -554,9 +647,9 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
        "password":"***","rdpWidth":3840,
        "rdpHeight":2160,"rdpFrameRate":60}'</pre>
         <ul class="check" style="margin-top:20px">
-          <li><span lang="en">Tray icon: double-click opens the dashboard, right-click starts/stops sessions.</span><span lang="es">Icono de bandeja: doble clic abre el panel y clic derecho inicia o detiene sesiones.</span></li>
+          <li><span lang="en">Tray icon: double-click opens the dashboard; right-click lists sessions and seats with their state and turns them on or off; notifies pending Moonlight and TV pairings.</span><span lang="es">Icono de bandeja: doble clic abre el panel; clic derecho muestra sesiones y puestos con su estado y los enciende o apaga; avisa de los emparejamientos pendientes de Moonlight y de las TV.</span></li>
           <li><span lang="en">Cookie and HTTP Basic authentication with HMAC-signed tokens.</span><span lang="es">Autenticación por cookie y HTTP Basic con tokens firmados con HMAC.</span></li>
-          <li><span lang="en">Global and per-session logs with size-based rotation.</span><span lang="es">Logs globales y por sesión con rotación por tamaño.</span></li>
+          <li><span lang="en">Global and per-session logs with size-based rotation, and one log level for everything (Info, Warning, Error or Off).</span><span lang="es">Logs globales y por sesión con rotación por tamaño, y un solo nivel de log para todo (Info, Warning, Error u Off).</span></li>
         </ul>
       </div>
     </div>
@@ -564,7 +657,7 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
 </section>
 
 <!-- ───────────────────────── INSTALL ───────────────────────── -->
-<section id="install" class="alt">
+<section id="install">
   <div class="wrap">
     <div class="eyebrow"><span lang="en">Get started</span><span lang="es">Empezar</span></div>
     <h2><span lang="en">Up and running in minutes</span><span lang="es">Funcionando en minutos</span></h2>
@@ -572,11 +665,11 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
       <div class="steps">
         <div class="step">
           <h4><span lang="en">Run the installer</span><span lang="es">Ejecuta el instalador</span></h4>
-          <p><span lang="en">Download <code>OpenStreamMS-Setup.exe</code> from Releases and run it as administrator. Sunshine and FreeRDP are bundled.</span><span lang="es">Descarga <code>OpenStreamMS-Setup.exe</code> desde Releases y ejecútalo como administrador. Incluye Sunshine y FreeRDP.</span></p>
+          <p><span lang="en">Download <code>OpenStreamMS-Setup.exe</code> from Releases and run it as administrator. Sunshine and FreeRDP are bundled. The RemoteIdd display driver is an optional checkbox (experimental; it takes effect after restarting the PC).</span><span lang="es">Descarga <code>OpenStreamMS-Setup.exe</code> desde Releases y ejecútalo como administrador. Incluye Sunshine y FreeRDP. El driver de pantalla RemoteIdd es una casilla opcional (experimental; se activa al reiniciar el PC).</span></p>
         </div>
         <div class="step">
           <h4><span lang="en">Create your admin account</span><span lang="es">Crea tu cuenta de administrador</span></h4>
-          <p><span lang="en">Open <code>http://localhost:5000</code>. The first visit asks for dashboard credentials.</span><span lang="es">Abre <code>http://localhost:5000</code>. La primera visita pide las credenciales del panel.</span></p>
+          <p><span lang="en">Open <em>OpenStreamMS</em> from the Start menu (or <code>http://localhost:5000</code> in a browser). The first visit asks for dashboard credentials, then a guide walks you through the rest.</span><span lang="es">Abre <em>OpenStreamMS</em> desde el menú Inicio (o <code>http://localhost:5000</code> en el navegador). La primera visita pide las credenciales del panel y después una guía te lleva por el resto.</span></p>
         </div>
         <div class="step">
           <h4><span lang="en">Add a session</span><span lang="es">Añade una sesión</span></h4>
@@ -584,11 +677,11 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
         </div>
         <div class="step">
           <h4><span lang="en">Pair Moonlight and play</span><span lang="es">Empareja Moonlight y juega</span></h4>
-          <p><span lang="en">Add the PC in Moonlight, type the PIN in the dashboard and start streaming.</span><span lang="es">Añade el PC en Moonlight, escribe el PIN en el panel y empieza a jugar.</span></p>
+          <p><span lang="en"><em>Connect</em> on the session card shows the address to add in Moonlight; when it asks for a PIN, a notification opens the pairing dialog. Type it and start streaming.</span><span lang="es"><em>Conectar</em> en la tarjeta de la sesión muestra la dirección que hay que añadir en Moonlight; cuando pida un PIN, una notificación abre el emparejamiento. Escríbelo y empieza a jugar.</span></p>
         </div>
         <div class="step">
           <h4><span lang="en">Or set up a local seat</span><span lang="es">O monta un puesto local</span></h4>
-          <p><span lang="en">In the <em>Seats</em> tab, pick a monitor, an audio output and the USB devices (<em>Test</em> tells them apart), assign the session and turn it on.</span><span lang="es">En la pestaña <em>Puestos</em>, elige un monitor, una salida de audio y los dispositivos USB (<em>Probar</em> te dice cuál es cuál), asigna la sesión y enciéndelo.</span></p>
+          <p><span lang="en">In the <em>Seats</em> tab, pick a monitor (or part of one), an audio output, a microphone and the USB devices (<em>Test</em> tells them apart), assign the session and turn it on.</span><span lang="es">En la pestaña <em>Puestos</em>, elige un monitor (o una parte), una salida de audio, un micrófono y los dispositivos USB (<em>Probar</em> te dice cuál es cuál), asigna la sesión y enciéndelo.</span></p>
         </div>
       </div>
       <div>
@@ -599,7 +692,8 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
           <li><span lang="en">Administrator rights to install the service</span><span lang="es">Permisos de administrador para instalar el servicio</span></li>
           <li><span lang="en">Moonlight on each client device</span><span lang="es">Moonlight en cada dispositivo cliente</span></li>
           <li><span lang="en">Optional: RDP Wrapper for more than one simultaneous session on Windows Home/Pro</span><span lang="es">Opcional: RDP Wrapper para más de una sesión simultánea en Windows Home/Pro</span></li>
-          <li><span lang="en">For local seats: one extra monitor per seat on the same GPU, plus USB keyboards, mice or gamepads</span><span lang="es">Para puestos locales: un monitor más por puesto en la misma GPU, y teclados, ratones o mandos USB</span></li>
+          <li><span lang="en">For local seats: a monitor (or part of one) per seat on the same GPU, plus USB keyboards, mice or gamepads</span><span lang="es">Para puestos locales: un monitor (o parte de uno) por puesto en la misma GPU, y teclados, ratones o mandos USB</span></li>
+          <li><span lang="en">Optional: WebView2 (included in Windows 11) to open the dashboard in its own window; without it, it opens in the browser</span><span lang="es">Opcional: WebView2 (viene con Windows 11) para abrir el panel en su propia ventana; sin él se abre en el navegador</span></li>
         </ul>
         <h3 style="margin-top:28px"><span lang="en">Build from source</span><span lang="es">Compilar desde el código</span></h3>
 <pre><span class="k">git</span> clone https://github.com/mlopezsegura/OpenStreamMS

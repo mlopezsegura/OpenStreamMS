@@ -33,6 +33,11 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
         // Sin puestos exclusivos nadie necesita quedarse sin apagar: el grupo Usuarios recupera el derecho.
         if (!_seats.Values.Any(s => s.ExclusiveSession)) ShutdownRight.Restore();
         Logger.Log($"[Seats] Gestor de puestos iniciado ({_seats.Count} puesto(s)).");
+        // Antes de autoarrancar, que termine la comprobación de TermWrap/RemoteIdd: decide la
+        // captura de los puestos y puede quitar RemoteIdd de RDP-Tcp.
+        try { await OpenStreamMS.Services.Session.RdpWrapperManager.MultiRdpChecked.WaitAsync(TimeSpan.FromSeconds(120), stoppingToken); }
+        catch (TimeoutException) { Logger.Warning("[Seats] La comprobación de multi-RDP no terminó en 120 s; se autoarrancan los puestos igualmente."); }
+        catch (OperationCanceledException) { return; }
         foreach (var seat in _seats.Values.Where(s => s.AutoStart && s.SessionId is not null))
         {
             if (UsesConsoleUser(seat.SessionId))
@@ -100,6 +105,15 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
 
     public IReadOnlyList<(string Id, string Name)> AvailableAudioOutputs() => SeatAudio.Outputs();
 
+    /// <summary>Micrófonos que no usa otro puesto (un micrófono solo puede ir a una sesión).</summary>
+    /// <param name="forSeat">Puesto que se está editando: el suyo cuenta como libre.</param>
+    public IReadOnlyList<(string Id, string Name)> AvailableAudioInputs(Guid? forSeat = null)
+    {
+        var used = _seats.Values.Where(s => s.Id != forSeat && s.AudioInId is not null)
+                                .Select(s => s.AudioInId!).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return SeatAudio.Inputs().Where(a => !used.Contains(a.Id)).ToList();
+    }
+
     /// <param name="forSeat">Puesto que se está editando: sus propios dispositivos cuentan como libres.</param>
     public IReadOnlyList<InputDeviceInfo> AvailableInputDevices(Guid? forSeat = null)
     {
@@ -137,20 +151,46 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
     public Seat Update(Guid id, Seat changes)
     {
         var seat = Require(id);
-        if (seat.State == SeatState.Running)
-            throw new InvalidOperationException("Detén el puesto antes de editarlo.");
         if (string.IsNullOrWhiteSpace(changes.Name)) throw new ArgumentException("El puesto necesita un nombre.");
+        if (seat.State is SeatState.Running or SeatState.Starting)
+        {
+            // Encendido solo se cambia lo que no toca el hardware ni la sesión: nombre y autoarranque.
+            if (!SameHardware(seat, changes))
+                throw new InvalidOperationException("Detén el puesto antes de cambiar su pantalla, audio, dispositivos o sesión.");
+            if (changes.AutoStart && UsesConsoleUser(seat.SessionId)) throw new ArgumentException(ConsoleUserAutoStartError);
+            seat.Name      = changes.Name;
+            seat.AutoStart = changes.AutoStart;
+            Save();
+            return seat;
+        }
         Validate(changes, id);
         seat.Name             = changes.Name;
         seat.Monitor          = changes.Monitor;
         seat.AudioOutId       = changes.AudioOutId;
         seat.AudioOutName     = changes.AudioOutName;
+        seat.AudioInId        = changes.AudioInId;
+        seat.AudioInName      = changes.AudioInName;
         seat.Devices          = changes.Devices;
         seat.SessionId        = changes.SessionId;
         seat.AutoStart        = changes.AutoStart;
         seat.ExclusiveSession = changes.ExclusiveSession;
         Save();
         return seat;
+    }
+
+    /// <summary>Misma pantalla, audio, dispositivos, sesión y modo exclusivo: lo que exige apagar el puesto para cambiarlo.</summary>
+    private static bool SameHardware(Seat a, Seat b)
+    {
+        static string Monitor(SeatMonitor? m) =>
+            m is null ? "" : $"{m.DevicePath}|{m.Area}|{m.Width}|{m.Height}|{m.RefreshHz}";
+        static string Devices(Seat s) =>
+            string.Join(",", s.Devices.Select(d => $"{d.Kind}:{d.UsbPort}").OrderBy(x => x, StringComparer.Ordinal));
+        return Monitor(a.Monitor) == Monitor(b.Monitor) &&
+               (a.AudioOutId ?? "") == (b.AudioOutId ?? "") &&
+               (a.AudioInId ?? "") == (b.AudioInId ?? "") &&
+               Devices(a) == Devices(b) &&
+               a.SessionId == b.SessionId &&
+               a.ExclusiveSession == b.ExclusiveSession;
     }
 
     /// <summary>El autoarranque solo afecta al próximo arranque del servicio: se puede cambiar con el puesto encendido.</summary>
@@ -183,6 +223,8 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
                     : $"Esa parte del monitor se solapa con la del puesto '{other.Name}'.");
             if (candidate.SessionId is { } sid && other.SessionId == sid)
                 throw new ArgumentException($"La sesión ya está asignada al puesto '{other.Name}'.");
+            if (candidate.AudioInId is { } mic && string.Equals(other.AudioInId, mic, StringComparison.OrdinalIgnoreCase))
+                throw new ArgumentException($"El micrófono ya está asignado al puesto '{other.Name}'.");
             var shared = candidate.Devices.FirstOrDefault(d =>
                 other.Devices.Any(o => o.UsbPort.Equals(d.UsbPort, StringComparison.OrdinalIgnoreCase)));
             if (shared is not null)
@@ -244,17 +286,21 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
             //    no hay, la que Windows le haya dado al encenderlo.
             //    Tras un reajuste (_resized puesto) la sesión puede estar en otro modo aunque el
             //    nuevo coincida con el suyo: se reconecta igualmente.
-            if (seat.Monitor is { } mon && ResolveMode(mon, session) is { } mode)
+            //    El micrófono del puesto también va en la conexión RDP: si lo hay, se reconecta
+            //    siempre (y al apagar se reconecta sin él).
+            string? mic = MicrophoneFor(seat);
+            var target = seat.Monitor is { } mon && ResolveMode(mon, session) is { } m
+                ? m : (Width: session.RdpWidth, Height: session.RdpHeight, Hz: session.RdpFrameRate);
+            bool own = target.Width == session.RdpWidth && target.Height == session.RdpHeight && target.Hz == session.RdpFrameRate;
+            if (!own || mic is not null || _resized.ContainsKey(seat.Id))
             {
-                bool own = mode.Width == session.RdpWidth && mode.Height == session.RdpHeight && mode.Hz == session.RdpFrameRate;
-                if (!own || _resized.ContainsKey(seat.Id))
-                {
-                    Status(seat, $"Ajustando la sesión a {mode.Width}x{mode.Height} @ {mode.Hz} Hz…");
-                    sessions.ReconnectRdp(session.Id, mode.Width, mode.Height, mode.Hz);
-                }
-                if (own) _resized.TryRemove(seat.Id, out _);
-                else _resized[seat.Id] = 0;
+                Status(seat, mic is null
+                    ? $"Ajustando la sesión a {target.Width}x{target.Height} @ {target.Hz} Hz…"
+                    : $"Conectando la sesión a {target.Width}x{target.Height} @ {target.Hz} Hz con el micrófono…");
+                sessions.ReconnectRdp(session.Id, target.Width, target.Height, target.Hz, mic);
             }
+            if (own && mic is null) _resized.TryRemove(seat.Id, out _);
+            else _resized[seat.Id] = 0;
 
             // 5. Mandos del puesto → la sesión (lo aplica GamepadSessionIsolation con los
             //    puertos USB de seat.Devices; aquí solo se registra la intención).
@@ -396,6 +442,19 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
     /// Se apaga para volver a encenderlo enseguida (<see cref="Readjust"/>): el monitor sigue en
     /// el escritorio, la sesión no vuelve a su resolución y Sunshine sigue en pausa.
     /// </param>
+    /// <summary>
+    /// Id de endpoint del micrófono del puesto para FreeRDP (<c>/microphone:sys:winmm,dev:</c>, con
+    /// el parche de FreeRDP/patches); null si no tiene o no está conectado (entonces el puesto
+    /// arranca sin micrófono y se avisa en el log).
+    /// </summary>
+    private static string? MicrophoneFor(Seat seat)
+    {
+        if (seat.AudioInId is not { } id) return null;
+        if (SeatAudio.Inputs().Any(a => a.Id.Equals(id, StringComparison.OrdinalIgnoreCase))) return id;
+        Logger.Warning($"[Seats] '{seat.Name}': el micrófono '{seat.AudioInName}' no está conectado; el puesto arranca sin micrófono.");
+        return null;
+    }
+
     public void Stop(Guid id, bool disconnectedFromSeat = false, bool restarting = false)
     {
         var seat = Require(id);

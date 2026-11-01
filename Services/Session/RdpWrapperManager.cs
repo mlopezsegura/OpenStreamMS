@@ -16,6 +16,12 @@ public record RdpWrapperStatus(
     string? Wrapper,
     /// <summary>true si la DLL del wrapper está cargada en el proceso de TermService; null si no se pudo comprobar.</summary>
     bool?   Loaded,
+    /// <summary>
+    /// Instalado pero aún sin cargar: TermService está parado (en Windows cliente arranca con la
+    /// primera conexión RDP) o sigue con la DLL anterior hasta reiniciar Windows. Es lo normal
+    /// justo después de instalar; no es un fallo.
+    /// </summary>
+    bool    Pending,
     /// <summary>true si RDP-Tcp pasa por el proveedor de RemoteIdd (captura remoteidd disponible).</summary>
     bool    RemoteIdd,
     /// <summary>Directorio canónico de instalación (<c>%ProgramFiles%\RDP Wrapper</c>).</summary>
@@ -79,6 +85,7 @@ public sealed class RdpWrapperManager
             Installed:     filesOk && loaded == true,
             Wrapper:       wrapper,
             Loaded:        loaded,
+            Pending:       filesOk && loaded != true,
             RemoteIdd:     IsRemoteIddActive(),
             InstallDir:    _installDir,
             BundleVersion: wrapper == "TermWrap" ? ReadFileVersion(serviceDll!) : ReadBundleVersion(),
@@ -187,7 +194,52 @@ public sealed class RdpWrapperManager
     /// </summary>
     public void EnsureMultiRdp(CancellationToken ct)
     {
+        try { EnsureMultiRdpCore(ct); }
+        finally { MultiRdpCheckedSource.TrySetResult(); }
+    }
+
+    private static readonly TaskCompletionSource MultiRdpCheckedSource =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    /// <summary>
+    /// Se completa cuando <see cref="EnsureMultiRdp"/> ha terminado (con o sin respaldo). Los
+    /// puestos esperan a esto antes de autoarrancar: si no, arrancan con captura remoteidd y un
+    /// instante después el respaldo quita RemoteIdd, y Sunshine se queda sin pantalla.
+    /// </summary>
+    public static Task MultiRdpChecked => MultiRdpCheckedSource.Task;
+
+    /// <summary>
+    /// RemoteIdd instalado después de que arrancara TermService: install.ps1 no reinicia TermService
+    /// (se quedaba colgado al pararse), así que TermWrap y el proveedor entran al reiniciar el
+    /// equipo. Mientras tanto no está roto, está pendiente: ni se usa ni se deshace.
+    /// </summary>
+    public static bool IsRemoteIddPendingRestart()
+    {
+        try
+        {
+            var state = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                                     "OpenStreamMS", "remoteidd-install.json");
+            if (!IsRemoteIddActive() || !File.Exists(state)) return false;
+            var pid = GetServicePid("TermService");
+            if (pid == 0) return false;
+            using var p = Process.GetProcessById((int)pid);
+            return File.GetLastWriteTime(state) > p.StartTime;
+        }
+        catch { return false; }
+    }
+
+    /// <summary>RemoteIdd puesto en RDP-Tcp y ya cargado (no pendiente de reiniciar el equipo).</summary>
+    public static bool IsRemoteIddUsable() => IsRemoteIddActive() && !IsRemoteIddPendingRestart();
+
+    private void EnsureMultiRdpCore(CancellationToken ct)
+    {
         if (!IsRemoteIddActive()) return;
+        if (IsRemoteIddPendingRestart())
+        {
+            Logger.Error("[RdpWrap] RemoteIdd instalado y pendiente de reiniciar el equipo: hasta entonces los " +
+                         "puestos usan la captura de siempre.");
+            return;
+        }
         // En el arranque del PC TermService puede tardar en abrir el listener.
         var deadline = DateTime.UtcNow.AddSeconds(60);
         string? problem;
@@ -201,6 +253,17 @@ public sealed class RdpWrapperManager
         Logger.Error($"[RdpWrap] RemoteIdd sin TermWrap funcional ({problem}). Se vuelve a RDP Wrapper de asmtron.");
         LeaveRemoteIdd();
         SetServiceDllToAsmtron();
+
+        // Parar TermService con sesiones remotas o de puesto vivas puede dejarlo parado a medias
+        // (StopPending) y entonces el equipo no llega a apagarse ni reiniciarse. Con sesiones así
+        // el cambio queda en el registro y se aplica en el próximo arranque del equipo.
+        var live = OpenStreamMS.Core.Helpers.RdpSessionCreator.DescribeNonConsoleUserSessions();
+        if (live.Count > 0)
+        {
+            Logger.Warning($"[RdpWrap] Hay sesiones abiertas ({string.Join(", ", live)}): TermService no se reinicia " +
+                           "ahora; el respaldo se aplica al reiniciar el equipo.");
+            return;
+        }
         RestartTermService();
         Logger.Log($"[RdpWrap] Respaldo aplicado. Estado: {GetStatus()}");
     }

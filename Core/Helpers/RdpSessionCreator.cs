@@ -184,9 +184,16 @@ namespace OpenStreamMS.Core.Helpers
                                      int rdpFrameRate, int rdpColorDepth,
                                      out int clientPid,
                                      bool preferMstsc = true,
-                                     bool remoteIdd = false)
+                                     bool remoteIdd = false,
+                                     string? microphone = null)
         {
             clientPid = 0;
+            // mstsc no deja elegir el micrófono: con uno asignado, FreeRDP.
+            if (microphone is not null && preferMstsc)
+            {
+                Logger.Log("[RDP] Con micrófono asignado se conecta con FreeRDP (mstsc no permite elegirlo).");
+                preferMstsc = false;
+            }
             string address = RdpAddress(remoteIdd);
             Logger.Log($"[RDP] Reconectando la sesión {sessionId} a {rdpWidth}x{rdpHeight} @ {rdpFrameRate} fps...");
 
@@ -210,7 +217,8 @@ namespace OpenStreamMS.Core.Helpers
             }
             else
             {
-                id = CreateSessionWithFreeRdp(user, address, rdpWidth, rdpHeight, rdpFrameRate, rdpColorDepth, out clientPid);
+                id = CreateSessionWithFreeRdp(user, address, rdpWidth, rdpHeight, rdpFrameRate, rdpColorDepth, out clientPid,
+                                              microphone);
             }
 
             if (id != sessionId)
@@ -257,6 +265,63 @@ namespace OpenStreamMS.Core.Helpers
                 Logger.Warning($"[RDP] WTSDisconnectSession warning: {Marshal.GetLastWin32Error()}");
         }
 
+        /// <summary>
+        /// Cierra la sesión con <c>WTSLogoffSession</c> y espera a que desaparezca (o se quede sin
+        /// usuario). True si se cerró dentro del plazo o ya no existía. Es el cierre de Windows: cada
+        /// proceso recibe el aviso de fin de sesión y Terminal Services desmonta la pantalla remota en
+        /// orden. Matar los procesos a mano (dwm, fontdrvhost…) deja la sesión a medio desconectar y
+        /// TermService bloqueado, y con él el apagado del equipo.
+        /// </summary>
+        public static bool LogoffAndWait(uint sessionId, TimeSpan timeout)
+        {
+            if (sessionId == 0) return false;
+            var before = EnumerateSessions(logSessions: false).FirstOrDefault(s => s.SessionId == sessionId);
+            if (before is null || string.IsNullOrEmpty(before.Username)) return true;
+
+            if (!WTSLogoffSession(IntPtr.Zero, (int)sessionId, false))
+                Logger.Warning($"[RDP] WTSLogoffSession(sesión {sessionId}) falló: {Marshal.GetLastWin32Error()}");
+
+            var sw = Stopwatch.StartNew();
+            while (sw.Elapsed < timeout)
+            {
+                var s = EnumerateSessions(logSessions: false).FirstOrDefault(x => x.SessionId == sessionId);
+                if (s is null || !string.Equals(s.Username, before.Username, StringComparison.OrdinalIgnoreCase))
+                {
+                    Logger.Log($"[RDP] Sesión {sessionId} cerrada (logoff) en {sw.ElapsedMilliseconds} ms.");
+                    return true;
+                }
+                Thread.Sleep(250);
+            }
+            return false;
+        }
+
+        /// <summary>Usuario de la sesión como "DOMINIO\usuario", o null si no tiene.</summary>
+        public static string? GetSessionAccount(uint sessionId)
+        {
+            var s = EnumerateSessions(logSessions: false).FirstOrDefault(x => x.SessionId == sessionId);
+            if (s is null || string.IsNullOrEmpty(s.Username)) return null;
+            return string.IsNullOrEmpty(s.Domain) ? s.Username : $"{s.Domain}\\{s.Username}";
+        }
+
+        /// <summary>Sesiones (salvo la 0) en las que ha iniciado sesión ese usuario local.</summary>
+        public static List<uint> FindUserSessions(string username) =>
+            EnumerateSessions(logSessions: false)
+                .Where(s => s.SessionId != 0 &&
+                            string.Equals(s.Username, username, StringComparison.OrdinalIgnoreCase))
+                .Select(s => (uint)s.SessionId)
+                .ToList();
+
+        /// <summary>
+        /// Sesiones con usuario que no son la consola (puestos, RDP de red). Reiniciar TermService
+        /// con alguna de ellas viva puede dejarlo parado a medias y bloquear el apagado.
+        /// </summary>
+        public static List<string> DescribeNonConsoleUserSessions() =>
+            EnumerateSessions(logSessions: false)
+                .Where(s => s.SessionId != 0 && !string.IsNullOrEmpty(s.Username) &&
+                            !s.WinStationName.Equals("Console", StringComparison.OrdinalIgnoreCase))
+                .Select(s => $"{s.SessionId} ({s.Username})")
+                .ToList();
+
         /// <summary>Cierra la sesion Windows del usuario (logoff).</summary>
         public static void LogoffSession(uint sessionId)
         {
@@ -269,8 +334,14 @@ namespace OpenStreamMS.Core.Helpers
 
         // ── Creacion de sesion ────────────────────────────────────────────────────
 
+        /// <param name="microphone">
+        /// Id de endpoint del micrófono que se redirige (canal audin): dentro de la sesión aparece
+        /// como el micrófono "Remote Audio". Null = sin micrófono. Elegirlo por id necesita el
+        /// wfreerdp parcheado (FreeRDP/patches); el original ignora dev: y usa el predeterminado.
+        /// </param>
         static uint CreateSessionWithFreeRdp(StreamUserConfig user, string address, int rdpWidth, int rdpHeight,
-                                             int rdpFrameRate, int rdpColorDepth, out int freeRdpPid)
+                                             int rdpFrameRate, int rdpColorDepth, out int freeRdpPid,
+                                             string? microphone = null)
         {
             freeRdpPid = 0;
 
@@ -326,6 +397,8 @@ namespace OpenStreamMS.Core.Helpers
             // ── Audio ─────────────────────────────────────────────────────────────
             psi.ArgumentList.Add("/audio-mode:redirect");
             psi.ArgumentList.Add("/sound:sys:winmm");
+            if (microphone is not null)
+                psi.ArgumentList.Add($"/microphone:sys:winmm,dev:{microphone}");
 
             // ── Misc ──────────────────────────────────────────────────────────────
             // +disable-output = cliente wfreerdp oculto en Session 0 no decodifica ni

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
+using OpenStreamMS.Core.Helpers;
 
 namespace OpenStreamMS.Core.Api;
 
@@ -87,7 +88,13 @@ public record CreateSessionRequest(
     /// sin sesión RDP. Usuario, contraseña, resolución RDP, perfil y aislamiento se ignoran.
     /// Solo puede haber una.
     /// </summary>
-    bool Local = false
+    bool Local = false,
+    /// <summary>
+    /// Solo con Isolated: usuario dedicado conservado (osms-...) a reutilizar, con su perfil
+    /// (login de Steam, partidas, ajustes). Debe salir de GET /api/sessions/isolated-users.
+    /// Null = crear un usuario nuevo.
+    /// </summary>
+    string? ReuseIsolatedUser = null
 );
 
 /// <summary>Datos editables de una sesión ya creada (requiere sesión detenida).</summary>
@@ -216,7 +223,38 @@ public record SessionResponse(
     DateTime     CreatedAt,
     DateTime?    StartedAt,
     DateTime?    StoppedAt,
-    string?      ErrorMessage
+    string?      ErrorMessage,
+    /// <summary>Paso del arranque en curso (user, rdp, profile, unlock, sunshine); null fuera del arranque.</summary>
+    string?      StartPhase,
+    /// <summary>Clientes transmitiendo por Moonlight ahora; null si no se sabe.</summary>
+    int?         ClientsMoonlight,
+    /// <summary>TVs transmitiendo por WebRTC ahora; null si no se sabe.</summary>
+    int?         ClientsWebRtc,
+    /// <summary>Solo sesiones aisladas: nombre del usuario de Windows dedicado (osms-...).</summary>
+    string?      IsolatedUser,
+    /// <summary>
+    /// Login de Steam del usuario de Windows de la sesión: "saved" (Recordarme guardado),
+    /// "missing" (Steam pedirá iniciar sesión y Big Picture no se abrirá) o null (no aplica).
+    /// </summary>
+    string?      SteamLogin
+);
+
+/// <summary>Usuario dedicado o perfil osms-* que ya no usa ninguna sesión.</summary>
+public record OrphanUserResponse(
+    /// <summary>Identificador para borrarlo (user:..., sid:... o dir:...).</summary>
+    string  Key,
+    /// <summary>Nombre del usuario o de la carpeta del perfil.</summary>
+    string  Name,
+    /// <summary>true = la cuenta de Windows existe y se puede reutilizar en una sesión nueva.</summary>
+    bool    AccountExists,
+    /// <summary>Carpeta del perfil, si tiene.</summary>
+    string? ProfilePath,
+    /// <summary>Tamaño del perfil en bytes (solo con ?sizes=true).</summary>
+    long?   SizeBytes,
+    /// <summary>Tiene una sesión de Windows abierta: no se puede borrar.</summary>
+    bool    SignedIn,
+    /// <summary>Login de Steam del perfil ("saved"/"missing"/null).</summary>
+    string? SteamLogin
 );
 
 /// <summary>Respuesta con las últimas líneas del log de una sesión.</summary>
@@ -314,6 +352,27 @@ public static class SessionEndpoints
                 con ninguna sesión existente. La UI los usa para rellenar el formulario de nueva sesión.
                 """);
 
+        // GET /api/sessions/isolated-users  (antes que /{id:guid})
+        group.MapGet("/isolated-users", ListOrphanUsers)
+             .WithName("ListOrphanIsolatedUsers")
+             .WithSummary("Usuarios dedicados y perfiles sin sesión")
+             .WithDescription("""
+                Usuarios locales osms-* que no usa ninguna sesión (p. ej. conservados al borrar una
+                sesión aislada), perfiles de cuentas osms-* ya borradas y carpetas osms-* sueltas en
+                el directorio de perfiles. Los que tienen cuenta se pueden reutilizar al crear una
+                sesión aislada (ReuseIsolatedUser). ?sizes=true calcula el tamaño de cada perfil.
+                """);
+
+        // DELETE /api/sessions/isolated-users?key=...
+        group.MapDelete("/isolated-users", DeleteOrphanUser)
+             .WithName("DeleteOrphanIsolatedUser")
+             .WithSummary("Borrar un usuario dedicado o perfil sin sesión")
+             .WithDescription("""
+                Borra uno de los elementos de GET /api/sessions/isolated-users por su Key. La clave se
+                comprueba contra la lista: solo se borran usuarios o perfiles osms-* sin sesión y sin
+                una sesión de Windows abierta.
+                """);
+
         // GET /api/sessions
         group.MapGet("/", GetAll)
              .WithName("GetAllSessions")
@@ -340,7 +399,7 @@ public static class SessionEndpoints
         group.MapDelete("/{id:guid}", Delete)
              .WithName("DeleteSession")
              .WithSummary("Eliminar una sesión")
-             .WithDescription("Elimina una sesión. La sesión debe estar detenida antes de poder eliminarse.");
+             .WithDescription("Elimina una sesión. La sesión debe estar detenida antes de poder eliminarse. Con ?keepUser=true, una sesión aislada conserva su usuario dedicado y su perfil para reutilizarlos.");
 
         // POST /api/sessions/{id}/start
         group.MapPost("/{id:guid}/start", Start)
@@ -501,7 +560,8 @@ public static class SessionEndpoints
                                  webRtcPort: req.WebRtcPort,
                                  webRtcMediaPortMin: req.WebRtcMediaPortMin,
                                  webRtcMediaPortMax: req.WebRtcMediaPortMax,
-                                 local: req.Local);
+                                 local: req.Local,
+                                 reuseIsolatedUser: req.ReuseIsolatedUser);
         }
         catch (InvalidOperationException ex)
         {
@@ -516,13 +576,32 @@ public static class SessionEndpoints
         return s is null ? TypedResults.NotFound() : TypedResults.Ok(ToResponse(s));
     }
 
-    static Results<NoContent, NotFound, BadRequest<string>> Delete(Guid id, StreamSessionService svc)
+    static Results<NoContent, NotFound, BadRequest<string>> Delete(Guid id, StreamSessionService svc,
+                                                                   bool keepUser = false)
     {
         try
         {
-            return svc.Delete(id) ? TypedResults.NoContent() : TypedResults.NotFound();
+            return svc.Delete(id, keepUser) ? TypedResults.NoContent() : TypedResults.NotFound();
         }
         catch (InvalidOperationException ex)
+        {
+            return TypedResults.BadRequest(ex.Message);
+        }
+    }
+
+    static Ok<IEnumerable<OrphanUserResponse>> ListOrphanUsers(StreamSessionService svc, bool sizes = false) =>
+        TypedResults.Ok(svc.ListOrphanUsers(sizes).Select(o => new OrphanUserResponse(
+            o.Key, o.Name, o.AccountExists, o.ProfilePath, o.SizeBytes, o.SignedIn,
+            o.AccountExists ? SteamLoginProbe.GetState(o.Name) : null)));
+
+    static Results<NoContent, BadRequest<string>> DeleteOrphanUser(string key, StreamSessionService svc)
+    {
+        try
+        {
+            svc.DeleteOrphanUser(key);
+            return TypedResults.NoContent();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException)
         {
             return TypedResults.BadRequest(ex.Message);
         }
@@ -851,5 +930,9 @@ public static class SessionEndpoints
         s.SunshineAuthUser, s.SunshineAuthPass, s.RotateSunshineCredentials,
         s.Isolated, s.IsolatedEphemeral, s.Local,
         s.State, s.RdpSessionId, s.SunshinePid,
-        s.CreatedAt, s.StartedAt, s.StoppedAt, s.ErrorMessage);
+        s.CreatedAt, s.StartedAt, s.StoppedAt, s.ErrorMessage,
+        s.State == SessionState.Starting ? s.StartPhase : null,
+        s.ClientsMoonlight, s.ClientsWebRtc,
+        s.Isolated ? s.GetIsolatedUser() : null,
+        StreamSessionService.SteamLoginState(s));
 }
