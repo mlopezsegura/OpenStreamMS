@@ -13,6 +13,8 @@ Manages the full lifecycle of isolated RDP streaming sessions — creation, moni
 ## Features
 
 - **Isolated RDP sessions** — each session runs under its own Windows user account with a dedicated Sunshine instance, fully separated from your local desktop
+  <img width="1440" height="830" alt="01-sessions" src="https://github.com/user-attachments/assets/6c246ab5-262f-4558-8bd4-87cfb124b335" />
+
 - **Local desktop session** — the PC's own physical desktop can be added as one more session: Sunshine is launched directly in the PC's local session (no RDP), and stopping it never signs anyone out
 - **Independent stream profile** — launches Explorer, Sunshine, and Sunshine apps with a per-session profile sandbox (`USERPROFILE`, `APPDATA`, `LOCALAPPDATA`, temp, and XDG paths) so local and stream sessions do not share common profile lock files
 - **Web dashboard + REST API** — manage sessions from any browser; full OpenAPI docs at `/scalar/v1`
@@ -21,6 +23,9 @@ Manages the full lifecycle of isolated RDP streaming sessions — creation, moni
 - **5-second monitoring** — Sunshine is restarted automatically if it crashes
 - **Virtual display support (VDD)** — patches Sunshine's `apps.json` to keep a virtual display active even when the RDP client disconnects
 - **Local seats** — give a session a physical monitor, keyboard, mouse, gamepad and audio output so someone can use it at the PC itself, alongside the console and other seats (see [Local seats](#local-seats))
+  <img width="1440" height="1000" alt="02-seats" src="https://github.com/user-attachments/assets/054e9138-a14f-4003-b719-3bd862ebf6fa" />
+  <img width="1440" height="1000" alt="03-seat-editor" src="https://github.com/user-attachments/assets/c2000a0b-fc0c-442a-8b14-c922313270d4" />
+
 - **Isolated users** — a session can run under its own auto-managed local user (`osms-…`, shown on the session card), optionally ephemeral (wiped on stop); isolated sessions get a *Steam (isolated)* shortcut and handle `steam://` links so each one can sign in to its own Steam account
 - **Keep isolated users** — deleting an isolated session asks whether to keep its Windows user, which holds Steam's saved login, saves and game settings; a new session can reuse a kept user. Cards warn when Steam has no saved login, and **System → Dedicated users without a session** lists kept users and leftover `osms-*` profiles with their size, to delete them one by one
 - **Steam next to your own** — Steam can run on the console and in a stream session or seat at the same time, even with the same Windows user (per-session hook and browser cache)
