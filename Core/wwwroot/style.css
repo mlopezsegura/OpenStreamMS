@@ -1710,3 +1710,28 @@ section#view-sessions, section#view-seats { animation: viewIn .35s var(--ease); 
 .chip-clients .ui-icon { color: var(--muted-h); }
 .chip-clients.active { color: var(--text); border-color: rgba(var(--glow-green),.4); background: rgba(var(--glow-green),.08); }
 .chip-clients.active .ui-icon { color: var(--green); }
+
+/* Usuario dedicado de una sesión aislada: el nombre real, para notar si cambia */
+.card-username { display: block; font-family: ui-monospace, monospace; font-size: .76rem; color: var(--muted-h); overflow-wrap: anywhere; }
+.form-check:has(input:disabled) { opacity: .5; }
+
+/* Casilla opcional del diálogo de confirmación (p. ej. conservar el usuario al borrar) */
+.confirm-check { margin: .9rem 0 0; align-items: flex-start; }
+.confirm-check input[type=checkbox] { margin-top: .15rem; flex: none; }
+
+/* Sistema → usuarios dedicados sin sesión */
+.orphans-item { display: flex; align-items: center; justify-content: space-between; gap: .6rem; }
+.orphans-item b { font-weight: 600; color: var(--muted); }
+.orphans-item b.orphans-some { color: var(--orange); }
+.orphans-intro { font-size: .85rem; color: var(--muted-h); line-height: 1.5; margin: 0 0 .9rem; }
+.orphans-empty { font-size: .85rem; color: var(--muted); margin: 0; }
+.orphans-list { display: flex; flex-direction: column; gap: .5rem; }
+.orphan-row {
+  display: flex; align-items: center; justify-content: space-between; gap: .75rem;
+  padding: .55rem .7rem; border: 1px solid var(--border); border-radius: var(--radius);
+}
+.orphan-main { display: flex; flex-direction: column; gap: .15rem; min-width: 0; }
+.orphan-name { font-family: ui-monospace, monospace; font-size: .85rem; color: var(--text); word-break: break-all; }
+.orphan-meta { font-size: .76rem; color: var(--muted-h); }
+.orphan-path { font-size: .72rem; color: var(--muted); font-family: ui-monospace, monospace; word-break: break-all; }
+.orphan-row .btn { flex: none; }

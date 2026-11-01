@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
   startRefresh();
   rdpRefresh();
   DRIVER_KEYS.forEach(driverRefresh);
+  loadOrphans();
   setInterval(whenVisible(() => {
     rdpRefreshPillOnly();
     DRIVER_KEYS.forEach(driverRefreshPillOnly);
@@ -26,6 +27,8 @@ document.addEventListener('DOMContentLoaded', () => {
 window.addEventListener('langchange', () => {
   renderSessions();
   if (!byId('settings-modal').classList.contains('hidden')) renderAppearance();
+  if (!byId('orphans-modal').classList.contains('hidden')) renderOrphans();
+  fillReuseOptions();
   if (rdpLastStatus) {
     updateRdpPill(rdpLastStatus);
     renderRdpStatus(rdpLastStatus);
@@ -152,7 +155,11 @@ function renderCard(s) {
         ${screen}
         <div class="card-title">
           <div class="card-name">${esc(s.name)}</div>
-          <div class="card-user">${s.local ? esc(t('card.localUser')) : s.isolated ? esc(t('card.isolatedUser')) : `${esc(s.username)}@${esc(s.domain)}`}</div>
+          <div class="card-user">${s.local ? esc(t('card.localUser'))
+            : s.isolated ? (s.isolatedUser
+                ? `${esc(t('card.isolatedUserNamed'))} <code class="card-username" title="${esc(t('card.isolatedUser_title'))}">${esc(s.isolatedUser)}</code>`
+                : esc(t('card.isolatedUser')))
+            : `${esc(s.username)}@${esc(s.domain)}`}</div>
           ${badge(s.state)}
         </div>
         ${power}
@@ -160,6 +167,7 @@ function renderCard(s) {
       <div class="card-chips">${protos.join('')}${sessionSeatLine(s)}${clientsChip(s)}</div>
       ${startProgress(s)}
       ${rdpWarning(s)}
+      ${steamWarning(s)}
       ${s.streamProtocol !== 'Moonlight' && !s.sunshineSupportsWebRtc
         ? `<div class="card-warning">${esc(t('proto.unsupported'))}</div>` : ''}
       ${errorBox(s)}
@@ -290,14 +298,28 @@ async function restartSession(id, name) {
   loadSessions();
 }
 
+// Una sesión aislada se lleva su usuario de Windows y con él el perfil (login de Steam,
+// partidas, ajustes): se dice y, por defecto, se conserva para reutilizarlo.
 async function deleteSession(id, name) {
-  if (!await ask(t('confirm.delete', { name }), { danger: true, ok: t('btn.delete') })) return;
-  const res = await api('DELETE', `/api/sessions/${id}`);
+  const s = sessions.find(x => x.id === id);
+  let keepUser = false;
+  if (s && s.isolated && s.isolatedUser) {
+    const user = s.isolatedUser;
+    const r = await askCheck(t('confirm.deleteIsolated', { name, user }),
+                             { label: t('confirm.keepUser', { user }), checked: true },
+                             { danger: true, ok: t('btn.delete') });
+    if (!r) return;
+    keepUser = r.checked;
+  } else if (!await ask(t('confirm.delete', { name }), { danger: true, ok: t('btn.delete') })) {
+    return;
+  }
+  const res = await api('DELETE', `/api/sessions/${id}${keepUser ? '?keepUser=true' : ''}`);
   if (!res) return;
   if (res.status === 400) { toast(await res.text(), true); return; }
   if (!res.ok && res.status !== 204) { toast(t('toast.deleteError'), true); return; }
-  toast(t('toast.deleted', { name }));
+  toast(keepUser ? t('toast.deletedKeptUser', { name, user: s.isolatedUser }) : t('toast.deleted', { name }));
   loadSessions();
+  loadOrphans();
 }
 
 async function setEnabled(id, enabled) {
@@ -369,8 +391,35 @@ function needsCreds() {
 }
 
 function updateIsolatedUi() {
-  byId('sess-ephemeral-row').style.display = byId('sess-isolated').checked ? '' : 'none';
+  const isolated = byId('sess-isolated').checked;
+  byId('sess-ephemeral-row').style.display = isolated ? '' : 'none';
   byId('sess-creds-block').style.display   = needsCreds() ? '' : 'none';
+  // Reutilizar un usuario conservado: solo al crear una aislada y si hay alguno libre.
+  byId('sess-reuse-row').style.display =
+    isolated && !sessEditingId && !isLocalKind() && reusableUsers().length ? '' : 'none';
+  // Un perfil efímero borraría justo lo que se quiere conservar al reutilizar el usuario.
+  const reusing = byId('sess-reuse-row').style.display !== 'none' && !!byId('sess-reuse').value;
+  byId('sess-ephemeral').disabled = reusing;
+  if (reusing) byId('sess-ephemeral').checked = false;
+}
+
+// Usuarios dedicados conservados que se pueden asignar a una sesión nueva.
+function reusableUsers() {
+  return orphanUsers.filter(o => o.accountExists && !o.signedIn);
+}
+
+function fillReuseOptions() {
+  const sel = byId('sess-reuse');
+  if (!sel) return;
+  const current = sel.value;
+  const opts = [`<option value="">${esc(t('new.reuseNew'))}</option>`];
+  for (const o of reusableUsers()) {
+    const steam = o.steamLogin === 'saved' ? t('new.reuseSteamSaved')
+                : o.steamLogin === 'missing' ? t('new.reuseSteamMissing') : '';
+    opts.push(`<option value="${esc(o.name)}">${esc(o.name)}${steam ? ` — ${esc(steam)}` : ''}</option>`);
+  }
+  sel.innerHTML = opts.join('');
+  sel.value = reusableUsers().some(o => o.name === current) ? current : '';
 }
 
 function updateKindUi() {
@@ -403,11 +452,13 @@ function openNewModal() {
   setProtocolFields('Both', 8000, 40000, 40019);
   updateDerivedWebPort();
   resetCredTest();
+  fillReuseOptions();
   setSessTexts();
   updateKindUi();
   show('sess-modal');
   stopRefresh();
   suggestPorts();
+  loadOrphans().then(() => { fillReuseOptions(); updateIsolatedUi(); });
   byId('sess-name').focus();
 }
 
@@ -547,6 +598,7 @@ async function submitSession(e) {
         username: needsCreds() ? byId('sess-user').value.trim() : '',
         domain:   needsCreds() ? (byId('sess-domain').value.trim() || '.') : '.',
         password: needsCreds() ? byId('sess-pass').value : '',
+        reuseIsolatedUser: isolated ? (byId('sess-reuse').value || null) : null,
       });
       res = await api('POST', '/api/sessions', body);
     }
@@ -565,6 +617,7 @@ async function submitSession(e) {
     closeSessionModal();
     toast(t(editing ? 'toast.saved' : 'toast.created'));
     loadSessions();
+    if (body.reuseIsolatedUser) loadOrphans();
   } finally {
     setSessBusy(false);
   }
@@ -1344,7 +1397,8 @@ function updateSessionPreview() {
   const chips = [];
   if (proto !== 'WebRtc')    chips.push(`<span class="chip chip-moonlight">${uiIcon('moon')}Moonlight <b>${esc(port || '')}</b></span>`);
   if (proto !== 'Moonlight') chips.push(`<span class="chip chip-webrtc">${uiIcon('web')}WebRTC <b>${esc(webPort || '')}</b></span>`);
-  if (!local && isolated)    chips.push(`<span class="chip">${uiIcon('seat')}${esc(t('card.isolatedUser'))}</span>`);
+  const reuse = !local && isolated && !sessEditingId ? byId('sess-reuse').value : '';
+  if (!local && isolated)    chips.push(`<span class="chip">${uiIcon('seat')}${esc(reuse || t('card.isolatedUser'))}</span>`);
   setPreview(box, `${screen}
     <div class="preview-body">
       <div class="preview-name${name ? '' : ' placeholder'}">${esc(name || t('new.namePlaceholder'))}</div>
@@ -1366,12 +1420,17 @@ document.addEventListener('DOMContentLoaded', () => {
 // Explica qué va a pasar y, si es destructivo, el botón va en rojo y el foco en "Cancelar".
 let confirmResolver = null;
 
-function ask(message, { title, ok, danger = false } = {}) {
+function ask(message, { title, ok, danger = false, check = null } = {}) {
   return new Promise(resolve => {
     if (confirmResolver) confirmResolver(false);
     confirmResolver = resolve;
     byId('confirm-title').textContent = title || t(danger ? 'ux.confirm.dangerTitle' : 'ux.confirm.title');
     byId('confirm-msg').textContent   = message;
+    byId('confirm-check-row').classList.toggle('hidden', !check);
+    if (check) {
+      byId('confirm-check-label').textContent = check.label;
+      byId('confirm-check').checked = !!check.checked;
+    }
     const okBtn = byId('confirm-ok');
     okBtn.textContent = plainLabel(ok || t('ux.confirm.ok'));
     okBtn.className   = `btn ${danger ? 'btn-danger' : 'btn-primary'}`;
@@ -1387,6 +1446,12 @@ function resolveConfirm(value) {
   const resolve = confirmResolver;
   confirmResolver = null;
   if (resolve) resolve(value);
+}
+
+// Confirmación con una casilla: null si se cancela; si no, { checked }.
+async function askCheck(message, check, opts = {}) {
+  const ok = await ask(message, { ...opts, check });
+  return ok ? { checked: byId('confirm-check').checked } : null;
 }
 
 // Algunas traducciones llevan un símbolo delante ("↻ Reiniciar"): en los botones del diálogo, fuera.
@@ -1563,6 +1628,103 @@ function rdpWarning(s) {
       <span>${esc(t(key === 'broken' ? 'ux.rdpBroken' : 'ux.rdpMissing'))}</span>
       <button type="button" class="btn btn-ghost btn-xs" onclick="openRdpModal()">${esc(t('ux.review'))}</button>
     </div>`;
+}
+
+// Steam sin "Recordarme" en el usuario de Windows de la sesión: "Steam Big Picture" acaba
+// en la ventana de iniciar sesión. Se puede ocultar si en esa sesión no se usa Steam.
+const STEAM_HINT_KEY = id => `openstreamms.steamHintHidden.${id}`;
+
+function steamWarning(s) {
+  if (s.steamLogin !== 'missing') return '';
+  try { if (localStorage.getItem(STEAM_HINT_KEY(s.id))) return ''; } catch { /* sin almacenamiento */ }
+  const user = s.isolated ? s.isolatedUser : s.username;
+  return `<div class="card-warning card-warning-action card-warning-steam">
+      <span>${esc(t('steam.missing', { user: user || '' }))}</span>
+      <button type="button" class="btn btn-ghost btn-xs" onclick="hideSteamWarning('${s.id}')">${esc(t('steam.hide'))}</button>
+    </div>`;
+}
+
+function hideSteamWarning(id) {
+  try { localStorage.setItem(STEAM_HINT_KEY(id), '1'); } catch { /* sin almacenamiento */ }
+  renderSessions();
+}
+
+// ── Usuarios dedicados y perfiles sin sesión ───────────────────────────────
+let orphanUsers = [];          // GET /api/sessions/isolated-users (sin tamaños)
+let orphanSized = null;        // la misma lista con tamaños, para la ventana
+
+async function loadOrphans() {
+  const res = await api('GET', '/api/sessions/isolated-users');
+  if (!res || !res.ok) return;
+  orphanUsers = await res.json();
+  const count = byId('orphans-count');
+  if (count) {
+    count.textContent = orphanUsers.length;
+    count.classList.toggle('orphans-some', orphanUsers.length > 0);
+  }
+}
+
+async function openOrphansModal() {
+  document.querySelectorAll('.nav-pop').forEach(p => p.classList.add('hidden'));
+  orphanSized = null;
+  renderOrphans();
+  show('orphans-modal');
+  // Con tamaños tarda más: primero se ve la lista y luego cuánto ocupa cada perfil.
+  await loadOrphans();
+  renderOrphans();
+  const res = await api('GET', '/api/sessions/isolated-users?sizes=true');
+  if (res && res.ok) { orphanSized = await res.json(); renderOrphans(); }
+}
+
+function formatBytes(n) {
+  if (n == null) return '';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let i = 0;
+  while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+  const digits = i && n < 10 ? 1 : 0;
+  return `${n.toLocaleString(I18n.lang, { minimumFractionDigits: digits, maximumFractionDigits: digits })} ${units[i]}`;
+}
+
+function renderOrphans() {
+  const box = byId('orphans-list');
+  if (!box) return;
+  const list = orphanSized || orphanUsers;
+  if (!list.length) {
+    box.innerHTML = `<p class="orphans-empty">${esc(t('orphans.empty'))}</p>`;
+    return;
+  }
+  box.innerHTML = list.map(o => {
+    const meta = [t(o.accountExists ? 'orphans.kindUser' : 'orphans.kindProfile')];
+    if (orphanSized) meta.push(o.sizeBytes == null ? t('orphans.noSize') : formatBytes(o.sizeBytes));
+    else meta.push(t('orphans.sizing'));
+    if (o.steamLogin === 'saved')   meta.push(t('orphans.steamSaved'));
+    if (o.signedIn)                 meta.push(t('orphans.signedIn'));
+    return `<div class="orphan-row">
+        <div class="orphan-main">
+          <code class="orphan-name">${esc(o.name)}</code>
+          <span class="orphan-meta">${esc(meta.join(' · '))}</span>
+          ${o.profilePath ? `<span class="orphan-path">${esc(o.profilePath)}</span>` : ''}
+        </div>
+        <button type="button" class="btn btn-danger btn-xs" ${o.signedIn ? 'disabled' : ''}
+                onclick="deleteOrphan(${esc(JSON.stringify(o.key))})">${esc(plainLabel(t('btn.delete')))}</button>
+      </div>`;
+  }).join('');
+}
+
+async function deleteOrphan(key) {
+  const o = (orphanSized || orphanUsers).find(x => x.key === key);
+  if (!o) return;
+  const size = o.sizeBytes != null ? formatBytes(o.sizeBytes) : t('orphans.unknownSize');
+  const msg = t(o.accountExists ? 'orphans.confirmUser' : 'orphans.confirmProfile',
+                { name: o.name, size, steam: o.steamLogin === 'saved' ? t('orphans.confirmSteam') : '' });
+  if (!await ask(msg, { danger: true, ok: t('btn.delete') })) return;
+  const res = await api('DELETE', `/api/sessions/isolated-users?key=${encodeURIComponent(key)}`);
+  if (!res) return;
+  if (!res.ok && res.status !== 204) { toast(await res.text() || t('toast.deleteError'), true); return; }
+  toast(t('orphans.deleted', { name: o.name }));
+  if (orphanSized) orphanSized = orphanSized.filter(x => x.key !== key);
+  await loadOrphans();
+  renderOrphans();
 }
 
 function openSessionLog(id) {
