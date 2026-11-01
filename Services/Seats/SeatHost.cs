@@ -52,6 +52,20 @@ public static class SeatHost
         }
     }
 
+    /// <summary>
+    /// Salir del icono de bandeja: cierra todos los presentadores y espera a que suelten la
+    /// pantalla (barra de aplicación, cursor de la consola) antes de que el proceso termine. El
+    /// servicio ve las tuberías cerradas y apaga los puestos.
+    /// </summary>
+    public static void CloseAll(int timeoutMs = 3000)
+    {
+        var hosts = _activeSeats.Values.ToList();
+        _activeSeats.Clear();
+        foreach (var h in hosts) h.Stop();
+        foreach (var h in hosts) h.Join(timeoutMs);
+        if (hosts.Count > 0) Logger.Log($"[SeatHost] {hosts.Count} presentador(es) cerrados al salir.");
+    }
+
     /// <summary>Ejecución como proceso independiente: <c>OpenStreamMS.exe --seat-host &lt;pipeName&gt; [seatId]</c>.</summary>
     public static int RunStandalone(string pipeName, Guid seatId)
     {
@@ -132,6 +146,9 @@ internal sealed class ActiveSeatHost
 
     public void WaitForExit() => _exitEvent.Wait();
 
+    /// <summary>Espera a que el hilo del presentador termine su limpieza.</summary>
+    public void Join(int timeoutMs) => _thread?.Join(timeoutMs);
+
     private void RunPresenter()
     {
         Logger.Log($"[SeatHost] Conectando a la tubería del servicio: {_pipeName}");
@@ -186,6 +203,19 @@ internal sealed class ActiveSeatHost
                     _devices = JsonSerializer.Deserialize<List<SeatDevice>>(devArr) ?? [];
                 }
 
+                // Mitad de la consola: el cursor se queda en su pantalla virtual (ver ConsoleShare).
+                if (initJson["consoleClip"] is JsonObject clip)
+                {
+                    _consoleClip = true;
+                    _consoleArea = new ConsoleWindows.Area(clip["x"]!.GetValue<int>(), clip["y"]!.GetValue<int>(),
+                                                           clip["w"]!.GetValue<int>(), clip["h"]!.GetValue<int>());
+                    ConsoleShare.SetVirtual((_consoleArea.X, _consoleArea.Y, _consoleArea.W, _consoleArea.H));
+                }
+
+                // Partes libres del monitor que no son de la consola (forma de L): se tapan de negro.
+                if (initJson["blank"] is JsonArray blank)
+                    _blankAreas = blank.Select(b => Enum.Parse<SeatScreenArea>(b!.GetValue<string>())).ToList();
+
                 var handles = initJson["handles"]?.AsArray().Select(h => h!.GetValue<long>()).ToArray() ?? [];
                 if (handles.Length == 0)
                 {
@@ -200,6 +230,8 @@ internal sealed class ActiveSeatHost
 
                 // 4. Crear ventana a pantalla completa: WS_EX_NOACTIVATE | WS_EX_TRANSPARENT
                 _hwnd = CreatePresenterWindow(monX, monY, monW, monH);
+                ShareWithConsole((monX, monY, monW, monH));
+                PlaceBlanks();
 
 
                 // 6. Crear dispositivo Direct3D 11 en el mismo adaptador
@@ -289,6 +321,7 @@ internal sealed class ActiveSeatHost
                 bool haveFrame = false;
                 int copied = 0, busy = 0, presented = 0;
                 long nextStats = Environment.TickCount64 + 10_000, nextLocate = Environment.TickCount64 + 2_000;
+                long nextRaise = 0, nextSweep = 0;
                 var placed = (monX, monY, monW, monH);
                 long settleAt = 0;          // cuándo reajustar tras el último cambio del monitor; 0 = nada pendiente
                 var askedSize = (width, height);
@@ -305,6 +338,8 @@ internal sealed class ActiveSeatHost
                             placed = now;
                             settleAt = Environment.TickCount64 + MonitorSettleMs;
                             Native.SetWindowPos(_hwnd, Native.HWND_TOPMOST, now.X, now.Y, now.W, now.H, Native.SWP_NOACTIVATE);
+                            ShareWithConsole(now);
+                            PlaceBlanks();
                             Logger.Log($"[SeatHost] El monitor se ha movido: ventana recolocada en ({now.X},{now.Y} {now.W}x{now.H}).");
                         }
                         else if (settleAt != 0 && Environment.TickCount64 >= settleAt)
@@ -312,6 +347,16 @@ internal sealed class ActiveSeatHost
                             settleAt = 0;
                             askedSize = ReadjustToMonitor(channel, now, askedSize);
                         }
+                    }
+                    if (Environment.TickCount64 >= nextRaise)
+                    {
+                        nextRaise = Environment.TickCount64 + 250;
+                        KeepOnTop();
+                    }
+                    if (_consoleClip && Environment.TickCount64 >= nextSweep)
+                    {
+                        nextSweep = Environment.TickCount64 + 1_000;
+                        SweepConsoleWindows();
                     }
                     if (Environment.TickCount64 >= nextStats)
                     {
@@ -321,6 +366,7 @@ internal sealed class ActiveSeatHost
                     // Despierta con un fotograma/cursor nuevo o con un mensaje de la ventana.
                     Native.MsgWaitForMultipleObjects(1, wakeHandles, false, 100, Native.QS_ALLINPUT);
                     PumpMessages();
+                    ConsoleShare.Enforce();
 
                     bool dirty = false;
                     int seq = _frameSeq;
@@ -536,13 +582,115 @@ internal sealed class ActiveSeatHost
         return (now.W, now.H);
     }
 
-    /// <summary>Posición y tamaño actuales del monitor del puesto en el escritorio de la consola.</summary>
+    private int _raised;
+
+    // ── Partes tapadas ──────────────────────────────────────────────────────
+    // Con la consola en el principal, si lo libre tiene forma de L la consola se queda la parte
+    // más grande y el resto se tapa con ventanas negras (en este mismo hilo, que bombea sus mensajes).
+
+    private List<SeatScreenArea> _blankAreas = [];
+    private readonly List<(SeatScreenArea Area, IntPtr Hwnd)> _blanks = [];
+    private static bool s_blankClassRegistered;
+
+    /// <summary>Crea o recoloca las ventanas negras sobre las partes tapadas del monitor.</summary>
+    private void PlaceBlanks()
+    {
+        if (_blankAreas.Count == 0 || _monitor is null) return;
+        var live = DisplayTopology.Enumerate().FirstOrDefault(d => d.DevicePath == _monitor.DevicePath && d.Active);
+        if (live is not { Width: > 0, Height: > 0 }) return;
+        foreach (var area in _blankAreas)
+        {
+            var (x, y, w, h) = new SeatMonitor { Area = area }.Region(live.PosX, live.PosY, live.Width, live.Height);
+            int i = _blanks.FindIndex(b => b.Area == area);
+            if (i >= 0) Native.SetWindowPos(_blanks[i].Hwnd, Native.HWND_TOPMOST, x, y, w, h, Native.SWP_NOACTIVATE);
+            else _blanks.Add((area, CreateBlankWindow(x, y, w, h)));
+        }
+    }
+
+    private static IntPtr CreateBlankWindow(int x, int y, int w, int h)
+    {
+        const string cls = "OpenStreamMS.SeatBlank";
+        if (!s_blankClassRegistered)
+        {
+            var wc = new Native.WNDCLASSEX
+            {
+                cbSize = (uint)Marshal.SizeOf<Native.WNDCLASSEX>(),
+                lpfnWndProc = s_wndProc,
+                hInstance = Native.GetModuleHandle(null),
+                hbrBackground = Native.GetStockObject(4 /*BLACK_BRUSH*/),
+                lpszClassName = cls,
+            };
+            Native.RegisterClassEx(ref wc);
+            s_blankClassRegistered = true;
+        }
+        IntPtr hwnd = Native.CreateWindowEx(
+            Native.WS_EX_TOPMOST | Native.WS_EX_TOOLWINDOW | Native.WS_EX_NOACTIVATE | Native.WS_EX_TRANSPARENT,
+            cls, "OpenStreamMS", Native.WS_POPUP | Native.WS_VISIBLE, x, y, w, h,
+            IntPtr.Zero, IntPtr.Zero, Native.GetModuleHandle(null), IntPtr.Zero);
+        int excluded = 1;
+        if (hwnd != IntPtr.Zero) Native.DwmSetWindowAttribute(hwnd, 12 /*DWMWA_EXCLUDED_FROM_PEEK*/, ref excluded, sizeof(int));
+        return hwnd;
+    }
+
+    /// <summary>
+    /// Sobre el monitor de un puesto no debe quedar nada de la consola encima del presentador. La
+    /// barra de tareas (también "siempre encima") sube sola al minimizar o maximizar, y con la mitad
+    /// de la consola el monitor físico tiene la suya: si una ventana visible de otro proceso se
+    /// solapa por encima, el presentador vuelve arriba. Las del propio proceso (otros puestos,
+    /// el escudo) no cuentan.
+    /// </summary>
+    private void KeepOnTop()
+    {
+        KeepOnTop(_hwnd);
+        foreach (var (_, blank) in _blanks) KeepOnTop(blank);
+    }
+
+    private void KeepOnTop(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero || !Native.GetWindowRect(hwnd, out var me)) return;
+        uint self = (uint)Environment.ProcessId;
+        for (var h = Native.GetWindow(hwnd, Native.GW_HWNDPREV); h != IntPtr.Zero; h = Native.GetWindow(h, Native.GW_HWNDPREV))
+        {
+            if (!Native.IsWindowVisible(h)) continue;
+            Native.GetWindowThreadProcessId(h, out var pid);
+            if (pid == self) continue;
+            if (Native.DwmGetWindowAttribute(h, 14 /*DWMWA_CLOAKED*/, out int cloaked, sizeof(int)) == 0 && cloaked != 0) continue;
+            if (!Native.GetWindowRect(h, out var r) ||
+                r.right <= me.left || r.left >= me.right || r.bottom <= me.top || r.top >= me.bottom) continue;
+
+            Native.SetWindowPos(hwnd, Native.HWND_TOPMOST, 0, 0, 0, 0,
+                                Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
+            if (++_raised is 1 or 10 or 100)
+                Logger.Log($"[SeatHost] Presentador tapado por otra ventana (pid {pid}); vuelve arriba ({_raised} vez/veces).");
+            return;
+        }
+    }
+
+    /// <summary>
+    /// Pantalla dividida en el monitor principal: la consola se queda la otra mitad (ver <see cref="ConsoleShare"/>).
+    /// En cualquier otro monitor no hay nada que compartir.
+    /// </summary>
+    private void ShareWithConsole((int X, int Y, int W, int H) region)
+    {
+        // Respaldo sin SudoVDA: la barra de aplicación se ancla a un borde, así que solo con mitades.
+        if (_monitor is not { Area: SeatScreenArea.Left or SeatScreenArea.Right or SeatScreenArea.Top or SeatScreenArea.Bottom } mon) return;
+        var live = DisplayTopology.Enumerate().FirstOrDefault(d => d.DevicePath == mon.DevicePath && d.Active);
+        if (live is { PosX: 0, PosY: 0, Width: > 0, Height: > 0 })
+            ConsoleShare.Set(_seatId, _hwnd, mon.Area, region, (live.PosX, live.PosY, live.Width, live.Height));
+        else
+            ConsoleShare.Remove(_seatId);
+    }
+
+    /// <summary>
+    /// Posición y tamaño actuales del puesto en el escritorio de la consola: el monitor entero
+    /// o, con pantalla dividida, su mitad.
+    /// </summary>
     private (int X, int Y, int W, int H) LocateMonitor(int width, int height)
     {
         if (_monitor is null) return (0, 0, width, height);
         var live = DisplayTopology.Enumerate().FirstOrDefault(d => d.DevicePath == _monitor.DevicePath && d.Active);
         if (live is not null && live.Width > 0 && live.Height > 0)
-            return (live.PosX, live.PosY, live.Width, live.Height);
+            return _monitor.Region(live.PosX, live.PosY, live.Width, live.Height);
         return _monitor.Width > 0 && _monitor.Height > 0 ? (0, 0, _monitor.Width, _monitor.Height) : (0, 0, width, height);
     }
 
@@ -568,6 +716,11 @@ internal sealed class ActiveSeatHost
         if (hwnd == IntPtr.Zero)
             throw new Win32Exception(Marshal.GetLastWin32Error(), "CreateWindowEx falló");
 
+        // Peek (pasar el ratón por una miniatura de la barra de tareas) vuelve transparentes todas
+        // las demás ventanas, también las "siempre encima": el puesto dejaría ver lo que hay detrás.
+        int excluded = 1;
+        Native.DwmSetWindowAttribute(hwnd, 12 /*DWMWA_EXCLUDED_FROM_PEEK*/, ref excluded, sizeof(int));
+
         return hwnd;
     }
 
@@ -581,10 +734,33 @@ internal sealed class ActiveSeatHost
     }
 
     private SeatChannel? _inputChannel;
+    private bool _consoleClip;
+    private ConsoleWindows.Area _consoleArea;
+    private int _swept;
+    private readonly HashSet<IntPtr> _unmovable = [];
+
+    /// <summary>
+    /// Mitad de la consola: el monitor físico, tapado, no debe tener ventanas. Las que aparezcan
+    /// en él (una nueva, o una que recuerda su sitio) pasan a la pantalla virtual.
+    /// </summary>
+    private void SweepConsoleWindows()
+    {
+        if (_monitor is null) return;
+        var physical = DisplayTopology.Enumerate().FirstOrDefault(d => d.DevicePath == _monitor.DevicePath && d.Active);
+        if (physical is not { Width: > 0, Height: > 0 }) return;
+        var (moved, failed) = ConsoleWindows.Sweep(ConsoleWindows.Area.Of(physical), _consoleArea);
+        if (moved > 0 && (_swept += moved) < 50)
+            Logger.Log($"[SeatHost] {moved} ventana(s) de la consola traídas del monitor físico a su pantalla.");
+        // Una misma ventana que no se deja mover fallaría en cada barrido: se anota una vez.
+        foreach (var h in failed.Where(_unmovable.Add))
+            Logger.Warning($"[SeatHost] No se puede traer a la pantalla de la consola una ventana de {ConsoleWindows.Describe(h)} " +
+                           "(¿programa elevado?). Cerrarla y abrirla la saca en la pantalla buena.");
+    }
 
     private void Cleanup()
     {
         if (_inputChannel is not null) SeatInputRouter.Unregister(_seatId, _inputChannel);
+        if (_consoleClip) ConsoleShare.SetVirtual(null);
 
         try { _wasapiOut?.Stop(); } catch { }
         try { _wasapiOut?.Dispose(); } catch { }
@@ -605,6 +781,9 @@ internal sealed class ActiveSeatHost
 
         if (_hwnd != IntPtr.Zero)
         {
+            ConsoleShare.Remove(_seatId);   // antes de destruir la ventana: es la barra de aplicación
+            foreach (var (_, blank) in _blanks) Native.DestroyWindow(blank);
+            _blanks.Clear();
             Native.DestroyWindow(_hwnd);
             _hwnd = IntPtr.Zero;
         }
@@ -1029,7 +1208,15 @@ internal static class Native
 
     [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hwnd, int cmd);
     public static readonly IntPtr HWND_TOPMOST = new(-1);
-    public const uint SWP_NOACTIVATE = 0x0010, SWP_SHOWWINDOW = 0x0040;
+    public const uint SWP_NOACTIVATE = 0x0010, SWP_SHOWWINDOW = 0x0040, SWP_NOSIZE = 0x0001, SWP_NOMOVE = 0x0002;
+    public const uint GW_HWNDPREV = 3;
+    [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr hwnd, uint cmd);
+    [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);
+    [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
+    [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint pid);
+    [DllImport("dwmapi.dll")] public static extern int DwmGetWindowAttribute(IntPtr hwnd, int attr, out int value, int size);
+    [DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
+    [DllImport("gdi32.dll")] public static extern IntPtr GetStockObject(int obj);
     [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int cx, int cy, uint flags);
     public const uint WM_SETCURSOR = 0x0020;
 
@@ -1046,6 +1233,7 @@ internal static class Native
     [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
     [DllImport("user32.dll")] public static extern bool ClipCursor(ref RECT rect);
     [DllImport("user32.dll")] public static extern bool ClipCursor(IntPtr rect);
+    [DllImport("user32.dll")] public static extern bool GetClipCursor(out RECT rect);
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
 

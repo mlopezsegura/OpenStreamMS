@@ -213,7 +213,8 @@ internal sealed class TrayApp : ApplicationContext
     private void AddExitItem(ContextMenuStrip menu)
     {
         var item = new ToolStripMenuItem("Salir");
-        item.Click += (_, _) => { _timer.Stop(); ExitThread(); };
+        // Los presentadores primero: el servicio apaga los puestos al ver sus tuberías cerradas.
+        item.Click += (_, _) => { _timer.Stop(); OpenStreamMS.Services.Seats.SeatHost.CloseAll(); ExitThread(); };
         menu.Items.Add(item);
     }
 

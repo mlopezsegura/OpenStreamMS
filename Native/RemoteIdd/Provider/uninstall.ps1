@@ -7,8 +7,11 @@ $ErrorActionPreference = 'Continue'
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     throw 'Hay que ejecutarlo como administrador.'
 }
+. (Join-Path $PSScriptRoot 'termservice.ps1')
 $state = Join-Path $env:ProgramData 'OpenStreamMS\remoteidd-install.json'
 if (-not (Test-Path $state)) { Write-Host 'No hay nada instalado.'; return }
+# El instalador lo ejecuta sin consola: lo que pase queda junto al log de install.ps1 -Package.
+Start-Transcript -Path (Join-Path $env:ProgramData 'OpenStreamMS\remoteidd-setup.log') -Append | Out-Null
 $s = Get-Content $state -Raw | ConvertFrom-Json
 $ws = 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations'
 
@@ -43,7 +46,7 @@ if ($s.ProviderDir) {
     # Start-Process -Wait: regsvr32 es gráfico y PowerShell no lo esperaría.
     if (Test-Path $dll) { Start-Process regsvr32.exe -ArgumentList "/s /u `"$dll`"" -Wait }
 }
-if ($RestartTermService) { Restart-Service TermService -Force }
+if ($RestartTermService) { Restart-TermService }
 # Con TermService reiniciado ya no están cargadas; si no, se quedan y se avisa.
 foreach ($path in @($s.ProviderDir) + @($s.TermWrapFiles)) {
     if (-not $path) { continue }

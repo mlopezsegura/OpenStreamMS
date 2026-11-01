@@ -23,7 +23,10 @@ public static class SeatAgent
     private static volatile bool _stopping;
     private static int _inputsReceived;
 
-    public static int Run(string pipeName)
+    /// <param name="outputName">Salida a capturar (<c>\\.\DISPLAYn</c>); null = la primera del escritorio
+    /// (la única que tiene una sesión RDP). La mitad de la consola captura su pantalla virtual.</param>
+    /// <param name="audio">false en la consola: su audio ya suena en local.</param>
+    public static int Run(string pipeName, string? outputName = null, bool audio = true)
     {
         Logger.Log($"[SeatAgent] Iniciando agente en sesión {Process.GetCurrentProcess().SessionId} (pid={Environment.ProcessId})");
         SeatChannel channel;
@@ -51,7 +54,8 @@ public static class SeatAgent
                     for (uint j = 0; ad.EnumOutputs(j, out var o).Success; j++)
                     {
                         var d = o.Description;
-                        if (d.AttachedToDesktop)
+                        if (d.AttachedToDesktop &&
+                            (outputName is null || string.Equals(d.DeviceName, outputName, StringComparison.OrdinalIgnoreCase)))
                         {
                             adapter = ad;
                             output = o;
@@ -65,7 +69,9 @@ public static class SeatAgent
 
             if (adapter is null || output is null)
             {
-                Logger.Error("[SeatAgent] No se encontró ninguna salida vinculada al escritorio de la sesión.");
+                Logger.Error(outputName is null
+                    ? "[SeatAgent] No se encontró ninguna salida vinculada al escritorio de la sesión."
+                    : $"[SeatAgent] No se encontró la salida {outputName}.");
                 return 1;
             }
 
@@ -135,7 +141,7 @@ public static class SeatAgent
             channel.SendJson(initObj);
 
             // 5. Iniciar audio loopback
-            using var audioCapture = StartAudio(channel);
+            using var audioCapture = audio ? StartAudio(channel) : null;
 
             // 6. Iniciar hilo de captura de pantalla y cursor
             var captureThread = new Thread(() => CaptureLoop(channel, dev!, ctx!, o1, dupl, sharedTextures, keyedMutexes))

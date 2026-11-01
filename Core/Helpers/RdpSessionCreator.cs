@@ -231,6 +231,10 @@ namespace OpenStreamMS.Core.Helpers
         }
 
         const int WtsDisconnected = 4;
+        /// <summary>FreeRDP: ERRINFO_RPC_INITIATED_DISCONNECT (0x10001), el servidor cortó la conexión.</summary>
+        const int ErrRpcInitiatedDisconnect = 0x10001;
+        /// <summary>FreeRDP: ERRCONNECT_CONNECT_FAILED (0x20006), no hubo conexión TCP con el servidor RDP.</summary>
+        const int ErrConnectFailed = 0x20006;
 
         public static RdpSessionInfo? FindConflictingConsoleSession(StreamUserConfig user)
         {
@@ -348,9 +352,22 @@ namespace OpenStreamMS.Core.Helpers
             {
                 if (proc.HasExited)
                     throw new InvalidOperationException(
-                        $"[RDP] FreeRDP termino con ExitCode={proc.ExitCode} sin crear sesion para " +
-                        $"'{user.Username}'. ExitCode=-1001 suele indicar un argumento no soportado " +
-                        "(wfreerdp imprime la ayuda y sale); revisa tambien usuario/contraseña.");
+                        $"[RDP] FreeRDP termino con ExitCode={proc.ExitCode} sin crear sesion para '{user.Username}'. " +
+                        (proc.ExitCode switch
+                        {
+                            // 0x10001: el servidor cortó tras autenticar. Con RemoteIdd suele ser un modo
+                            // de pantalla que el driver no anuncia (ver remoteidd-driver.log).
+                            ErrRpcInitiatedDisconnect =>
+                                $"El servidor cerro la conexion: la resolucion {rdpWidth}x{rdpHeight} puede no estar " +
+                                "entre los modos del driver de pantalla (con RemoteIdd, mira remoteidd-driver.log).",
+                            // 0x20006: ni siquiera conectó. Escritorio remoto no escucha (visto con TermService
+                            // colgado tras un reinicio fallido).
+                            ErrConnectFailed =>
+                                "No se pudo conectar con Escritorio remoto: no escucha en el puerto RDP. Reinicia el " +
+                                "equipo si TermService se quedo a medias (por ejemplo tras instalar el driver de pantalla).",
+                            _ => "ExitCode=-1001 suele indicar un argumento no soportado " +
+                                 "(wfreerdp imprime la ayuda y sale); revisa tambien usuario/contraseña.",
+                        }));
 
                 try { proc.Kill(entireProcessTree: true); } catch { /* ignorar */ }
                 throw new TimeoutException(

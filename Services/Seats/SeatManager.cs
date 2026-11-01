@@ -90,13 +90,12 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
 
     public IReadOnlyList<DisplayInfo> AvailableMonitors()
     {
-        var used = _seats.Values.Where(s => s.State == SeatState.Running && s.Monitor is not null)
+        // Con pantalla dividida, un monitor con una mitad en uso sigue libre para la otra.
+        var used = _seats.Values.Where(s => s.State == SeatState.Running && s.Monitor is { Area: SeatScreenArea.Full })
                                 .Select(s => s.Monitor!.DevicePath).ToHashSet();
         // Un monitor libre: no está en el escritorio, o está pero no lo gestiona un puesto activo.
-        // El principal (activo en 0,0) es el de la consola: nunca se ofrece para un puesto.
-        return ConsoleDisplay.List()
-            .Where(d => !used.Contains(d.DevicePath) && !(d.Active && d.PosX == 0 && d.PosY == 0))
-            .ToList();
+        // El principal (activo en 0,0, ver IsPrimary) también se ofrece, pero solo para pantalla dividida.
+        return ConsoleDisplay.List().Where(d => !used.Contains(d.DevicePath) && !IsConsoleHalfDisplay(d)).ToList();
     }
 
     public IReadOnlyList<(string Id, string Name)> AvailableAudioOutputs() => SeatAudio.Outputs();
@@ -165,17 +164,23 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
     }
 
     /// <summary>
-    /// Un monitor, un puerto USB o una sesión solo pueden pertenecer a un puesto: dos puestos
-    /// pintando en el mismo monitor o metiendo entrada en la misma sesión se pisarían.
+    /// Un monitor (o una mitad, con pantalla dividida), un puerto USB o una sesión solo pueden
+    /// pertenecer a un puesto: dos puestos pintando en el mismo sitio o metiendo entrada en la
+    /// misma sesión se pisarían.
     /// </summary>
     private void Validate(Seat candidate, Guid selfId)
     {
         if (candidate.AutoStart && UsesConsoleUser(candidate.SessionId))
             throw new ArgumentException(ConsoleUserAutoStartError);
+        if (candidate.Monitor is { Area: SeatScreenArea.Full } full &&
+            ConsoleDisplay.List().Any(d => d.DevicePath == full.DevicePath && IsConsoleMonitor(d)))
+            throw new ArgumentException("El monitor principal es de la consola: un puesto solo puede ocupar una mitad.");
         foreach (var other in _seats.Values.Where(s => s.Id != selfId))
         {
-            if (candidate.Monitor is { } m && other.Monitor?.DevicePath == m.DevicePath)
-                throw new ArgumentException($"El monitor ya está asignado al puesto '{other.Name}'.");
+            if (candidate.Monitor is { } m && other.Monitor is { } om && m.Overlaps(om))
+                throw new ArgumentException(om.Area == SeatScreenArea.Full
+                    ? $"El monitor ya está asignado al puesto '{other.Name}'."
+                    : $"Esa parte del monitor se solapa con la del puesto '{other.Name}'.");
             if (candidate.SessionId is { } sid && other.SessionId == sid)
                 throw new ArgumentException($"La sesión ya está asignada al puesto '{other.Name}'.");
             var shared = candidate.Devices.FirstOrDefault(d =>
@@ -224,9 +229,12 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
             if (seat.ExclusiveSession)
                 sessions.PauseSunshine(session.Id, $"puesto '{seat.Name}'");
 
-            // 3. Encender el monitor del puesto (añadirlo al escritorio).
+            // 3. Encender el monitor del puesto (añadirlo al escritorio). Si es el principal y la
+            //    consola tenía una parte, se la quita: al terminar se rehace con lo que quede libre
+            //    (si no queda nada, la consola queda detrás solo como anfitriona).
             if (seat.Monitor is not null)
             {
+                if (_consoleHalf?.MonitorPath == seat.Monitor.DevicePath) StopConsoleHalf();
                 Status(seat, "Encendiendo el monitor…");
                 if (!ConsoleDisplay.Activate(seat.Monitor.DevicePath))
                     Logger.Warning($"[Seats] '{seat.Name}': no se pudo activar el monitor; se presentará igualmente si ya estaba activo.");
@@ -252,93 +260,13 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
             //    puertos USB de seat.Devices; aquí solo se registra la intención).
             Logger.Log($"[Seats] '{seat.Name}': {seat.Devices.Count} dispositivo(s) asignados a la sesión {session.RdpSessionId}.");
 
-            // 6. Lanzar agente en la sesión y presentador en la consola
-            Status(seat, "Iniciando agente de captura e imagen...");
-            var agentPipe = SeatPipes.NewName("agent");
-            var agentServer = SeatPipes.CreateServer(agentPipe);
-
-            // Si el puesto pide contraseña, el agente corre como SYSTEM en la sesión: es la única
-            // forma de capturar la pantalla de bloqueo (escritorio seguro) e inyectarle el teclado.
+            // 6. Lanzar agente en la sesión y presentador en la consola.
+            //    Si el puesto pide contraseña, el agente corre como SYSTEM en la sesión: es la única
+            //    forma de capturar la pantalla de bloqueo (escritorio seguro) e inyectarle el teclado.
             bool requiresLogin = RequiresLogin(seat, session);
-            int agentPid = new ProcessInSession().LaunchInSession(
-                session.RdpSessionId,
-                Environment.ProcessPath!,
-                $"--seat-agent {agentPipe}",
-                asSystem: requiresLogin);
-
-            using var agentTimeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(25));
-            SeatPipes.AcceptFrom(agentServer, pid => pid == agentPid, "agente", agentTimeoutCts.Token);
-            var agentChannel = new SeatChannel(agentServer);
-
-            var texturesMsg = agentChannel.Receive();
-            if (texturesMsg is null || texturesMsg.Value.Type != SeatMsg.Json)
-                throw new InvalidOperationException("El agente no envió la configuración de texturas.");
-
-            var texJson = SeatChannel.ParseJson(texturesMsg.Value.Data);
-            int width = texJson["width"]?.GetValue<int>() ?? session.RdpWidth;
-            int height = texJson["height"]?.GetValue<int>() ?? session.RdpHeight;
-            uint luidLow = texJson["luidLow"]?.GetValue<uint>() ?? 0;
-            int luidHigh = texJson["luidHigh"]?.GetValue<int>() ?? 0;
-            var agentHandles = texJson["handles"]?.AsArray().Select(h => h!.GetValue<long>()).ToArray()
-                ?? throw new InvalidOperationException("El agente no proporcionó handles de texturas.");
-
-            // Antes de que el monitor muestre nada: el puesto arranca en la pantalla de bloqueo.
-            if (requiresLogin) LockSession(seat, session);
-
-            // Preparar tubería para SeatHost
-            var hostPipe = SeatPipes.NewName("host");
-            var hostServer = SeatPipes.CreateServer(hostPipe);
-
-            Status(seat, "Iniciando presentador en la consola...");
-            SeatHostControl.RequestOpenSeat(seat.Id, hostPipe, seat.Monitor, seat.AudioOutId, seat.Devices);
-
-            // El presentador (icono de bandeja o --seat-host) corre en la consola. Las texturas,
-            // que muestran el escritorio de la sesión, se duplican al proceso que está realmente
-            // al otro lado de la tubería, no al PID que diga el mensaje.
-            using var hostTimeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(25));
-            int hostPid = SeatPipes.AcceptFrom(hostServer, LocalCaller.IsInConsoleSession, "presentador", hostTimeoutCts.Token);
-            var hostChannel = new SeatChannel(hostServer);
-
-            var hostReadyMsg = hostChannel.Receive();
-            if (hostReadyMsg is null || hostReadyMsg.Value.Type != SeatMsg.Json)
-                throw new InvalidOperationException("El presentador no envió confirmación.");
-
-            // Duplicar handles de textura: agentPid -> hostPid
-            var dupHandles = new long[agentHandles.Length];
-            for (int i = 0; i < agentHandles.Length; i++)
-            {
-                IntPtr dup = HandleBroker.DuplicateHandleTo(agentPid, new IntPtr(agentHandles[i]), hostPid);
-                dupHandles[i] = dup.ToInt64();
-            }
-
-            // Enviar handles duplicados y configuración inicial a SeatHost
-            hostChannel.SendJson(new JsonObject
-            {
-                ["op"] = "init",
-                ["seatId"] = seat.Id.ToString(),
-                ["width"] = width,
-                ["height"] = height,
-                ["luidLow"] = luidLow,
-                ["luidHigh"] = luidHigh,
-                ["handles"] = new JsonArray(dupHandles.Select(h => (JsonNode)h).ToArray()),
-                // El presentador independiente (--seat-host, sin TrayApp) solo sabe esto por aquí.
-                ["monitor"] = seat.Monitor is not null ? JsonSerializer.SerializeToNode(seat.Monitor) : null,
-                ["audioOutId"] = seat.AudioOutId,
-                ["devices"] = JsonSerializer.SerializeToNode(seat.Devices),
-            });
-
-            // Iniciar puente de mensajes bidireccional entre Agent y Host
-            var seatCts = new CancellationTokenSource();
-            var activeSession = new ActiveSeatSession
-            {
-                AgentServer = agentServer,
-                AgentChannel = agentChannel,
-                HostServer = hostServer,
-                HostChannel = hostChannel,
-                Cts = seatCts,
-                AgentPid = agentPid,
-                HostPid = hostPid
-            };
+            var activeSession = OpenPresentation(seat, session.RdpSessionId, asSystem: requiresLogin, agentArgs: "",
+                // Antes de que el monitor muestre nada: el puesto arranca en la pantalla de bloqueo.
+                beforePresenter: requiresLogin ? () => LockSession(seat, session) : null);
             _activeSeats[seat.Id] = activeSession;
             StartBridge(activeSession, seat);
 
@@ -353,6 +281,8 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
             seat.StatusDetail = "Activo: imagen, audio y periféricos conectados.";
             Interlocked.Increment(ref _generation);   // que GamepadSessionIsolation reasigne los mandos
             Logger.Log($"[Seats] Puesto '{seat.Name}' activo.");
+
+            if (seat.Monitor is not null) TryStartConsoleArea(seat.Monitor);
         }
         catch (Exception ex)
         {
@@ -361,6 +291,100 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
             Logger.Error($"[Seats] '{seat.Name}' no pudo arrancar: {ex.Message}");
             try { Stop(seat.Id); } catch { /* best effort */ }
         }
+    }
+
+    /// <summary>
+    /// Lanza el agente en la sesión de Windows <paramref name="windowsSession"/> y el presentador en
+    /// la consola, le pasa al presentador las texturas del agente y devuelve el conjunto conectado
+    /// (sin puente: lo arranca quien lo llama).
+    /// </summary>
+    /// <param name="agentArgs">Argumentos extra de --seat-agent (p. ej. --output para la consola).</param>
+    /// <param name="beforePresenter">Se ejecuta con el agente ya capturando y antes de mostrar nada.</param>
+    /// <param name="extraInit">Campos añadidos al mensaje init del presentador.</param>
+    private ActiveSeatSession OpenPresentation(Seat seat, uint windowsSession, bool asSystem, string agentArgs,
+                                               Action? beforePresenter = null, JsonObject? extraInit = null)
+    {
+        Status(seat, "Iniciando agente de captura e imagen...");
+        var agentPipe = SeatPipes.NewName("agent");
+        var agentServer = SeatPipes.CreateServer(agentPipe);
+        int agentPid = new ProcessInSession().LaunchInSession(
+            windowsSession,
+            Environment.ProcessPath!,
+            $"--seat-agent {agentPipe} {agentArgs}".TrimEnd(),
+            asSystem: asSystem);
+
+        using var agentTimeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(25));
+        SeatPipes.AcceptFrom(agentServer, pid => pid == agentPid, "agente", agentTimeoutCts.Token);
+        var agentChannel = new SeatChannel(agentServer);
+
+        var texturesMsg = agentChannel.Receive();
+        if (texturesMsg is null || texturesMsg.Value.Type != SeatMsg.Json)
+            throw new InvalidOperationException("El agente no envió la configuración de texturas.");
+
+        var texJson = SeatChannel.ParseJson(texturesMsg.Value.Data);
+        int width = texJson["width"]?.GetValue<int>() ?? 1920;
+        int height = texJson["height"]?.GetValue<int>() ?? 1080;
+        uint luidLow = texJson["luidLow"]?.GetValue<uint>() ?? 0;
+        int luidHigh = texJson["luidHigh"]?.GetValue<int>() ?? 0;
+        var agentHandles = texJson["handles"]?.AsArray().Select(h => h!.GetValue<long>()).ToArray()
+            ?? throw new InvalidOperationException("El agente no proporcionó handles de texturas.");
+
+        beforePresenter?.Invoke();
+
+        // Preparar tubería para SeatHost
+        var hostPipe = SeatPipes.NewName("host");
+        var hostServer = SeatPipes.CreateServer(hostPipe);
+
+        Status(seat, "Iniciando presentador en la consola...");
+        SeatHostControl.RequestOpenSeat(seat.Id, hostPipe, seat.Monitor, seat.AudioOutId, seat.Devices);
+
+        // El presentador (icono de bandeja o --seat-host) corre en la consola. Las texturas,
+        // que muestran el escritorio de la sesión, se duplican al proceso que está realmente
+        // al otro lado de la tubería, no al PID que diga el mensaje.
+        using var hostTimeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(25));
+        int hostPid = SeatPipes.AcceptFrom(hostServer, LocalCaller.IsInConsoleSession, "presentador", hostTimeoutCts.Token);
+        var hostChannel = new SeatChannel(hostServer);
+
+        var hostReadyMsg = hostChannel.Receive();
+        if (hostReadyMsg is null || hostReadyMsg.Value.Type != SeatMsg.Json)
+            throw new InvalidOperationException("El presentador no envió confirmación.");
+
+        // Duplicar handles de textura: agentPid -> hostPid
+        var dupHandles = new long[agentHandles.Length];
+        for (int i = 0; i < agentHandles.Length; i++)
+        {
+            IntPtr dup = HandleBroker.DuplicateHandleTo(agentPid, new IntPtr(agentHandles[i]), hostPid);
+            dupHandles[i] = dup.ToInt64();
+        }
+
+        // Enviar handles duplicados y configuración inicial a SeatHost
+        var init = new JsonObject
+        {
+            ["op"] = "init",
+            ["seatId"] = seat.Id.ToString(),
+            ["width"] = width,
+            ["height"] = height,
+            ["luidLow"] = luidLow,
+            ["luidHigh"] = luidHigh,
+            ["handles"] = new JsonArray(dupHandles.Select(h => (JsonNode)h).ToArray()),
+            // El presentador independiente (--seat-host, sin TrayApp) solo sabe esto por aquí.
+            ["monitor"] = seat.Monitor is not null ? JsonSerializer.SerializeToNode(seat.Monitor) : null,
+            ["audioOutId"] = seat.AudioOutId,
+            ["devices"] = JsonSerializer.SerializeToNode(seat.Devices),
+        };
+        foreach (var (k, v) in extraInit ?? []) init[k] = v?.DeepClone();
+        hostChannel.SendJson(init);
+
+        return new ActiveSeatSession
+        {
+            AgentServer = agentServer,
+            AgentChannel = agentChannel,
+            HostServer = hostServer,
+            HostChannel = hostChannel,
+            Cts = new CancellationTokenSource(),
+            AgentPid = agentPid,
+            HostPid = hostPid
+        };
     }
 
     /// <param name="disconnectedFromSeat">
@@ -376,6 +400,9 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
     {
         var seat = Require(id);
 
+        // Antes que nada: el monitor físico vuelve a ser el principal de la consola.
+        if (seat.Monitor is { } sm && _consoleHalf?.MonitorPath == sm.DevicePath) StopConsoleHalf();
+
         if (_activeSeats.TryRemove(id, out var active))
         {
             active.Dispose();
@@ -384,8 +411,9 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
         }
         SeatHostControl.RequestCloseSeat(id);
 
-        if (seat.Monitor is not null && !restarting)
-            ConsoleDisplay.Deactivate(seat.Monitor.DevicePath);
+        // Con pantalla dividida, el monitor sigue en el escritorio mientras la otra mitad esté en uso.
+        if (seat.Monitor is { } mon && !restarting && !SharesMonitorWithActiveSeat(seat))
+            ConsoleDisplay.Deactivate(mon.DevicePath);
 
         if (seat.SessionId is { } sid && !restarting)
         {
@@ -404,6 +432,11 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
             ConsoleLockGuard.Release();
         Interlocked.Increment(ref _generation);   // los mandos del puesto vuelven a la consola
         Logger.Log($"[Seats] Puesto '{seat.Name}' detenido.");
+
+        // Si quedan puestos en el principal, la consola vuelve con la parte que ahora quede libre.
+        if (!restarting && seat.Monitor is { } m &&
+            _seats.Values.FirstOrDefault(s => s.Id != id && s.State == SeatState.Running && s.Monitor?.DevicePath == m.DevicePath) is { } other)
+            _ = Task.Run(() => TryStartConsoleArea(other.Monitor!));
     }
 
     /// <summary>
@@ -445,6 +478,124 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
             }));
         }
         Logger.Log($"[Seats] '{seat.Name}': {active.Captured.Count} de {nodes.Count} interfaz(es) de entrada separadas de la consola.");
+    }
+
+    // ── Parte de la consola ─────────────────────────────────────────────────────
+    //
+    // Los puestos del monitor principal dejan el resto a la consola. Para que la consola tenga un
+    // escritorio de verdad de ese tamaño (barra de tareas, Inicio, notificaciones, pantalla
+    // completa), se le crea una pantalla virtual (SudoVDA) de esa parte y se hace principal; un
+    // agente la captura y el presentador la pinta en su parte del monitor físico, igual que un
+    // puesto. El cursor de la consola se queda en la pantalla virtual (ConsoleShare).
+    // La consola se queda la parte libre más grande (SeatAreas.Cover); si lo libre tiene forma de
+    // L, lo que sobra se tapa de negro para que no asome el escritorio físico de detrás.
+    // Cada vez que un puesto del principal se enciende o se apaga, se rehace.
+    // Sin SudoVDA, con mitades queda el respaldo de la barra de aplicación (ConsoleShare.Set).
+
+    private sealed class ConsoleHalf
+    {
+        public required string MonitorPath { get; init; }
+        public required VirtualDisplay Display { get; init; }
+        public required Seat Presentation { get; init; }
+        public ActiveSeatSession? Active { get; set; }
+    }
+
+    private readonly object _consoleHalfLock = new();
+    private ConsoleHalf? _consoleHalf;
+
+    /// <summary>La pantalla virtual de la consola: no es un monitor que se pueda asignar.</summary>
+    private bool IsConsoleHalfDisplay(DisplayInfo d) =>
+        _consoleHalf is { } h && d.AdapterLow == h.Display.AdapterLow && d.TargetId == h.Display.TargetId;
+
+    /// <summary>
+    /// Monitor principal de la consola: el que está en (0,0) o, con la parte de la consola activa,
+    /// el físico que la pantalla virtual ha desplazado.
+    /// </summary>
+    public bool IsConsoleMonitor(DisplayInfo d) =>
+        _consoleHalf?.MonitorPath == d.DevicePath || (IsPrimary(d) && !IsConsoleHalfDisplay(d));
+
+    /// <summary>
+    /// Si el monitor es el principal y le quedan celdas libres, la consola pasa a la parte libre
+    /// más grande con su propia pantalla virtual. Si algo falla, los puestos siguen igual.
+    /// </summary>
+    private void TryStartConsoleArea(SeatMonitor mon)
+    {
+        lock (_consoleHalfLock)
+        {
+            if (_consoleHalf is not null) return;
+            var on = _seats.Values.Where(s => s.State is SeatState.Running or SeatState.Starting
+                                              && s.Monitor?.DevicePath == mon.DevicePath).ToList();
+            int free = SeatAreas.AllCells;
+            foreach (var s in on) free &= ~SeatAreas.Cells(s.Monitor!.Area);
+            var parts = SeatAreas.Cover(free);
+            if (on.Count == 0 || parts.Count == 0) return;
+            var live = ConsoleDisplay.List().FirstOrDefault(d => d.DevicePath == mon.DevicePath);
+            if (live is null || !IsPrimary(live) || live.Width <= 0 || live.Height <= 0) return;
+            if (!ConsoleSession.TryGetUser(out var consoleId, out _, out _)) return;
+
+            var area = parts[0];
+            var presentation = new Seat
+            {
+                Id = Guid.NewGuid(), Name = "Consola", State = SeatState.Running,
+                Monitor = new SeatMonitor { DevicePath = mon.DevicePath, FriendlyName = mon.FriendlyName, Area = area },
+            };
+            var (_, _, w, h) = presentation.Monitor.Region(0, 0, live.Width, live.Height);
+            var display = VirtualDisplay.TryCreate(w, h, live.RefreshHz > 0 ? live.RefreshHz : 60);
+            if (display is null) return;   // respaldo: barra de aplicación
+
+            var half = new ConsoleHalf { MonitorPath = mon.DevicePath, Display = display, Presentation = presentation };
+            _consoleHalf = half;
+            try
+            {
+                // La pantalla tarda un poco en aparecer en la consola.
+                string id = $"target:{display.AdapterLow}:{display.TargetId}";
+                DisplayInfo? vdd = null;
+                for (int i = 0; i < 25 && vdd is not { Active: true, Gdi: not null }; i++)
+                {
+                    Thread.Sleep(200);
+                    vdd = ConsoleDisplay.List().FirstOrDefault(IsConsoleHalfDisplay);
+                }
+                if (vdd is not { Active: true, Gdi: { } gdi })
+                    throw new InvalidOperationException("la pantalla virtual no apareció en la consola");
+                if (!ConsoleDisplay.MakePrimary(id, gatherFrom: mon.DevicePath))
+                    throw new InvalidOperationException("no se pudo hacer principal la pantalla virtual");
+
+                // Agente como SYSTEM: también captura el escritorio seguro (UAC) de la consola.
+                // "blank": partes libres que no son de la consola (forma de L), tapadas de negro.
+                half.Active = OpenPresentation(presentation, consoleId, asSystem: true, agentArgs: $"--output {gdi} --no-audio",
+                    extraInit: new JsonObject
+                    {
+                        ["consoleClip"] = new JsonObject { ["x"] = 0, ["y"] = 0, ["w"] = vdd.Width, ["h"] = vdd.Height },
+                        ["blank"] = new JsonArray(parts.Skip(1).Select(p => (JsonNode)p.ToString()).ToArray()),
+                    });
+                StartBridge(half.Active, presentation);
+                Logger.Log($"[Seats] La consola ocupa la parte {area} de '{mon.FriendlyName}' con su propia pantalla de {vdd.Width}x{vdd.Height}" +
+                           (parts.Count > 1 ? $"; tapado: {string.Join(", ", parts.Skip(1))}." : "."));
+            }
+            catch (Exception ex)
+            {
+                Logger.Warning($"[Seats] No se pudo dar a la consola su parte ({ex.Message}); queda el respaldo.");
+                StopConsoleHalf();
+            }
+        }
+    }
+
+    /// <summary>Devuelve el monitor físico a la consola y quita la pantalla virtual.</summary>
+    private void StopConsoleHalf()
+    {
+        lock (_consoleHalfLock)
+        {
+            if (_consoleHalf is not { } half) return;
+            half.Presentation.State = SeatState.Stopped;
+            half.Active?.Dispose();
+            SeatHostControl.RequestCloseSeat(half.Presentation.Id);
+            // Primero el físico vuelve a ser el principal; después se quita la virtual.
+            if (!ConsoleDisplay.MakePrimary(half.MonitorPath))
+                Logger.Warning("[Seats] No se pudo devolver el monitor principal a la consola; se recupera al quitar la pantalla virtual.");
+            half.Display.Dispose();
+            _consoleHalf = null;
+            Logger.Log("[Seats] La consola vuelve a tener su monitor entero.");
+        }
     }
 
     // ── Usuario del puesto: contraseña y autoarranque ──────────────────────────
@@ -579,6 +730,7 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
                 if (seat.State == SeatState.Running && !active.Cts.IsCancellationRequested)
                 {
                     Logger.Warning($"[Seats] '{seat.Name}': el agente de sesión se desconectó.");
+                    OnPresentationLost(seat, "se cerró el agente de captura de la sesión");
                 }
             }
         }, active.Cts.Token);
@@ -608,10 +760,44 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
                 if (seat.State == SeatState.Running && !active.Cts.IsCancellationRequested)
                 {
                     Logger.Warning($"[Seats] '{seat.Name}': el presentador de la consola se desconectó.");
+                    OnPresentationLost(seat, "se cerró el presentador de la consola (icono de bandeja)");
                 }
             }
         }, active.Cts.Token);
     }
+
+    /// <summary>
+    /// El agente o el presentador se cortaron sin que nadie lo pidiera (Salir en el icono de
+    /// bandeja, proceso cerrado o caído): el puesto no puede seguir a medias, se apaga del todo
+    /// (teclado y ratón devueltos, resolución restaurada y, si la consola tenía su mitad, el
+    /// monitor físico vuelve a ser el principal). Se enciende de nuevo desde OpenStreamMS.
+    /// Los cortes pedidos (Stop, Readjust) cancelan antes el puente y no llegan aquí.
+    /// </summary>
+    private void OnPresentationLost(Seat seat, string why)
+    {
+        // Al cerrarse el icono de bandeja se cortan a la vez el agente y el presentador: un solo apagado.
+        if (!_lost.TryAdd(seat.Id, 0)) return;
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                if (_consoleHalf?.Presentation == seat)
+                {
+                    Logger.Warning($"[Seats] La mitad de la consola se quedó sin imagen ({why}); la consola recupera su monitor.");
+                    StopConsoleHalf();
+                    return;
+                }
+                if (!_seats.ContainsKey(seat.Id) || seat.State != SeatState.Running) return;
+                Logger.Warning($"[Seats] '{seat.Name}' se apaga: {why}.");
+                Stop(seat.Id);
+                seat.StatusDetail = $"Apagado: {why}. Enciéndelo de nuevo desde OpenStreamMS.";
+            }
+            catch (Exception ex) { Logger.Warning($"[Seats] '{seat.Name}': no se pudo apagar tras el corte: {ex.Message}"); }
+            finally { _lost.TryRemove(seat.Id, out _); }
+        });
+    }
+
+    private readonly ConcurrentDictionary<Guid, byte> _lost = new();
 
     private sealed class ActiveSeatSession : IDisposable
     {
@@ -648,15 +834,26 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
 
     /// <summary>
     /// Modo a usar para la sesión: el fijado en el puesto, o el que tiene el monitor ya
-    /// encendido. La frecuencia, si no está fijada, es la configurada en la sesión.
+    /// encendido (su mitad, con pantalla dividida). La frecuencia, si no está fijada, es la
+    /// configurada en la sesión.
     /// </summary>
     private static (int Width, int Height, int Hz)? ResolveMode(SeatMonitor mon, StreamSession session)
     {
         int hz = mon.RefreshHz > 0 ? mon.RefreshHz : session.RdpFrameRate;
         if (mon.Width > 0 && mon.Height > 0) return (mon.Width, mon.Height, hz);
         var live = ConsoleDisplay.List().FirstOrDefault(d => d.DevicePath == mon.DevicePath && d.Active);
-        return live is { Width: > 0, Height: > 0 } ? (live.Width, live.Height, hz) : null;
+        if (live is not { Width: > 0, Height: > 0 }) return null;
+        var (_, _, w, h) = mon.Region(0, 0, live.Width, live.Height);
+        return (w, h, hz);
     }
+
+    /// <summary>El monitor principal de la consola: activo en (0,0).</summary>
+    public static bool IsPrimary(DisplayInfo d) => d.Active && d.PosX == 0 && d.PosY == 0;
+
+    /// <summary>Otro puesto encendido (o encendiéndose) usa la otra mitad del mismo monitor.</summary>
+    private bool SharesMonitorWithActiveSeat(Seat seat) =>
+        _seats.Values.Any(s => s.Id != seat.Id && s.State is SeatState.Running or SeatState.Starting
+                               && s.Monitor?.DevicePath == seat.Monitor?.DevicePath);
 
     private static void WaitSessionRunning(StreamSession session, int timeoutMs = 45000)
     {
