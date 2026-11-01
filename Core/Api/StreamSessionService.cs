@@ -1202,7 +1202,7 @@ public class StreamSessionService
     /// captura por defecto.
     /// </summary>
     private static bool UsesRemoteIdd(StreamSession session) =>
-        WantsRemoteIdd(session) && RdpWrapperManager.IsRemoteIddActive();
+        WantsRemoteIdd(session) && RdpWrapperManager.IsRemoteIddUsable();
 
     private static bool WantsRemoteIdd(StreamSession session) =>
         !session.Local &&
