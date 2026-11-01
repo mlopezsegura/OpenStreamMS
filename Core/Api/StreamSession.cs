@@ -103,6 +103,15 @@ public class StreamSession
     /// </summary>
     public bool         IsolatedEphemeral { get; set; } = false;
     /// <summary>
+    /// Solo con <see cref="Isolated"/>: usuario dedicado que se reutilizó de una sesión
+    /// borrada (con su perfil: login de Steam, partidas, ajustes). Null = el que sale del Id.
+    /// </summary>
+    public string?      IsolatedUsername { get; set; }
+
+    /// <summary>Usuario de Windows dedicado de una sesión aislada.</summary>
+    public string GetIsolatedUser() =>
+        IsolatedUsername ?? OpenStreamMS.Core.Helpers.IsolatedUserManager.GetUsername(Id);
+    /// <summary>
     /// Sesión local: Sunshine corre en el escritorio físico de este PC (la sesión de consola),
     /// con el usuario que lo tenga abierto. No se crea sesión RDP y al detenerla no se cierra
     /// la sesión de Windows. Las opciones de RDP, usuario, perfil y aislamiento no se aplican.

@@ -55,11 +55,25 @@ public class StreamSessionService
                                 bool isolated = false, bool isolatedEphemeral = false,
                                 StreamProtocol streamProtocol = StreamProtocol.Both,
                                 int webRtcPort = 0, int webRtcMediaPortMin = 0, int webRtcMediaPortMax = 0,
-                                bool local = false)
+                                bool local = false, string? reuseIsolatedUser = null)
     {
         // Solo hay un escritorio físico: dos sesiones locales lo capturarían a la vez.
         if (local && _sessions.Values.Any(s => s.Local))
             throw new InvalidOperationException("Ya existe una sesión local; edita esa en lugar de crear otra.");
+
+        // Reutilizar un usuario dedicado conservado: solo uno osms-* que exista y no use otra sesión.
+        reuseIsolatedUser = NullIfBlank(reuseIsolatedUser);
+        if (reuseIsolatedUser is not null)
+        {
+            if (!isolated || local)
+                throw new InvalidOperationException("Solo una sesión aislada puede reutilizar un usuario dedicado.");
+            if (isolatedEphemeral)
+                throw new InvalidOperationException("Un usuario reutilizado no puede tener perfil efímero: se borraría justo el perfil que se quiere conservar.");
+            var free = IsolatedUserManager.ListOrphans(IsolatedUsersInUse(), withSizes: false)
+                .Any(e => e.AccountExists && string.Equals(e.Name, reuseIsolatedUser, StringComparison.OrdinalIgnoreCase));
+            if (!free)
+                throw new InvalidOperationException($"El usuario '{reuseIsolatedUser}' no existe o ya lo usa otra sesión.");
+        }
 
         // Puertos WebRTC sin indicar (0) = los primeros libres.
         var suggested = SunshinePorts.Suggest(_sessions.Values.ToList());
@@ -91,6 +105,7 @@ public class StreamSessionService
             RotateSunshineCredentials = rotateSunshineCredentials,
             Isolated           = isolated && !local,
             IsolatedEphemeral  = isolatedEphemeral && !local,
+            IsolatedUsername   = reuseIsolatedUser,
             StreamProtocol     = streamProtocol,
             WebRtcPort         = webRtcPort > 0 ? webRtcPort : suggested.WebRtcPort,
             WebRtcMediaPortMin = webRtcMediaPortMin > 0 ? webRtcMediaPortMin : suggested.WebRtcMediaPortMin,
@@ -105,6 +120,34 @@ public class StreamSessionService
 
     public IEnumerable<StreamSession> GetAll() => _sessions.Values;
 
+    // ── Usuarios dedicados sin sesión ────────────────────────────────────────
+
+    /// <summary>Usuarios dedicados de las sesiones aisladas (los que no se tocan).</summary>
+    private List<string> IsolatedUsersInUse() =>
+        _sessions.Values.Where(s => s.Isolated).Select(s => s.GetIsolatedUser()).ToList();
+
+    /// <summary>Usuarios osms-* conservados y perfiles o carpetas que ya no usa ninguna sesión.</summary>
+    internal List<IsolatedUserManager.OrphanEntry> ListOrphanUsers(bool withSizes) =>
+        IsolatedUserManager.ListOrphans(IsolatedUsersInUse(), withSizes);
+
+    /// <summary>Borra uno de <see cref="ListOrphanUsers"/> (la clave se valida contra la lista).</summary>
+    internal void DeleteOrphanUser(string key) =>
+        IsolatedUserManager.DeleteOrphan(key, IsolatedUsersInUse());
+
+    /// <summary>
+    /// Estado del login de Steam del usuario de Windows de una sesión RDP ("saved"/"missing"),
+    /// o null si no aplica (sesión local, Steam no instalado, no se sabe).
+    /// </summary>
+    internal static string? SteamLoginState(StreamSession s)
+    {
+        if (s.Local) return null;
+        if (s.Isolated) return SteamLoginProbe.GetState(s.GetIsolatedUser());
+        if (string.IsNullOrWhiteSpace(s.Username)) return null;
+        var account = string.IsNullOrWhiteSpace(s.Domain) || s.Domain == "."
+            ? s.Username : $"{s.Domain}\\{s.Username}";
+        return SteamLoginProbe.GetState(account);
+    }
+
     /// <summary>Sesiones en marcha con su sesión de Windows y la ruta del sunshine.log.</summary>
     public IReadOnlyList<(Guid Id, string Name, uint RdpSessionId, string SunshineLog)> GetRunningSunshineSessions() =>
         _sessions.Values
@@ -115,7 +158,11 @@ public class StreamSessionService
 
     public StreamSession? Get(Guid id) => _sessions.GetValueOrDefault(id);
 
-    public bool Delete(Guid id)
+    /// <param name="keepUser">
+    /// Solo sesiones aisladas: conservar el usuario dedicado y su perfil (login de Steam,
+    /// partidas, ajustes) para reutilizarlo al crear otra sesión.
+    /// </param>
+    public bool Delete(Guid id, bool keepUser = false)
     {
         if (!_sessions.TryGetValue(id, out var session)) return false;
         if (session.State is SessionState.Starting or SessionState.Running or SessionState.Stopping)
@@ -125,9 +172,11 @@ public class StreamSessionService
         _sunshine.TryRemove(id, out _);
         RemoveFirewallRule(id);
 
-        // Aislamiento nativo: eliminar usuario dedicado + perfil + registro
-        if (session.Isolated)
-            try { IsolatedUserManager.RemoveUser(id); }
+        // Aislamiento nativo: eliminar usuario dedicado + perfil + registro, o conservarlos.
+        if (session.Isolated && keepUser)
+            Logger.Log($"[SessionService] Usuario dedicado '{session.GetIsolatedUser()}' conservado para reutilizarlo.");
+        else if (session.Isolated)
+            try { IsolatedUserManager.RemoveUser(session.GetIsolatedUser()); }
             catch (Exception ex) { Logger.Warning($"[SessionService] No se pudo eliminar el usuario aislado: {ex.Message}"); }
 
         var instanceDir = GetSunshineInstanceDir(id);
@@ -215,8 +264,11 @@ public class StreamSessionService
 
         // Si se desactiva el aislamiento, limpiar el usuario dedicado que quedaba
         if (session.Isolated && !isolated)
-            try { IsolatedUserManager.RemoveUser(session.Id); }
+        {
+            try { IsolatedUserManager.RemoveUser(session.GetIsolatedUser()); }
             catch (Exception ex) { Logger.Warning($"[{session.Name}] No se pudo limpiar el usuario aislado: {ex.Message}"); }
+            session.IsolatedUsername = null;
+        }
         session.Isolated          = isolated;
         session.IsolatedEphemeral = isolatedEphemeral;
 
@@ -409,7 +461,7 @@ public class StreamSessionService
     {
         if (session.Isolated)
         {
-            var creds = IsolatedUserManager.EnsureUser(session.Id, session.Name);
+            var creds = IsolatedUserManager.EnsureUser(session.GetIsolatedUser(), session.Name);
             return new StreamUserConfig { Username = creds.Username, Domain = ".", Password = creds.Password };
         }
         return new StreamUserConfig { Username = session.Username, Domain = session.Domain, Password = session.Password };
@@ -511,7 +563,7 @@ public class StreamSessionService
             // Modo efímero: borrar el perfil del usuario aislado en segundo plano
             // (profsvc tarda unos segundos en descargar el hive tras el logoff)
             if (session.Isolated && session.IsolatedEphemeral)
-                _ = IsolatedUserManager.DeleteProfileWithRetryAsync(session.Id, session.Name);
+                _ = IsolatedUserManager.DeleteProfileWithRetryAsync(session.GetIsolatedUser(), session.Name);
         }
         catch (Exception ex)
         {
@@ -685,7 +737,8 @@ public class StreamSessionService
                 WebRtcPort: s.WebRtcPort,
                 WebRtcMediaPortMin: s.WebRtcMediaPortMin,
                 WebRtcMediaPortMax: s.WebRtcMediaPortMax,
-                Local: s.Local));
+                Local: s.Local,
+                IsolatedUsername: s.IsolatedUsername));
             File.WriteAllText(SessionsFile, JsonSerializer.Serialize(data, JsonOpts));
             SecureFile.RestrictToAdmins(SessionsFile);
         }
@@ -740,6 +793,7 @@ public class StreamSessionService
                     RotateSunshineCredentials = d.RotateSunshineCredentials,
                     Isolated           = d.Isolated,
                     IsolatedEphemeral  = d.IsolatedEphemeral,
+                    IsolatedUsername   = IsolatedUserManager.IsManagedName(d.IsolatedUsername) ? d.IsolatedUsername : null,
                     // Sesiones anteriores a WebRTC: siguen siendo solo Moonlight hasta que se cambie.
                     StreamProtocol     = d.StreamProtocol ?? StreamProtocol.Moonlight,
                     WebRtcPort         = d.WebRtcPort,
@@ -799,9 +853,9 @@ public class StreamSessionService
                 // Si el modo efímero dejó un perfil sin borrar (p.ej. servicio
                 // reiniciado a mitad), intentarlo ahora antes de re-logar.
                 if (session.IsolatedEphemeral)
-                    IsolatedUserManager.TryDeleteProfile(session.Id, out _);
+                    IsolatedUserManager.TryDeleteProfile(session.GetIsolatedUser(), out _);
 
-                var creds = IsolatedUserManager.EnsureUser(session.Id, session.Name);
+                var creds = IsolatedUserManager.EnsureUser(session.GetIsolatedUser(), session.Name);
                 ShutdownRight.SetForUser(creds.Username, canShutdown);   // antes del inicio de sesión: va en el token
                 user = new StreamUserConfig
                 {
@@ -1570,5 +1624,7 @@ public class StreamSessionService
         int      WebRtcMediaPortMin = 0,
         int      WebRtcMediaPortMax = 0,
         /// <summary>Sesión local: Sunshine en el escritorio físico, sin RDP.</summary>
-        bool     Local = false);
+        bool     Local = false,
+        /// <summary>Usuario dedicado reutilizado de otra sesión. Null = el que sale del Id.</summary>
+        string?  IsolatedUsername = null);
 }

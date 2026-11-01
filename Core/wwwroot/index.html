@@ -44,6 +44,11 @@
         <span class="status-pill-label" data-i18n="hidhide.pill">HidHide</span>
         <span class="status-pill-state" id="hidhide-pill-state">—</span>
       </button>
+          <div class="nav-pop-title" data-i18n="orphans.navTitle">Usuarios de Windows</div>
+          <button class="nav-pop-item orphans-item" type="button" onclick="openOrphansModal()">
+            <span data-i18n="orphans.navItem">Usuarios dedicados sin sesión</span>
+            <b id="orphans-count">—</b>
+          </button>
         </div>
       </div>
       <button class="icon-btn" type="button" onclick="openPowerModal()" data-i18n-title="power.btn" data-i18n-aria="power.btn" title="Apagar / Reiniciar" aria-label="Apagar / Reiniciar">
@@ -247,6 +252,11 @@
         <div class="form-check" id="sess-ephemeral-row" style="display:none">
           <input type="checkbox" id="sess-ephemeral">
           <label for="sess-ephemeral" data-i18n-html="new.ephemeralLabel_html"><strong>Perfil efímero</strong></label>
+        </div>
+        <div class="form-row create-only" id="sess-reuse-row" style="display:none">
+          <label for="sess-reuse" data-i18n="new.reuseLabel">Usuario de Windows</label>
+          <select id="sess-reuse" onchange="updateIsolatedUi(); updateSessionPreview()"></select>
+          <div class="hint" data-i18n="new.reuseHint">Un usuario conservado mantiene su perfil: el login de Steam, las partidas guardadas y los ajustes de los juegos.</div>
         </div>
         <div id="sess-creds-block" class="create-only">
         <div class="form-grid">
@@ -525,6 +535,10 @@
     </div>
     <div class="modal-body">
       <p id="confirm-msg" class="confirm-msg"></p>
+      <div class="form-check confirm-check hidden" id="confirm-check-row">
+        <input type="checkbox" id="confirm-check">
+        <label for="confirm-check" id="confirm-check-label"></label>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" type="button" id="confirm-cancel" data-i18n="btn.cancel">Cancelar</button>
@@ -568,6 +582,20 @@
 </div>
 
 <!-- ─── Modal: acerca de ─────────────────────────────────────────────────── -->
+<!-- ─── Modal: usuarios dedicados y perfiles sin sesión ─────────────────── -->
+<div class="modal-backdrop hidden" id="orphans-modal" onclick="handleBackdropClick(event,'orphans-modal')">
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="orphans-title" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h3 id="orphans-title" data-i18n="orphans.title">Usuarios dedicados sin sesión</h3>
+      <button class="modal-close" type="button" data-i18n-aria="btn.close" aria-label="Cerrar" onclick="hide('orphans-modal')">×</button>
+    </div>
+    <div class="modal-body">
+      <p class="orphans-intro" data-i18n="orphans.intro">Usuarios de Windows que creó OpenStreamMS y ya no usa ninguna sesión, y perfiles que quedaron en C:\Users. Los que tienen cuenta se pueden reutilizar al crear una sesión aislada.</p>
+      <div id="orphans-list" class="orphans-list" aria-live="polite"></div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-backdrop hidden" id="about-modal" onclick="if(event.target.id==='about-modal')hide('about-modal')">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-header">

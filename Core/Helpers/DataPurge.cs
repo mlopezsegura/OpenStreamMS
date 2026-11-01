@@ -88,17 +88,29 @@ namespace OpenStreamMS.Core.Helpers
             finally { WTSFreeMemory(buffer); }
         }
 
-        /// <summary>Los usuarios aislados salen del Guid de cada sesión (sessions.json).</summary>
+        /// <summary>
+        /// Todos los usuarios osms-*: los de las sesiones y los conservados al borrar una.
+        /// Después, los perfiles y carpetas osms-* que hayan quedado sin cuenta.
+        /// </summary>
         static void RemoveIsolatedUsers()
         {
+            var usernames = new HashSet<string>(IsolatedUserManager.ListManagedAccounts(), StringComparer.OrdinalIgnoreCase);
             var file = OpenStreamMS.Core.Api.StreamSessionService.SessionsFilePath;
-            if (!File.Exists(file)) return;
-
-            using var doc = JsonDocument.Parse(File.ReadAllText(file));
-            foreach (var s in doc.RootElement.EnumerateArray())
+            if (File.Exists(file))
             {
-                if (!s.TryGetProperty("Id", out var idProp) || !Guid.TryParse(idProp.GetString(), out var id)) continue;
-                var username = IsolatedUserManager.GetUsername(id);
+                using var doc = JsonDocument.Parse(File.ReadAllText(file));
+                foreach (var s in doc.RootElement.EnumerateArray())
+                {
+                    if (s.TryGetProperty("IsolatedUsername", out var u) && u.ValueKind == JsonValueKind.String &&
+                        IsolatedUserManager.IsManagedName(u.GetString()))
+                        usernames.Add(u.GetString()!);
+                    else if (s.TryGetProperty("Id", out var idProp) && Guid.TryParse(idProp.GetString(), out var id))
+                        usernames.Add(IsolatedUserManager.GetUsername(id));
+                }
+            }
+
+            foreach (var username in usernames)
+            {
                 try { new System.Security.Principal.NTAccount(username).Translate(typeof(System.Security.Principal.SecurityIdentifier)); }
                 catch (System.Security.Principal.IdentityNotMappedException) { continue; }   // sesión sin usuario aislado
 
@@ -106,15 +118,28 @@ namespace OpenStreamMS.Core.Helpers
                 {
                     for (int attempt = 0; attempt < 5; attempt++)
                     {
-                        if (IsolatedUserManager.TryDeleteProfile(id, out _)) break;
+                        if (IsolatedUserManager.TryDeleteProfile(username, out _)) break;
                         Thread.Sleep(2000);   // profsvc tarda unos segundos en soltar el perfil tras el logoff
                     }
-                    IsolatedUserManager.RemoveUser(id);
+                    IsolatedUserManager.RemoveUser(username);
                     Console.WriteLine($"[Purge]   {username} eliminado");
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"[Purge]   {username}: {ex.Message}");
+                }
+            }
+
+            foreach (var orphan in IsolatedUserManager.ListOrphans([], withSizes: false).Where(o => !o.AccountExists))
+            {
+                try
+                {
+                    IsolatedUserManager.DeleteOrphan(orphan.Key, []);
+                    Console.WriteLine($"[Purge]   perfil {orphan.Name} eliminado");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Purge]   perfil {orphan.Name}: {ex.Message}");
                 }
             }
         }
