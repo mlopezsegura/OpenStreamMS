@@ -1,5 +1,6 @@
 using OpenStreamMS.Services;
 using System.Runtime.InteropServices;
+using System.Security.Principal;
 
 namespace OpenStreamMS.Core.Helpers;
 
@@ -163,55 +164,85 @@ internal static class StreamProfileSetup
     // ── Logoff ────────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Termina todos los procesos del usuario en la sesión indicada,
-    /// forzando el cierre de la sesión Windows de forma fiable.
+    /// Cierra la sesión Windows con el logoff de Windows y espera a que desaparezca. Si una
+    /// aplicación la retiene, termina solo los procesos del propio usuario (nunca dwm, fontdrvhost,
+    /// LogonUI ni los de sistema, que pertenecen a otras cuentas) y vuelve a pedir el logoff.
+    /// True si la sesión ya no existe.
     /// </summary>
-    internal static void LogoffSession(uint sessionId)
+    /// <remarks>
+    /// Antes se mataban a mano todos los procesos de la sesión a la vez que se cortaba el cliente
+    /// RDP: la sesión se quedaba a medio desconectar (evento 40 sin 24), TermService se bloqueaba y
+    /// el equipo ya no podía apagarse ni reiniciarse.
+    /// </remarks>
+    internal static bool LogoffSession(uint sessionId)
     {
-        if (sessionId == 0) return;
+        if (sessionId == 0) return false;
+
+        var account = RdpSessionCreator.GetSessionAccount(sessionId);
+        if (RdpSessionCreator.LogoffAndWait(sessionId, TimeSpan.FromSeconds(30))) return true;
+
+        Logger.Warning($"[StreamProfile] La sesión {sessionId} no se cerró en 30 s; se terminan los procesos de " +
+                       $"'{account}' y se reintenta el logoff.");
+        int killed = account is null ? 0 : KillUserProcesses(sessionId, account);
+        if (RdpSessionCreator.LogoffAndWait(sessionId, TimeSpan.FromSeconds(15)))
+        {
+            Logger.Log($"[StreamProfile] Sesión {sessionId} cerrada tras terminar {killed} proceso(s) del usuario.");
+            return true;
+        }
+        Logger.Error($"[StreamProfile] La sesión {sessionId} sigue abierta tras el logoff.");
+        return false;
+    }
+
+    /// <summary>Procesos que nunca se terminan aunque, por lo que sea, aparezcan con el usuario.</summary>
+    static readonly HashSet<string> SessionInfrastructure = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "csrss.exe", "winlogon.exe", "wininit.exe", "smss.exe", "dwm.exe",
+        "fontdrvhost.exe", "LogonUI.exe", "WUDFHost.exe", "rdpclip.exe",
+    };
+
+    /// <summary>Termina los procesos de la sesión cuyo dueño es esa cuenta. Devuelve cuántos.</summary>
+    static int KillUserProcesses(uint sessionId, string account)
+    {
+        SecurityIdentifier userSid;
+        try { userSid = (SecurityIdentifier)new NTAccount(account).Translate(typeof(SecurityIdentifier)); }
+        catch (Exception ex)
+        {
+            Logger.Warning($"[StreamProfile] No se pudo resolver el SID de '{account}': {ex.Message}");
+            return 0;
+        }
 
         if (!WTSEnumerateProcesses(IntPtr.Zero, 0, 1, out IntPtr pProcs, out int count))
         {
-            Logger.Warning($"[StreamProfile] LogoffSession: WTSEnumerateProcesses falló ({Marshal.GetLastWin32Error()})");
-            return;
+            Logger.Warning($"[StreamProfile] WTSEnumerateProcesses falló ({Marshal.GetLastWin32Error()})");
+            return 0;
         }
 
         int    size = Marshal.SizeOf<WTS_PROCESS_INFO>();
         IntPtr cur  = pProcs;
         var    pids = new List<int>();
-
         try
         {
             for (int i = 0; i < count; i++)
             {
                 var info = Marshal.PtrToStructure<WTS_PROCESS_INFO>(cur);
                 cur += size;
-
-                if (info.SessionId != (int)sessionId) continue;
-                if (info.ProcessId == 0) continue;
-
-                // No tocar procesos críticos del sistema
-                var name = Marshal.PtrToStringUni(info.pProcessName) ?? "";
-                if (name.Equals("csrss.exe",    StringComparison.OrdinalIgnoreCase) ||
-                    name.Equals("winlogon.exe",  StringComparison.OrdinalIgnoreCase) ||
-                    name.Equals("wininit.exe",   StringComparison.OrdinalIgnoreCase) ||
-                    name.Equals("smss.exe",      StringComparison.OrdinalIgnoreCase))
-                    continue;
-
+                if (info.SessionId != (int)sessionId || info.ProcessId == 0 || info.pUserSid == IntPtr.Zero) continue;
+                if (SessionInfrastructure.Contains(Marshal.PtrToStringUni(info.pProcessName) ?? "")) continue;
+                if (new SecurityIdentifier(info.pUserSid) != userSid) continue;
                 pids.Add(info.ProcessId);
             }
         }
         finally { WTSFreeMemory(pProcs); }
 
+        int killed = 0;
         foreach (var pid in pids)
         {
             IntPtr hProc = OpenProcess(PROCESS_TERMINATE, false, pid);
             if (hProc == IntPtr.Zero) continue;
-            TerminateProcess(hProc, 1);
+            if (TerminateProcess(hProc, 1)) killed++;
             CloseHandle(hProc);
         }
-
-        Logger.Log($"[StreamProfile] Sesión {sessionId} cerrada ({pids.Count} procesos terminados).");
+        return killed;
     }
 
     // ── Privados ──────────────────────────────────────────────────────────────

@@ -225,6 +225,15 @@ internal static class IsolatedUserManager
     {
         var username = GetUsername(sessionId);
 
+        // Nunca borrar la cuenta con su sesión de Windows viva: la sesión queda huérfana y a
+        // medio cerrar, y Terminal Services (y el apagado del equipo) se bloquean esperándola.
+        foreach (var live in RdpSessionCreator.FindUserSessions(username))
+        {
+            if (RdpSessionCreator.LogoffAndWait(live, TimeSpan.FromSeconds(30))) continue;
+            Logger.Warning($"[IsolatedUser] '{username}' sigue con la sesión {live} abierta: no se elimina la cuenta.");
+            return;
+        }
+
         if (!TryDeleteProfile(sessionId, out var error) && error is not null)
             Logger.Warning($"[IsolatedUser] No se pudo eliminar el perfil de '{username}': {error}");
 

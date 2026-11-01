@@ -481,24 +481,31 @@ public class StreamSessionService
             // Forzar recreación del SunshineManager en el próximo Start
             _sunshine.TryRemove(session.Id, out _);
 
+            // Cerrar la sesión Windows del usuario con el logoff de Windows y esperar a que
+            // termine ANTES de cortar el cliente RDP: el logoff cierra la conexión en orden. Cortar
+            // el cliente a la vez que se cierra la sesión la dejaba a medio desconectar y
+            // bloqueaba TermService (y el apagado del equipo). La sesión local es el escritorio de
+            // quien usa el PC: de ella solo se para Sunshine.
+            if (session.RdpSessionId > 0)
+            {
+                if (!session.Local && !StreamProfileSetup.LogoffSession(session.RdpSessionId))
+                    Logger.Warning($"[{session.Name}] La sesión Windows {session.RdpSessionId} no terminó de cerrarse.", session.Id);
+                session.RdpSessionId = 0;
+            }
+
             if (session.FreeRdpPid > 0)
             {
                 try
                 {
-                    System.Diagnostics.Process.GetProcessById(session.FreeRdpPid).Kill();
-                    Logger.Log($"[{session.Name}] FreeRDP (PID {session.FreeRdpPid}) detenido.", session.Id);
+                    var client = System.Diagnostics.Process.GetProcessById(session.FreeRdpPid);
+                    if (!client.WaitForExit(2_000))
+                    {
+                        client.Kill();
+                        Logger.Log($"[{session.Name}] FreeRDP (PID {session.FreeRdpPid}) detenido.", session.Id);
+                    }
                 }
                 catch { }
                 session.FreeRdpPid = 0;
-            }
-
-            // Cerrar la sesión Windows del usuario (terminar todos sus procesos). La sesión
-            // local es el escritorio de quien usa el PC: de ella solo se para Sunshine.
-            if (session.RdpSessionId > 0)
-            {
-                if (!session.Local)
-                    StreamProfileSetup.LogoffSession(session.RdpSessionId);
-                session.RdpSessionId = 0;
             }
 
             // Modo efímero: borrar el perfil del usuario aislado en segundo plano
@@ -1195,7 +1202,7 @@ public class StreamSessionService
     /// captura por defecto.
     /// </summary>
     private static bool UsesRemoteIdd(StreamSession session) =>
-        WantsRemoteIdd(session) && RdpWrapperManager.IsRemoteIddActive();
+        WantsRemoteIdd(session) && RdpWrapperManager.IsRemoteIddUsable();
 
     private static bool WantsRemoteIdd(StreamSession session) =>
         !session.Local &&

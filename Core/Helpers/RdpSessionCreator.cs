@@ -265,6 +265,63 @@ namespace OpenStreamMS.Core.Helpers
                 Logger.Warning($"[RDP] WTSDisconnectSession warning: {Marshal.GetLastWin32Error()}");
         }
 
+        /// <summary>
+        /// Cierra la sesión con <c>WTSLogoffSession</c> y espera a que desaparezca (o se quede sin
+        /// usuario). True si se cerró dentro del plazo o ya no existía. Es el cierre de Windows: cada
+        /// proceso recibe el aviso de fin de sesión y Terminal Services desmonta la pantalla remota en
+        /// orden. Matar los procesos a mano (dwm, fontdrvhost…) deja la sesión a medio desconectar y
+        /// TermService bloqueado, y con él el apagado del equipo.
+        /// </summary>
+        public static bool LogoffAndWait(uint sessionId, TimeSpan timeout)
+        {
+            if (sessionId == 0) return false;
+            var before = EnumerateSessions(logSessions: false).FirstOrDefault(s => s.SessionId == sessionId);
+            if (before is null || string.IsNullOrEmpty(before.Username)) return true;
+
+            if (!WTSLogoffSession(IntPtr.Zero, (int)sessionId, false))
+                Logger.Warning($"[RDP] WTSLogoffSession(sesión {sessionId}) falló: {Marshal.GetLastWin32Error()}");
+
+            var sw = Stopwatch.StartNew();
+            while (sw.Elapsed < timeout)
+            {
+                var s = EnumerateSessions(logSessions: false).FirstOrDefault(x => x.SessionId == sessionId);
+                if (s is null || !string.Equals(s.Username, before.Username, StringComparison.OrdinalIgnoreCase))
+                {
+                    Logger.Log($"[RDP] Sesión {sessionId} cerrada (logoff) en {sw.ElapsedMilliseconds} ms.");
+                    return true;
+                }
+                Thread.Sleep(250);
+            }
+            return false;
+        }
+
+        /// <summary>Usuario de la sesión como "DOMINIO\usuario", o null si no tiene.</summary>
+        public static string? GetSessionAccount(uint sessionId)
+        {
+            var s = EnumerateSessions(logSessions: false).FirstOrDefault(x => x.SessionId == sessionId);
+            if (s is null || string.IsNullOrEmpty(s.Username)) return null;
+            return string.IsNullOrEmpty(s.Domain) ? s.Username : $"{s.Domain}\\{s.Username}";
+        }
+
+        /// <summary>Sesiones (salvo la 0) en las que ha iniciado sesión ese usuario local.</summary>
+        public static List<uint> FindUserSessions(string username) =>
+            EnumerateSessions(logSessions: false)
+                .Where(s => s.SessionId != 0 &&
+                            string.Equals(s.Username, username, StringComparison.OrdinalIgnoreCase))
+                .Select(s => (uint)s.SessionId)
+                .ToList();
+
+        /// <summary>
+        /// Sesiones con usuario que no son la consola (puestos, RDP de red). Reiniciar TermService
+        /// con alguna de ellas viva puede dejarlo parado a medias y bloquear el apagado.
+        /// </summary>
+        public static List<string> DescribeNonConsoleUserSessions() =>
+            EnumerateSessions(logSessions: false)
+                .Where(s => s.SessionId != 0 && !string.IsNullOrEmpty(s.Username) &&
+                            !s.WinStationName.Equals("Console", StringComparison.OrdinalIgnoreCase))
+                .Select(s => $"{s.SessionId} ({s.Username})")
+                .ToList();
+
         /// <summary>Cierra la sesion Windows del usuario (logoff).</summary>
         public static void LogoffSession(uint sessionId)
         {
