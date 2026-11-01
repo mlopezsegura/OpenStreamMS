@@ -311,49 +311,10 @@ OpenStreamMS.exe  (Windows Service, SYSTEM)
 
 ---
 
-## REST API
+## Comparative
+<img width="1600" height="980" alt="openstreamms-comparison" src="https://github.com/user-attachments/assets/6bec8234-b742-4b35-b4a9-1769a642041d" />
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/api/sessions` | List all sessions |
-| `POST` | `/api/sessions` | Create a session |
-| `GET` | `/api/sessions/{id}` | Get session details |
-| `DELETE` | `/api/sessions/{id}` | Delete a stopped session (`?keepUser=true` keeps its isolated Windows user) |
-| `PUT` | `/api/sessions/{id}/protocol` | Moonlight, WebRTC or both |
-| `GET` | `/api/sessions/pairings` | Pairing requests waiting for a PIN in any session |
-| `GET` | `/api/sessions/isolated-users` | Kept isolated users and leftover profiles (`?sizes=true` adds their size) |
-| `DELETE` | `/api/sessions/isolated-users?key=` | Delete one of them |
-| `GET` | `/api/settings` | Service settings (log level) |
-| `PUT` | `/api/settings/logging` | Set the global log level |
-| `GET` | `/api/system/network` | PC name and LAN IPv4 addresses |
-| `POST` | `/api/sessions/{id}/start` | Start a session |
-| `POST` | `/api/sessions/{id}/stop` | Stop a session (force-closes the Windows session) |
-| `PATCH` | `/api/sessions/{id}/enabled` | Toggle auto-start |
-| `GET` | `/api/sessions/{id}/logs` | Fetch session logs |
-| `POST` | `/api/sessions/test-credentials` | Validate Windows credentials |
-| `GET` | `/api/seats` | List seats and their state |
-| `GET` | `/api/seats/inventory` | Free monitors, audio outputs and USB input devices |
-| `POST` | `/api/seats` | Create a seat |
-| `PUT` | `/api/seats/{id}` | Edit a stopped seat |
-| `PATCH` | `/api/seats/{id}/autostart` | Toggle seat auto-start |
-| `DELETE` | `/api/seats/{id}` | Delete a seat |
-| `POST` | `/api/seats/{id}/start` | Turn a seat on |
-| `POST` | `/api/seats/{id}/stop` | Turn a seat off |
-| `POST` | `/api/seats/identify/monitor` | Show the logo on a monitor (`{ "id": "<device path>" }`) |
-| `POST` | `/api/seats/identify/audio` | Play a chime on an output (`{ "id": "<endpoint id>" }`) |
-| `GET` | `/api/seats/identify/mic?id=` | Peak level of a microphone |
-| `GET` | `/api/seats/identify/input` | USB ports of the devices just pressed |
 
-Interactive docs: `http://localhost:5000/scalar/v1`
-
----
-
-## Roadmap
-
-Planned features, such as a per-session LAN IP for running LAN games in several sessions at once, are
-tracked in [ROADMAP.md](ROADMAP.md).
-
----
 
 ## License
 
