@@ -104,7 +104,12 @@ Windows) and network compartments (undocumented, container-only).
 driver instead of hooking Microsoft's `RdpIdd.dll` the way DuoStream does. Frames leave the
 driver's swapchain to Sunshine over shared memory, bypassing RDP's own video path.
 
-**Status: implemented and tested without installing; real-seat test pending.** Everything lives in
+**Status: working on a real seat and offered as an optional installer task.** The first real-seat
+test (1920×1080, Moonlight at a steady 60 Hz, no dropped frames) passed; the UAC secure desktop no
+longer turns the stream black, and auto capture picks `remoteidd` whenever the provider is active.
+It still uses a test certificate, needs TermWrap (OpenStreamMS falls back to asmtron's RDP Wrapper
+when TermWrap fails) and takes effect after a restart. Pending: attestation signing for real
+installs. Everything lives in
 `Native/RemoteIdd/` — start with `GUIA.md`. `build.cmd` builds against the official WDK NuGet
 package (no WDK install) and runs the tests: frame hand-off contract, cross-process GPU
 performance (4K240 present→pixel p99 ≈ 0.6 ms) and the protocol provider with fakes.
@@ -113,12 +118,12 @@ performance (4K240 present→pixel p99 ≈ 0.6 ms) and the protocol provider wit
 (`OsmsRdsProvider.dll`) wraps Microsoft's own RDP protocol (`rdpcorets`) and answers only
 `IWRdsWddmIddProps`: Windows then loads our IddCx for the session, and the provider hands the
 session id and client resolution to the driver by IOCTL. It sits on RDP-Tcp (Windows client
-editions start no other listener, as DuoStream also assumes) and acts only on seat
-connections from 127.0.0.2; every other RDP connection keeps Microsoft's protocol and RdpIdd.
+editions start no other listener, as DuoStream also assumes) and acts only on connections
+from the machine itself (127.x or ::1); every other RDP connection keeps Microsoft's protocol and RdpIdd.
 Sunshine reads frames with `capture = remoteidd`.
 
-**Open risk:** `rdpcorets` may refuse a session whose display is not its own `RdpIdd`. Only the
-real-seat test (`Provider/install.ps1` + `test/verify-seat.ps1`, needs test signing) answers it.
+**Answered by the real-seat test:** `rdpcorets` accepts a session whose display is our driver
+instead of its own `RdpIdd`.
 
 **Ruled out for this item:** injecting a DLL into Microsoft's `RdpIdd` and hooking its internal
 functions by offset (DuoStream's actual mechanism) — fragile across Windows updates, exactly the

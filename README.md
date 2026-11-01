@@ -21,8 +21,14 @@ Manages the full lifecycle of isolated RDP streaming sessions — creation, moni
 - **5-second monitoring** — Sunshine is restarted automatically if it crashes
 - **Virtual display support (VDD)** — patches Sunshine's `apps.json` to keep a virtual display active even when the RDP client disconnects
 - **Local seats** — give a session a physical monitor, keyboard, mouse, gamepad and audio output so someone can use it at the PC itself, alongside the console and other seats (see [Local seats](#local-seats))
-- **Isolated users** — a session can run under its own auto-managed local user (`osms-…`), optionally ephemeral (wiped on stop); isolated sessions get a *Steam (isolated)* shortcut and handle `steam://` links so each one can sign in to its own Steam account
-- **Moonlight, WebRTC or both** — with the [sunshine-webrtc](https://github.com/mlopezsegura/Sunshine-Web-RTC) build, each session serves Moonlight apps, Samsung TVs running Moonlight WebRTC, or both, switchable live from the dashboard or from Sunshine's own panel; OpenStreamMS opens only the ports of the active protocols and refuses sessions whose ports collide
+- **Isolated users** — a session can run under its own auto-managed local user (`osms-…`, shown on the session card), optionally ephemeral (wiped on stop); isolated sessions get a *Steam (isolated)* shortcut and handle `steam://` links so each one can sign in to its own Steam account
+- **Keep isolated users** — deleting an isolated session asks whether to keep its Windows user, which holds Steam's saved login, saves and game settings; a new session can reuse a kept user. Cards warn when Steam has no saved login, and **System → Dedicated users without a session** lists kept users and leftover `osms-*` profiles with their size, to delete them one by one
+- **Steam next to your own** — Steam can run on the console and in a stream session or seat at the same time, even with the same Windows user (per-session hook and browser cache)
+- **Moonlight, WebRTC or both** — with the [sunshine-webrtc](https://github.com/mlopezsegura/Sunshine-Web-RTC) build, each session serves Moonlight apps, Samsung TVs running Moonlight WebRTC, or both, set in the session's settings or in Sunshine's own panel; OpenStreamMS opens only the ports of the active protocols and refuses sessions whose ports collide
+- **RemoteIdd display (experimental)** — an IddCx display driver of our own for RDP sessions, built on documented Windows APIs only: Sunshine (`capture = remoteidd`) takes each frame from a shared GPU texture instead of capturing the screen. Optional in the installer (test certificate, takes effect after a restart); used automatically when installed. See [Native/RemoteIdd](Native/RemoteIdd/README.md)
+- **A true 60 fps** — RDP sessions whose frame interval isn't a whole number of milliseconds compose faster (60 fps → 4 ms) and Sunshine paces the stream, instead of running at 58.8 Hz
+- **Pairing notifications** — the tray shows a Windows notification when Moonlight or a WebRTC TV waits for a PIN in any session; clicking it opens that session's pairing dialog
+- **Clean shutdown** — seat sessions are signed out with a real logoff, so Windows can always shut down or restart
 
 ---
 
@@ -105,16 +111,22 @@ Edit `service.config.json` in the install directory (created automatically on fi
 
 ## Web Dashboard
 
-Open `http://localhost:5000` in any browser.
+Open **OpenStreamMS** from the Start menu or the desktop: the dashboard opens in its own window
+(WebView2; without it, in the default browser). It is also at `http://localhost:5000` in any
+browser, phones included.
 
-On first access you will be prompted to create admin credentials. After that, the dashboard lets you:
+On first access you will be prompted to create admin credentials, and a getting-started guide
+shows what is missing (components, first session, how to connect). After that, the dashboard lets you:
 
-- Create, start, stop, and delete streaming sessions
-- Enable auto-start per session
-- Enable **independent stream profile** (runs stream apps with their own profile paths)
-- Switch each session between **Moonlight**, **WebRTC** and **both** from its card
-- View real-time per-session logs
-- Create **local seats** in the *Seats* tab, test their monitor and audio output, and see which session each seat uses
+- Create, edit, start, stop, and delete streaming sessions from one window (rarely used options under *Advanced*)
+- Follow each session's start step by step; errors come with **View log** and **Retry**
+- **Connect** shows the PC's name, LAN addresses and ports to add it in Moonlight or on a TV
+- See how many Moonlight clients and WebRTC TVs are connected to each session
+- Enable auto-start and the **independent stream profile** per session
+- Choose **Moonlight**, **WebRTC** or **both** in each session's settings
+- View real-time per-session logs and set the global log level in **Settings**
+- Pick a theme (System, Dark, Light, Synthwave, Retro, Matrix) and the visual effects: *Automatic* reduces them while someone is streaming or a seat is on, so the GPU stays with the encoder
+- Create **local seats** in the *Seats* tab, test their monitor, audio output and microphone, and see which session each seat uses
 - Access the interactive API docs at `/scalar/v1`
 
 ---
@@ -130,7 +142,7 @@ Sessions run the Sunshine in `Sunshine\` (or the one set in `SunshineExePath`). 
 | **WebRTC** | Samsung TVs with Moonlight WebRTC | TCP `WebRtcPort`, UDP 8000 (TV discovery) and UDP `WebRtcMediaPortMin..Max` |
 | **Both** (default for new sessions) | Both | All of the above |
 
-The switch on each session card (and `PUT /api/sessions/{id}/protocol`) changes it live: OpenStreamMS
+`PUT /api/sessions/{id}/protocol` changes it live: OpenStreamMS
 writes `stream_protocol` to the instance's `sunshine.conf`, opens or closes the ports and restarts only
 Sunshine, keeping the RDP session. Sunshine's own panel has the same switch on its **Network** tab;
 when Sunshine restarts, OpenStreamMS adopts the value saved there, so the last change wins. WebRTC
@@ -165,11 +177,12 @@ gamepads and audio outputs by dragging them onto a seat.
 
 | | What happens |
 |---|---|
-| **Monitor** | Added to the desktop only while the seat is on (and placed so the console mouse can't wander into it). The session is captured inside its own RDP session and presented full-screen in ~2 ms, uncompressed, up to 125 Hz. The session is reconnected at the seat's resolution and refresh rate (fixed per seat or taken from the monitor) and restored when the seat turns off. |
+| **Monitor** | Added to the desktop only while the seat is on (and placed so the console mouse can't wander into it). The session is captured inside its own RDP session and presented full-screen in ~2 ms, uncompressed, up to 125 Hz. The session is reconnected at the seat's resolution and refresh rate (fixed per seat or taken from the monitor) and restored when the seat turns off. If the monitor changes mode or size, the seat is readjusted to it. |
 | **Keyboard & mouse** | Switched to Microsoft's inbox **WinUSB** driver while the seat is on and read directly, so the console never sees them and every mouse moves independently. No third-party drivers. They return to their normal driver when the seat turns off, and on the next service start if it crashed. |
 | **Gamepads** | Assigned by USB port and hidden from every other session with HidHide while the seat is on. |
 | **Audio** | The session's audio plays on the seat's output with ~70 ms of latency and a jitter buffer. |
-| **Identify** | In the seat editor, **Test** shows the OpenStreamMS logo on a monitor (turning it on for a few seconds if needed) or plays a chime on an audio output, and the keyboard, mouse or gamepad you press lights up in the device list. |
+| **Microphone** | Optional. The session reconnects with RDP microphone redirection to that device, which shows up inside the session as *Remote Audio*. A microphone belongs to one seat only. The bundled FreeRDP carries a patch so each seat opens its own microphone (`FreeRDP/patches`). |
+| **Identify** | In the seat editor, **Test** shows the OpenStreamMS logo on a monitor (turning it on for a few seconds if needed), plays a chime on an audio output or shows a microphone's level, and the keyboard, mouse or gamepad you press lights up in the device list. |
 
 **Exclusive and shared seats.** An *exclusive* seat pauses Moonlight/WebRTC for its session while it
 is on. A *shared* seat keeps streaming, so the same desktop can be used at the desk and on a TV.
@@ -205,10 +218,11 @@ Design notes and measurements (Spanish): [docs/puestos-locales.md](docs/puestos-
 
 The tray icon (`OpenStreamMS.exe --tray`) runs in the user's desktop session and provides quick access without opening a browser:
 
-- **Double-click** → opens the web dashboard
-- **Right-click** → context menu with per-session Start/Stop buttons and *Open web interface*
+- **Double-click** → opens the dashboard
+- **Right-click** → sessions and local seats with a coloured state dot and an on/off action each, and *Open web interface*
+- **Notifications** → a Windows notification when Moonlight or a WebRTC TV waits for a PIN; clicking it opens that session's pairing dialog
 
-The tray icon is registered at Windows startup automatically during installation.
+The menu follows the Windows language (English, Spanish, French, Portuguese). The tray icon is registered at Windows startup automatically during installation.
 
 ---
 
@@ -237,6 +251,7 @@ OpenStreamMS.exe --install           Install and register the Windows service
 OpenStreamMS.exe --install --silent  Install without prompts (used by installer)
 OpenStreamMS.exe --uninstall         Stop and remove the Windows service
 OpenStreamMS.exe --tray              Show system tray icon
+OpenStreamMS.exe --open              Open the dashboard in its own window (Start menu shortcut)
 
 Internal (launched by the service in the right Windows session):
 OpenStreamMS.exe --seat-agent <pipe> Seat capture/input agent inside the seat's session
@@ -303,7 +318,14 @@ OpenStreamMS.exe  (Windows Service, SYSTEM)
 | `GET` | `/api/sessions` | List all sessions |
 | `POST` | `/api/sessions` | Create a session |
 | `GET` | `/api/sessions/{id}` | Get session details |
-| `DELETE` | `/api/sessions/{id}` | Delete a stopped session |
+| `DELETE` | `/api/sessions/{id}` | Delete a stopped session (`?keepUser=true` keeps its isolated Windows user) |
+| `PUT` | `/api/sessions/{id}/protocol` | Moonlight, WebRTC or both |
+| `GET` | `/api/sessions/pairings` | Pairing requests waiting for a PIN in any session |
+| `GET` | `/api/sessions/isolated-users` | Kept isolated users and leftover profiles (`?sizes=true` adds their size) |
+| `DELETE` | `/api/sessions/isolated-users?key=` | Delete one of them |
+| `GET` | `/api/settings` | Service settings (log level) |
+| `PUT` | `/api/settings/logging` | Set the global log level |
+| `GET` | `/api/system/network` | PC name and LAN IPv4 addresses |
 | `POST` | `/api/sessions/{id}/start` | Start a session |
 | `POST` | `/api/sessions/{id}/stop` | Stop a session (force-closes the Windows session) |
 | `PATCH` | `/api/sessions/{id}/enabled` | Toggle auto-start |
@@ -319,6 +341,7 @@ OpenStreamMS.exe  (Windows Service, SYSTEM)
 | `POST` | `/api/seats/{id}/stop` | Turn a seat off |
 | `POST` | `/api/seats/identify/monitor` | Show the logo on a monitor (`{ "id": "<device path>" }`) |
 | `POST` | `/api/seats/identify/audio` | Play a chime on an output (`{ "id": "<endpoint id>" }`) |
+| `GET` | `/api/seats/identify/mic?id=` | Peak level of a microphone |
 | `GET` | `/api/seats/identify/input` | USB ports of the devices just pressed |
 
 Interactive docs: `http://localhost:5000/scalar/v1`
