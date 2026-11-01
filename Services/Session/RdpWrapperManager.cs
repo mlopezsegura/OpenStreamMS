@@ -208,6 +208,17 @@ public sealed class RdpWrapperManager
         Logger.Error($"[RdpWrap] RemoteIdd sin TermWrap funcional ({problem}). Se vuelve a RDP Wrapper de asmtron.");
         LeaveRemoteIdd();
         SetServiceDllToAsmtron();
+
+        // Parar TermService con sesiones remotas o de puesto vivas puede dejarlo parado a medias
+        // (StopPending) y entonces el equipo no llega a apagarse ni reiniciarse. Con sesiones así
+        // el cambio queda en el registro y se aplica en el próximo arranque del equipo.
+        var live = OpenStreamMS.Core.Helpers.RdpSessionCreator.DescribeNonConsoleUserSessions();
+        if (live.Count > 0)
+        {
+            Logger.Warning($"[RdpWrap] Hay sesiones abiertas ({string.Join(", ", live)}): TermService no se reinicia " +
+                           "ahora; el respaldo se aplica al reiniciar el equipo.");
+            return;
+        }
         RestartTermService();
         Logger.Log($"[RdpWrap] Respaldo aplicado. Estado: {GetStatus()}");
     }
