@@ -218,7 +218,11 @@ public record SessionResponse(
     DateTime?    StoppedAt,
     string?      ErrorMessage,
     /// <summary>Paso del arranque en curso (user, rdp, profile, unlock, sunshine); null fuera del arranque.</summary>
-    string?      StartPhase
+    string?      StartPhase,
+    /// <summary>Clientes transmitiendo por Moonlight ahora; null si no se sabe.</summary>
+    int?         ClientsMoonlight,
+    /// <summary>TVs transmitiendo por WebRTC ahora; null si no se sabe.</summary>
+    int?         ClientsWebRtc
 );
 
 /// <summary>Respuesta con las últimas líneas del log de una sesión.</summary>
@@ -854,5 +858,6 @@ public static class SessionEndpoints
         s.Isolated, s.IsolatedEphemeral, s.Local,
         s.State, s.RdpSessionId, s.SunshinePid,
         s.CreatedAt, s.StartedAt, s.StoppedAt, s.ErrorMessage,
-        s.State == SessionState.Starting ? s.StartPhase : null);
+        s.State == SessionState.Starting ? s.StartPhase : null,
+        s.ClientsMoonlight, s.ClientsWebRtc);
 }

@@ -128,6 +128,7 @@ static async Task RunService(string[] args)
     builder.Services.AddSingleton<HidHideManager>();
     builder.Services.AddSingleton<OpenStreamMS.Services.Seats.SeatManager>();
     builder.Services.AddHostedService<OpenStreamService>();
+    builder.Services.AddHostedService<OpenStreamMS.Services.OpenStream.ActiveStreamsMonitor>();
     builder.Services.AddHostedService<OpenStreamMS.Services.Gamepad.GamepadSessionIsolation>();
     builder.Services.AddHostedService(sp => sp.GetRequiredService<OpenStreamMS.Services.Seats.SeatManager>());
 
@@ -337,7 +338,7 @@ static void RunTray(bool showWindow = false)
 
 static bool IsPublicPath(string path) => path.ToLowerInvariant() is
     "/login" or "/login.html" or "/setup" or "/setup.html" or "/style.css" or
-    "/app.js" or "/seats.js" or "/i18n.js" or "/favicon.svg" or "/favicon.ico";
+    "/app.js" or "/seats.js" or "/i18n.js" or "/theme.js" or "/favicon.svg" or "/favicon.ico";
 
 // ── Llamadas locales ─────────────────────────────────────────────────────────
 

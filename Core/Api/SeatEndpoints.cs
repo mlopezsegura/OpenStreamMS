@@ -24,6 +24,9 @@ public record MonitorDto(string DevicePath, string FriendlyName, bool Active, in
 public record AudioOutputDto(string Id, string Name);
 public record InputDeviceDto(string Kind, string UsbPort, string Name);
 public record IdentifyRequest(string Id);
+/// <param name="Level">Pico 0..1 desde la consulta anterior.</param>
+/// <param name="Error">Por qué no se pudo abrir el micrófono; null si se abrió.</param>
+public record MicLevelResponse(float Level, string? Error);
 public record InventoryResponse(List<MonitorDto> Monitors, List<AudioOutputDto> AudioOutputs, List<InputDeviceDto> Devices,
                                 List<AudioOutputDto> AudioInputs);
 
@@ -52,6 +55,14 @@ public static class SeatEndpoints
 
         group.MapPost("/identify/audio", (IdentifyRequest req) => Action(() => SeatIdentify.TestAudio(req.Id)))
              .WithSummary("Hace sonar un aviso por esa salida de audio.");
+
+        group.MapGet("/identify/mic", (string id) =>
+             {
+                 try { return Results.Ok(new MicLevelResponse(MicMeter.Level(id), null)); }
+                 catch (Exception ex) { return Results.Ok(new MicLevelResponse(0, ex.Message)); }
+             })
+             .WithSummary("Nivel (0..1) del micrófono desde la consulta anterior. Lo abre el servicio, igual que el " +
+                          "cliente RDP del puesto: un error aquí significa que el puesto tampoco tendrá micrófono.");
 
         group.MapGet("/identify/input", () => TypedResults.Ok(SeatIdentify.ActiveInputPorts()))
              .WithSummary("Puertos USB de los dispositivos que se acaban de pulsar. Consultarlo mantiene la escucha.");

@@ -41,6 +41,86 @@ public static class SeatAudio
 }
 
 /// <summary>
+/// Medidor de nivel de un micrófono para el editor de puestos. Abre el micrófono en el servicio
+/// (sesión 0, SYSTEM), que es donde también lo abre el cliente FreeRDP del puesto: si aquí no se
+/// puede, el puesto tampoco tendrá micrófono. Cada consulta devuelve el pico desde la anterior;
+/// sin consultas durante unos segundos, el micrófono se cierra.
+/// </summary>
+public static class MicMeter
+{
+    private sealed class Probe
+    {
+        public required WasapiCapture Capture;
+        public float Peak;
+        public long LastPoll = Environment.TickCount64;
+    }
+
+    private static readonly Dictionary<string, Probe> _probes = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly object _lock = new();
+    private static readonly System.Threading.Timer _reaper = new(_ => Reap(), null, 2000, 2000);
+    private const int IdleMs = 4000;
+
+    /// <summary>Pico 0..1 desde la consulta anterior. Lanza si el micrófono no se puede abrir.</summary>
+    public static float Level(string endpointId)
+    {
+        lock (_lock)
+        {
+            if (!_probes.TryGetValue(endpointId, out var probe))
+            {
+                using var mm = new MMDeviceEnumerator();
+                var dev = mm.GetDevice(endpointId);
+                var cap = new WasapiCapture(dev, false, 50);
+                probe = new Probe { Capture = cap };
+                var p = probe;
+                cap.DataAvailable += (_, e) =>
+                {
+                    float peak = PeakOf(cap.WaveFormat, e.Buffer, e.BytesRecorded);
+                    lock (_lock) if (peak > p.Peak) p.Peak = peak;
+                };
+                cap.StartRecording();
+                _probes[endpointId] = probe;
+            }
+            probe.LastPoll = Environment.TickCount64;
+            float level = probe.Peak;
+            probe.Peak = 0;
+            return level;
+        }
+    }
+
+    private static float PeakOf(NAudio.Wave.WaveFormat wf, byte[] buf, int bytes)
+    {
+        float peak = 0;
+        if (wf.Encoding == NAudio.Wave.WaveFormatEncoding.IeeeFloat ||
+            (wf.Encoding == NAudio.Wave.WaveFormatEncoding.Extensible && wf.BitsPerSample == 32))
+        {
+            for (int i = 0; i + 4 <= bytes; i += 4)
+                peak = Math.Max(peak, Math.Abs(BitConverter.ToSingle(buf, i)));
+        }
+        else if (wf.BitsPerSample == 16)
+        {
+            for (int i = 0; i + 2 <= bytes; i += 2)
+                peak = Math.Max(peak, Math.Abs(BitConverter.ToInt16(buf, i) / 32768f));
+        }
+        return Math.Min(1f, peak);
+    }
+
+    private static void Reap()
+    {
+        List<WasapiCapture> stale = [];
+        lock (_lock)
+        {
+            foreach (var (id, p) in _probes.ToList())
+                if (Environment.TickCount64 - p.LastPoll > IdleMs) { stale.Add(p.Capture); _probes.Remove(id); }
+        }
+        foreach (var c in stale)
+        {
+            try { c.StopRecording(); } catch { }
+            c.Dispose();
+        }
+    }
+}
+
+/// <summary>
 /// Búfer anti-cortes para el audio que llega de la sesión por la tubería. Los paquetes llegan
 /// cada ~10 ms con algo de variación; reproducirlos en cuanto llegan deja el búfer vacío a
 /// menudo y cada hueco suena como un "pop". Aquí se espera a tener <c>targetMs</c> antes de

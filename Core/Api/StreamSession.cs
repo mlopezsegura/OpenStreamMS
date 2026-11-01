@@ -170,4 +170,11 @@ public class StreamSession
     /// Null fuera del arranque. No se persiste.
     /// </summary>
     public string?      StartPhase      { get; set; }
+    /// <summary>
+    /// Clientes transmitiendo ahora por Moonlight y por WebRTC (TVs), según el Sunshine de la
+    /// sesión (<see cref="OpenStreamMS.Services.OpenStream.ActiveStreamsMonitor"/>). Null si no se sabe:
+    /// sesión parada o Sunshine sin el endpoint. No se persiste.
+    /// </summary>
+    public int?         ClientsMoonlight { get; set; }
+    public int?         ClientsWebRtc    { get; set; }
 }
