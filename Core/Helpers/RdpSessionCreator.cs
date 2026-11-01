@@ -184,9 +184,16 @@ namespace OpenStreamMS.Core.Helpers
                                      int rdpFrameRate, int rdpColorDepth,
                                      out int clientPid,
                                      bool preferMstsc = true,
-                                     bool remoteIdd = false)
+                                     bool remoteIdd = false,
+                                     string? microphone = null)
         {
             clientPid = 0;
+            // mstsc no deja elegir el micrófono: con uno asignado, FreeRDP.
+            if (microphone is not null && preferMstsc)
+            {
+                Logger.Log("[RDP] Con micrófono asignado se conecta con FreeRDP (mstsc no permite elegirlo).");
+                preferMstsc = false;
+            }
             string address = RdpAddress(remoteIdd);
             Logger.Log($"[RDP] Reconectando la sesión {sessionId} a {rdpWidth}x{rdpHeight} @ {rdpFrameRate} fps...");
 
@@ -210,7 +217,8 @@ namespace OpenStreamMS.Core.Helpers
             }
             else
             {
-                id = CreateSessionWithFreeRdp(user, address, rdpWidth, rdpHeight, rdpFrameRate, rdpColorDepth, out clientPid);
+                id = CreateSessionWithFreeRdp(user, address, rdpWidth, rdpHeight, rdpFrameRate, rdpColorDepth, out clientPid,
+                                              microphone);
             }
 
             if (id != sessionId)
@@ -269,8 +277,14 @@ namespace OpenStreamMS.Core.Helpers
 
         // ── Creacion de sesion ────────────────────────────────────────────────────
 
+        /// <param name="microphone">
+        /// Id de endpoint del micrófono que se redirige (canal audin): dentro de la sesión aparece
+        /// como el micrófono "Remote Audio". Null = sin micrófono. Elegirlo por id necesita el
+        /// wfreerdp parcheado (FreeRDP/patches); el original ignora dev: y usa el predeterminado.
+        /// </param>
         static uint CreateSessionWithFreeRdp(StreamUserConfig user, string address, int rdpWidth, int rdpHeight,
-                                             int rdpFrameRate, int rdpColorDepth, out int freeRdpPid)
+                                             int rdpFrameRate, int rdpColorDepth, out int freeRdpPid,
+                                             string? microphone = null)
         {
             freeRdpPid = 0;
 
@@ -326,6 +340,8 @@ namespace OpenStreamMS.Core.Helpers
             // ── Audio ─────────────────────────────────────────────────────────────
             psi.ArgumentList.Add("/audio-mode:redirect");
             psi.ArgumentList.Add("/sound:sys:winmm");
+            if (microphone is not null)
+                psi.ArgumentList.Add($"/microphone:sys:winmm,dev:{microphone}");
 
             // ── Misc ──────────────────────────────────────────────────────────────
             // +disable-output = cliente wfreerdp oculto en Session 0 no decodifica ni

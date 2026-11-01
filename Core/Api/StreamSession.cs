@@ -165,4 +165,16 @@ public class StreamSession
     public DateTime?    StartedAt       { get; set; }
     public DateTime?    StoppedAt       { get; set; }
     public string?      ErrorMessage    { get; set; }
+    /// <summary>
+    /// Paso del arranque en curso, para el panel: "user", "rdp", "profile", "unlock", "sunshine".
+    /// Null fuera del arranque. No se persiste.
+    /// </summary>
+    public string?      StartPhase      { get; set; }
+    /// <summary>
+    /// Clientes transmitiendo ahora por Moonlight y por WebRTC (TVs), según el Sunshine de la
+    /// sesión (<see cref="OpenStreamMS.Services.OpenStream.ActiveStreamsMonitor"/>). Null si no se sabe:
+    /// sesión parada o Sunshine sin el endpoint. No se persiste.
+    /// </summary>
+    public int?         ClientsMoonlight { get; set; }
+    public int?         ClientsWebRtc    { get; set; }
 }

@@ -16,6 +16,7 @@ si fuera un PC independiente. Varias personas pueden usar el mismo PC a la vez.
 | Teclado/ratón | Mientras el puesto está encendido, su dispositivo USB pasa a WinUSB (`winusb.inf`, de Windows); el servicio lee los informes HID y los inyecta en la sesión. Si no se puede, Raw Input en la consola + escudo | Separación total sin drivers de terceros: la consola deja de ver el dispositivo. HidHide no permite leer HID de teclado/ratón, y la colección HID con `input.inf` queda detenida (hidclass no da acceso en crudo a ratón/teclado) |
 | Mandos | HidHide: jail a la sesión del puesto | Ya lo usaba OpenStreamMS para la consola |
 | Audio | Loopback de "Audio remoto" → salida del puesto | ~70 ms con búferes de 10 ms |
+| Micrófono | Redirección de micrófono de RDP (canal `audin`): el cliente FreeRDP abre el micrófono del puesto y en la sesión aparece como «Remote Audio» | Sin drivers propios. El `wfreerdp` original ignora `dev:` y usa siempre el micrófono predeterminado: va parcheado (`FreeRDP/patches`) para elegirlo por id de endpoint |
 | Consola | Solo anfitriona (usuario técnico, autologon) | Recomendado; con WinUSB los periféricos del puesto ya no llegan a la consola |
 
 ## Pantalla dividida
@@ -90,7 +91,8 @@ Sesión del puesto
 | `Services/Seats/SeatHostControl.cs` | Tubería de control entre servicio (SYSTEM) y anfitrión de consola (TrayApp) |
 | `Services/Seats/HandleBroker.cs` | Duplica handles NT de texturas compartidas entre procesos de distintas sesiones |
 | `Services/Seats/DisplayTopology.cs` | Enumerar monitores, activarlos, colocación en esquina y sacarlos del escritorio |
-| `Services/Seats/SeatAudio.cs` | Salidas de audio disponibles |
+| `Services/Seats/SeatAudio.cs` | Salidas de audio y micrófonos disponibles |
+| `FreeRDP/patches/0001-audin-winmm-choose-microphone.patch` | Parche de FreeRDP 3.32.0: `/microphone:sys:winmm,dev:<id de endpoint>` abre ese micrófono |
 | `Services/Seats/SeatUsbCapture.cs` | Cambio de driver a WinUSB y vuelta (con registro en `%ProgramData%\OpenStreamMS\usb-capture.json`) y lectura de los informes USB |
 | `Services/Seats/SeatHid.cs` | Descriptor de informe HID → eventos de ratón y scancodes de teclado |
 | `Services/Seats/SeatInput.cs` | Respaldo: Raw Input en la consola y escudo del cursor |
@@ -104,9 +106,9 @@ Sesión del puesto
 | Método | Ruta | Descripción |
 |---|---|---|
 | GET | `/api/seats` | Lista de puestos con su estado |
-| GET | `/api/seats/inventory` | Monitores, salidas de audio y dispositivos USB libres (`?seatId=` incluye los del puesto que se edita) |
+| GET | `/api/seats/inventory` | Monitores, salidas de audio, micrófonos y dispositivos USB libres (`?seatId=` incluye los del puesto que se edita) |
 | POST | `/api/seats` | Crear puesto |
-| PUT | `/api/seats/{id}` | Editar (puesto detenido) |
+| PUT | `/api/seats/{id}` | Editar. Encendido solo admite cambiar el nombre y el autoarranque |
 | PATCH | `/api/seats/{id}/autostart` | Cambiar el autoarranque (`{ "enabled": true }`), también con el puesto encendido |
 | DELETE | `/api/seats/{id}` | Borrar |
 | POST | `/api/seats/{id}/start` | Encender |
@@ -117,7 +119,7 @@ Sesión del puesto
 1. Arranca la sesión asignada si no lo está.
 2. Si es exclusivo, pausa Sunshine (deja de servirse por Moonlight/WebRTC).
 3. Activa el monitor (lo añade al escritorio) y lo coloca tocando solo la esquina inferior derecha.
-4. Reconecta la sesión RDP a la resolución/Hz del puesto (la fijada o, si no hay, la que Windows le dio al monitor). Al apagar se restaura la de la sesión.
+4. Reconecta la sesión RDP a la resolución/Hz del puesto (la fijada o, si no hay, la que Windows le dio al monitor) y, si el puesto tiene micrófono, con él redirigido (siempre con FreeRDP: mstsc no deja elegirlo). Al apagar se restaura la de la sesión, sin micrófono.
 5. Los mandos del puesto pasan a su sesión (HidHide).
 6. Lanza `SeatAgent` en la sesión, duplica los handles NT de textura con `HandleBroker` y conecta `SeatHost` en la consola para presentar y enrutar entrada y audio.
 7. Pasa los ratones y teclados del puesto a WinUSB (el dispositivo, o solo las interfaces con ratón/teclado si es compuesto) y empieza a leerlos.
@@ -141,6 +143,14 @@ restauran en su siguiente arranque.
   Si quedara así por un fallo: Administrador de dispositivos → "Dispositivo
   WinUsb" → Actualizar controlador → elegir "Dispositivo de entrada USB".
 - **Contenido con DRM**: sale en negro en la captura (igual que en Sunshine).
+- **Micrófono**: lo abre el cliente FreeRDP, que corre en la sesión 0 como SYSTEM. Si
+  no llega audio, comprobar en Configuración → Privacidad → Micrófono que el acceso
+  al micrófono esté permitido para el equipo y las aplicaciones de escritorio, y que
+  la directiva «Permitir la redirección de grabación de audio» no esté deshabilitada
+  (`fDisableAudioCapture`). Un micrófono desconectado al encender el puesto se omite
+  (el puesto arranca sin él y queda un aviso en el log).
+- **Recompilar FreeRDP**: aplicar el parche sobre FreeRDP 3.32.0 y compilar con el
+  script estático (`wfreerdp` sin dependencias); copiar `wfreerdp.exe` a `FreeRDP/`.
 - **Consola anfitriona**: recomendable un usuario técnico con autologon, sin
   bloqueo, sin UAC en escritorio seguro y sin apagado de pantalla.
 

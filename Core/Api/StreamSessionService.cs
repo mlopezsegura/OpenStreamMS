@@ -380,7 +380,10 @@ public class StreamSessionService
     /// Vuelve a conectar la sesión RDP con otra resolución y frecuencia (las de un puesto
     /// local, o las propias de la sesión al liberarlo). Bloquea ~1-2 s.
     /// </summary>
-    public void ReconnectRdp(Guid id, int width, int height, int frameRate)
+    /// <param name="microphone">
+    /// Id de endpoint del micrófono que se redirige a la sesión (el de un puesto local); null, ninguno.
+    /// </param>
+    public void ReconnectRdp(Guid id, int width, int height, int frameRate, string? microphone = null)
     {
         var session = RequireSession(id);
         if (session.State != SessionState.Running || session.RdpSessionId == 0 || session.Local)
@@ -390,13 +393,15 @@ public class StreamSessionService
         var rdpId = RdpSessionCreator.Reconnect(user, session.RdpSessionId, width, height,
                                                 frameRate, session.RdpColorDepth, out int clientPid,
                                                 preferMstsc: !string.Equals(_defaultConfig.RdpClient, "freerdp", StringComparison.OrdinalIgnoreCase),
-                                                remoteIdd: UsesRemoteIdd(session));
+                                                remoteIdd: UsesRemoteIdd(session),
+                                                microphone: microphone);
         session.RdpSessionId = rdpId;
         session.FreeRdpPid   = clientPid;
         // El audio sale por el cliente RDP del host: el nuevo cliente también se silencia.
         if (clientPid > 0) AudioSessionMuter.StartPersistentMute((uint)clientPid);
         RdpSessionCreator.ApplyDisplayFrequency(rdpId, frameRate);
-        Logger.Log($"[{session.Name}] Pantalla RDP: {width}x{height} @ {frameRate} fps.", id);
+        Logger.Log($"[{session.Name}] Pantalla RDP: {width}x{height} @ {frameRate} fps" +
+                   (microphone is null ? "." : $", micrófono '{microphone}'."), id);
     }
 
     /// <summary>Usuario de Windows de la sesión (el dedicado si está aislada).</summary>
@@ -775,6 +780,8 @@ public class StreamSessionService
                 return;
             }
 
+            session.StartPhase = "user";
+
             StreamUserConfig user;
             // Un puesto exclusivo no puede apagar ni reiniciar el equipo; una sesión remota sí.
             bool canShutdown = !OpenStreamMS.Services.Seats.SeatStore.Load()
@@ -809,6 +816,7 @@ public class StreamSessionService
             }
 
             Logger.Log($"[{session.Name}] Iniciando sesión RDP para usuario '{user.Username}'...", session.Id);
+            session.StartPhase = "rdp";
 
             var rdpId = RdpSessionCreator.GetOrCreateSession(user,
                                                               session.RdpWidth, session.RdpHeight,
@@ -854,6 +862,7 @@ public class StreamSessionService
                 Logger.Warning($"[{session.Name}] Sin PID de FreeRDP, no se puede aplicar mute en host esta vez.", session.Id);
             }
 
+            session.StartPhase = "profile";
             Dictionary<string, string>? profileOverrides = null;
             if (session.UseStreamProfile && session.Isolated)
             {
@@ -881,9 +890,11 @@ public class StreamSessionService
             // libx264 (CPU) de por vida → 4K = diente de sierra 60→8. Desactivamos el
             // auto-bloqueo y esperamos a que la sesion este desbloqueada ANTES de
             // lanzar Sunshine para que encuentre la GPU (h264_amf).
+            session.StartPhase = "unlock";
             RdpSessionCreator.PreventSessionLock();
             RdpSessionCreator.WaitForSessionUnlocked(rdpId);
 
+            session.StartPhase = "sunshine";
             EnsureSunshineInstance(session, user.Domain, user.Username);
             var mgr = GetOrCreateSunshineManager(session, profileOverrides);
             var sunshineResult = mgr.EnsureRunning(rdpId);
@@ -920,6 +931,7 @@ public class StreamSessionService
         }
         finally
         {
+            session.StartPhase = null;
             Logger.SetSessionContext(null);
         }
     }
@@ -936,6 +948,7 @@ public class StreamSessionService
         Logger.Log($"[{session.Name}] Sesión local: escritorio de '{domain}\\{username}' (sesión de Windows {consoleId}).", session.Id);
         session.RdpSessionId = consoleId;
 
+        session.StartPhase = "sunshine";
         EnsureSunshineInstance(session, domain, username);
         var result = GetOrCreateSunshineManager(session).EnsureRunning(consoleId);
         session.SunshinePid = result.Pid;
@@ -1084,7 +1097,8 @@ public class StreamSessionService
             StreamProtocol:           SupportsWebRtc(s) ? s.StreamProtocol.ToConfigValue() : null,
             WebRtcPort:               SupportsWebRtc(s) ? s.WebRtcPort : 0,
             WebRtcMediaPortMin:       SupportsWebRtc(s) ? s.WebRtcMediaPortMin : 0,
-            WebRtcMediaPortMax:       SupportsWebRtc(s) ? s.WebRtcMediaPortMax : 0);
+            WebRtcMediaPortMax:       SupportsWebRtc(s) ? s.WebRtcMediaPortMax : 0,
+            MinLogLevel:              SunshineConfigurator.ToSunshineLogLevel(Logger.Threshold));
 
     /// <summary>
     /// Sesiones con Sunshine arrancando o activo, cuyos puertos están ocupados.

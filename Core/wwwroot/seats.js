@@ -5,7 +5,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 let seats         = [];
-let seatInventory = { monitors: [], audioOutputs: [], devices: [] };
+let seatInventory = { monitors: [], audioOutputs: [], audioInputs: [], devices: [] };
 let seatTimer     = null;
 let activeTab     = 'sessions';
 let editingSeat   = null;   // puesto abierto en el modal (null = nuevo)
@@ -63,6 +63,7 @@ const SEAT_ICON_PATHS = {
   Mouse:    '<rect x="6" y="2" width="12" height="20" rx="6"/><path d="M12 6v4"/>',
   Gamepad:  '<path d="M6 11h4M8 9v4M15 12h.01M18 10h.01"/><path d="M17.3 5H6.7a4 4 0 0 0-3.9 3.2l-1 5.2A3 3 0 0 0 7 16.8L8.6 15h6.8l1.6 1.8a3 3 0 0 0 5.2-3.4l-1-5.2A4 4 0 0 0 17.3 5z"/>',
   Audio:    '<path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/>',
+  Mic:      '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4M8 22h8"/>',
 };
 
 function seatIcon(name) {
@@ -97,9 +98,17 @@ function hwChip(kind, id, label, from, draggable) {
     </span>`;
 }
 
+// El micrófono se elige en el editor (no se arrastra): ficha solo informativa.
+function micChip(s) {
+  const label = s.audioInName || s.audioInId;
+  return `<span class="hw-chip hw-mic" title="${esc(t('seat.micLabel'))}: ${esc(label)}">
+      ${seatIcon('Mic')}<span class="hw-label">${esc(label)}</span></span>`;
+}
+
 function renderSeatHardware(s, locked) {
   const chips = [
     ...(s.audioOutId ? [hwChip('Audio', s.audioOutId, s.audioOutName || s.audioOutId, s.id, !locked)] : []),
+    ...(s.audioInId ? [micChip(s)] : []),
     ...SEAT_KINDS.flatMap(k => s.devices.filter(d => d.kind === k).map(d => hwChip(k, d.usbPort, d.label, s.id, !locked))),
   ];
   return `
@@ -196,6 +205,7 @@ async function saveSeatHardware(original, s) {
   const res = await api('PUT', `/api/seats/${original.id}`, {
     name: s.name, sessionId: s.sessionId, monitor: s.monitor,
     audioOutId: s.audioOutId, audioOutName: s.audioOutName,
+    audioInId: s.audioInId, audioInName: s.audioInName,
     devices: s.devices, exclusiveSession: s.exclusiveSession, autoStart: s.autoStart,
   });
   if (res && res.ok) { Object.assign(original, s); return true; }
@@ -372,15 +382,24 @@ function renderSeatCard(s) {
   const starting = s.state === 'Starting';
   const session  = s.sessionId ? sessions.find(x => x.id === s.sessionId) : null;
 
+  const locked = running || starting;
+  // Sin sesión (o con una que ya no existe) no se puede encender: el aviso lleva al editor.
   let warning = '';
   if (!s.sessionId)   warning = t('seat.needSession');
   else if (!session && sessions.length) warning = t('seat.sessionMissing');
+  if (warning && !locked)
+    warning = `<div class="card-warning card-warning-action"><span>${esc(warning)}</span>
+        <button type="button" class="btn btn-ghost btn-xs" onclick="openSeatModal('${s.id}')">${esc(t('ux.seat.assign'))}</button></div>`;
+  else if (warning)
+    warning = `<div class="card-warning">${esc(warning)}</div>`;
+  const noInput = !s.devices.some(d => SEAT_KINDS.includes(d.kind))
+    ? `<div class="card-warning">${esc(t('seat.noInputWarning'))}</div>` : '';
 
-  const locked = running || starting;
   const power = starting
-    ? `<button class="power-btn busy" disabled title="${esc(t('btn.starting'))}">${uiIcon('power')}</button>`
-    : `<button class="power-btn ${running ? 'on' : 'off'}" onclick="seatAction('${s.id}','${running ? 'stop' : 'start'}')"
-               ${!running && !s.sessionId ? 'disabled' : ''} title="${esc(t(running ? 'seat.stop' : 'seat.start'))}">${uiIcon('power')}</button>`;
+    ? `<button type="button" class="power-btn busy" disabled title="${esc(t('btn.starting'))}" aria-label="${esc(t('btn.starting'))}">${uiIcon('power')}</button>`
+    : `<button type="button" class="power-btn ${running ? 'on' : 'off'}" onclick="seatAction('${s.id}','${running ? 'stop' : 'start'}')"
+               ${!running && !s.sessionId ? 'disabled' : ''} title="${esc(t(running ? 'seat.stop' : (s.sessionId ? 'seat.start' : 'seat.needSession')))}"
+               aria-label="${esc(t(running ? 'seat.stop' : 'seat.start'))}: ${esc(s.name)}" aria-pressed="${running}">${uiIcon('power')}</button>`;
   const area = s.monitor && s.monitor.area && s.monitor.area !== 'Full' ? ` · ${esc(t('seat.area.' + s.monitor.area))}` : '';
   const monitor = s.monitor
     ? `${screenGlyph(s.monitor.area)}<span>${esc(s.monitor.friendlyName)}${area} · ${esc(seatModeLabel(s.monitor))}</span>`
@@ -402,7 +421,8 @@ function renderSeatCard(s) {
       <div class="card-meta seat-line">${monitor}</div>
       ${renderSeatHardware(s, locked)}
       ${(starting || s.state === 'Stopped') && s.statusDetail ? `<div class="card-detail">${esc(s.statusDetail)}</div>` : ''}
-      ${warning ? `<div class="card-warning">${esc(warning)}</div>` : ''}
+      ${warning}
+      ${noInput}
       ${s.errorMessage ? `<div class="card-error">${esc(s.errorMessage)}</div>` : ''}
       <div class="card-footer">
         <label class="toggle" title="${esc(t('seat.autostart'))}">
@@ -410,7 +430,7 @@ function renderSeatCard(s) {
           <span class="toggle-track"></span>
           ${esc(t('card.autostart'))}
         </label>
-        <button class="icon-btn more-btn" onclick="seatMenu(event, '${s.id}')" title="${esc(t('nav.more'))}">${uiIcon('more')}</button>
+        <button type="button" class="icon-btn more-btn" onclick="seatMenu(event, '${s.id}')" title="${esc(t('nav.more'))}" aria-label="${esc(t('nav.more'))}: ${esc(s.name)}" aria-haspopup="menu">${uiIcon('more')}</button>
       </div>
     </div>`;
 }
@@ -420,7 +440,7 @@ function seatMenu(e, id) {
   if (!s) return;
   const locked = s.state === 'Running' || s.state === 'Starting';
   openMenu(e, [
-    { icon: 'gear',  label: t('btn.settings'), run: () => openSeatModal(s.id), disabled: locked, hint: t('seat.editLocked') },
+    { icon: 'gear',  label: t('btn.settings'), run: () => openSeatModal(s.id) },
     { sep: true },
     { icon: 'trash', label: t('btn.delete'),   run: () => deleteSeat(s.id, s.name), danger: true, disabled: locked, hint: t('seat.editLocked') },
   ]);
@@ -450,7 +470,7 @@ async function setSeatAutoStart(id, enabled) {
 }
 
 async function deleteSeat(id, name) {
-  if (!confirm(t('seat.confirmDelete', { name }))) return;
+  if (!await ask(t('seat.confirmDelete', { name }), { danger: true, ok: t('btn.delete') })) return;
   const res = await api('DELETE', `/api/seats/${id}`);
   if (!res) return;
   if (!res.ok && res.status !== 204) { toast(t('toast.deleteError'), true); return; }
@@ -470,6 +490,8 @@ async function openSeatModal(id, preset) {
 
   document.getElementById('seat-modal-title').textContent = t(seat ? 'seat.editTitle' : 'seat.newTitle');
   document.getElementById('seat-error').style.display = 'none';
+  document.getElementById('seat-running-note').classList.toggle('hidden',
+    !(seat && (seat.state === 'Running' || seat.state === 'Starting')));
   const f = document.getElementById('seat-form');
   f.Id.value = seat ? seat.id : '';
   f.Name.value = seat ? seat.name : '';
@@ -491,6 +513,7 @@ async function openSeatModal(id, preset) {
     monitor: seat && seat.monitor ? seat.monitor.devicePath : (preset && preset.monitor) || '',
     area:    seat && seat.monitor ? (seat.monitor.area || 'Full') : (preset && preset.area) || 'Full',
     audio:   seat ? (seat.audioOutId || '') : '',
+    mic:     seat ? (seat.audioInId || '') : '',
     devices: new Set((seat ? seat.devices : []).map(d => d.usbPort)),
   });
   show('seat-modal');
@@ -504,6 +527,62 @@ function updateSeatTestButtons() {
   const f = document.getElementById('seat-form');
   document.getElementById('seat-monitor-test').disabled = !f.Monitor.value;
   document.getElementById('seat-audio-test').disabled = !f.AudioOut.value;
+  document.getElementById('seat-mic-test').disabled = !f.AudioIn.value;
+}
+
+// ── Medidor del micrófono ──────────────────────────────────────────────────
+// Lo abre el servicio, igual que el cliente RDP del puesto: si aquí da error, el puesto
+// tampoco tendrá micrófono. Se para solo a los 20 s, al cambiar de micrófono o al cerrar.
+let micMeterTimer = null, micMeterUntil = 0, micMeterSmooth = 0, micMeterHeard = false;
+
+function toggleMicMeter() {
+  if (micMeterTimer) { stopMicMeter(); return; }
+  const id = document.getElementById('seat-form').AudioIn.value;
+  if (!id) return;
+  micMeterUntil = Date.now() + 20000;
+  micMeterSmooth = 0;
+  micMeterHeard = false;
+  document.getElementById('seat-mic-meter').classList.remove('hidden');
+  document.getElementById('seat-mic-test').textContent = t('seat.micStop');
+  setMicStatus(t('seat.micSpeak'), '');
+  let busy = false;
+  micMeterTimer = setInterval(async () => {
+    if (busy) return;
+    if (Date.now() > micMeterUntil || document.getElementById('seat-modal').classList.contains('hidden')) { stopMicMeter(); return; }
+    busy = true;
+    try {
+      const res = await api('GET', `/api/seats/identify/mic?id=${encodeURIComponent(id)}`);
+      if (!res || !res.ok) return;
+      const { level, error } = await res.json();
+      if (error) { stopMicMeter(); setMicStatus(t('seat.micError', { error }), 'error'); return; }
+      // Escala logarítmica (como un vúmetro): la voz normal queda a media barra.
+      const db = level > 0 ? 20 * Math.log10(level) : -60;
+      const pct = Math.max(0, Math.min(100, (db + 60) / 60 * 100));
+      micMeterSmooth = Math.max(pct, micMeterSmooth * .8);
+      const bar = document.getElementById('seat-mic-bar');
+      bar.style.width = `${micMeterSmooth}%`;
+      document.getElementById('seat-mic-meter').setAttribute('aria-valuenow', String(Math.round(micMeterSmooth)));
+      if (pct > 35 && !micMeterHeard) { micMeterHeard = true; setMicStatus(t('seat.micOk'), 'ok'); }
+    } finally { busy = false; }
+  }, 120);
+}
+
+function stopMicMeter() {
+  clearInterval(micMeterTimer);
+  micMeterTimer = null;
+  const btn = document.getElementById('seat-mic-test');
+  if (btn) btn.textContent = t('seat.test');
+  const meter = document.getElementById('seat-mic-meter');
+  if (meter) meter.classList.add('hidden');
+  const status = document.getElementById('seat-mic-status');
+  if (status && !status.classList.contains('error')) setMicStatus(t('seat.micHint'), '');
+}
+
+function setMicStatus(text, kind) {
+  const el = document.getElementById('seat-mic-status');
+  el.textContent = text;
+  el.classList.toggle('error', kind === 'error');
+  el.classList.toggle('ok', kind === 'ok');
 }
 
 async function testSeatMonitor() {
@@ -549,7 +628,7 @@ function stopIdentify() {
 
 async function loadSeatInventory() {
   const res = await api('GET', '/api/seats/inventory' + (editingSeat ? `?seatId=${editingSeat.id}` : ''));
-  seatInventory = res && res.ok ? await res.json() : { monitors: [], audioOutputs: [], devices: [] };
+  seatInventory = res && res.ok ? await res.json() : { monitors: [], audioOutputs: [], audioInputs: [], devices: [] };
 }
 
 // Vuelve a buscar monitores y dispositivos (p. ej. tras enchufar un teclado) sin perder lo elegido.
@@ -559,6 +638,7 @@ async function refreshSeatInventory() {
     monitor: f.Monitor.value,
     area:    f.Area.value || 'Full',
     audio:   f.AudioOut.value,
+    mic:     f.AudioIn.value,
     devices: new Set([...document.querySelectorAll('#seat-devices input:checked')].map(c => c.value)),
   };
   const btn = document.getElementById('seat-refresh');
@@ -594,6 +674,14 @@ function renderSeatInventory(sel) {
     outs.push({ id: seat.audioOutId, name: seat.audioOutName || seat.audioOutId });
   fillSelect('seat-audio', [{ v: '', label: t('seat.noAudio') },
     ...outs.map(o => ({ v: o.id, label: o.name }))], sel.audio);
+
+  // Micrófonos: los libres más el del puesto (aunque ahora no esté conectado).
+  const mics = [...(seatInventory.audioInputs || [])];
+  if (seat && seat.audioInId && !mics.some(o => o.id === seat.audioInId))
+    mics.push({ id: seat.audioInId, name: `${seat.audioInName || seat.audioInId} (${t('seat.micMissing')})` });
+  fillSelect('seat-mic', [{ v: '', label: t('seat.noMic') },
+    ...mics.map(o => ({ v: o.id, label: o.name }))], sel.mic || '');
+  updateSeatTestButtons();
   updateSeatTestButtons();
 
   // Dispositivos: los libres más los que ya tiene el puesto, agrupados por tipo.
@@ -729,7 +817,7 @@ function fillSelect(selId, options, selected) {
   }
 }
 
-function closeSeatModal() { hide('seat-modal'); editingSeat = null; stopIdentify(); }
+function closeSeatModal() { hide('seat-modal'); editingSeat = null; stopIdentify(); stopMicMeter(); setMicStatus(t('seat.micHint'), ''); }
 
 async function submitSeat(e) {
   e.preventDefault();
@@ -751,6 +839,12 @@ async function submitSeat(e) {
                      width, height, refreshHz: hz, area: f.Area.value || 'Full' } : null,
     audioOutId: f.AudioOut.value || null,
     audioOutName: f.AudioOut.value ? audioOpt.textContent : null,
+    audioInId: f.AudioIn.value || null,
+    // El nombre guardado es el del dispositivo, sin el "(no conectado)" que se le añade en la lista.
+    audioInName: f.AudioIn.value
+      ? ((seatInventory.audioInputs || []).find(o => o.id === f.AudioIn.value)?.name
+         || (editingSeat && editingSeat.audioInName) || f.AudioIn.selectedOptions[0].textContent)
+      : null,
     devices: [...document.querySelectorAll('#seat-devices input:checked')].map(c => ({
       kind: c.dataset.kind, usbPort: c.value, label: c.dataset.name })),
     exclusiveSession: f.ExclusiveSession.checked,
@@ -758,16 +852,59 @@ async function submitSeat(e) {
   };
 
   const id = f.Id.value;
+  const before = id && seats.find(x => x.id === id);
+  const running = before && (before.state === 'Running' || before.state === 'Starting');
+  const restart = running && hardwareChanged(before, body);
+  if (restart && !await ask(t('ux.seat.restartConfirm', { name: before.name }), { ok: t('ux.seat.applyRestart') })) return;
+
   const btn = f.querySelector('button[type=submit]');
   btn.disabled = true;
-  const res = await api(id ? 'PUT' : 'POST', id ? `/api/seats/${id}` : '/api/seats', body);
-  btn.disabled = false;
-  if (!res) return;
-  if (!res.ok) { fail(await res.text() || t('toast.connectionError')); return; }
-  closeSeatModal();
-  toast(t(id ? 'seat.saved' : 'seat.created', { name: body.name }));
-  loadSeats();
-  loadMonitorMap();
+  try {
+    if (restart) {
+      const stop = await api('POST', `/api/seats/${id}/stop`);
+      if (!stop) return;
+      if (!stop.ok) { fail(await stop.text() || t('toast.connectionError')); return; }
+      if (!await waitSeatState(id, 'Stopped', 30000)) { fail(t('ux.seat.stopTimeout')); return; }
+    }
+    const res = await api(id ? 'PUT' : 'POST', id ? `/api/seats/${id}` : '/api/seats', body);
+    if (!res) return;
+    if (!res.ok) { fail(await res.text() || t('toast.connectionError')); return; }
+    if (restart) {
+      const start = await api('POST', `/api/seats/${id}/start`);
+      if (start && !start.ok) toast(await start.text() || t('toast.connectionError'), true);
+    }
+    closeSeatModal();
+    toast(t(id ? 'seat.saved' : 'seat.created', { name: body.name }));
+    loadSeats();
+    loadMonitorMap();
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// Lo que no se puede cambiar con el puesto encendido (mismo criterio que SeatManager.SameHardware).
+function hardwareChanged(seat, body) {
+  const mon = m => m ? [m.devicePath, m.area || 'Full', m.width || 0, m.height || 0, m.refreshHz || 0].join('|') : '';
+  const devs = list => (list || []).map(d => `${d.kind}:${d.usbPort}`).sort().join(',');
+  return mon(seat.monitor) !== mon(body.monitor) ||
+         (seat.audioOutId || '') !== (body.audioOutId || '') ||
+         (seat.audioInId || '') !== (body.audioInId || '') ||
+         devs(seat.devices) !== devs(body.devices) ||
+         (seat.sessionId || null) !== (body.sessionId || null) ||
+         !!seat.exclusiveSession !== !!body.exclusiveSession;
+}
+
+async function waitSeatState(id, state, timeoutMs) {
+  const until = Date.now() + timeoutMs;
+  while (Date.now() < until) {
+    const res = await api('GET', '/api/seats');
+    if (res && res.ok) {
+      const seat = (await res.json()).find(x => x.id === id);
+      if (!seat || seat.state === state) return true;
+    }
+    await new Promise(r => setTimeout(r, 700));
+  }
+  return false;
 }
 
 window.addEventListener('langchange', () => { if (activeTab === 'seats') renderSeats(); });
@@ -788,6 +925,7 @@ function updateSeatPreview() {
   if (f.SessionId.value) chips.push(`<span class="chip chip-moonlight">${uiIcon('screen')}${esc(sessionOpt.textContent)}</span>`);
   if (mon) chips.push(`<span class="chip">${esc(mon.friendlyName)} · ${esc(t('seat.area.' + area))}</span>`);
   if (f.AudioOut.value) chips.push(`<span class="chip hw-audio">${seatIcon('Audio')}${esc(f.AudioOut.selectedOptions[0].textContent)}</span>`);
+  if (f.AudioIn.value) chips.push(`<span class="chip hw-mic">${seatIcon('Mic')}${esc(f.AudioIn.selectedOptions[0].textContent)}</span>`);
   for (const k of SEAT_KINDS) {
     const n = devices.filter(d => d === k).length;
     if (n) chips.push(`<span class="chip hw-${k.toLowerCase()}">${seatIcon(k)}${n > 1 ? `×${n}` : esc(t('seat.kind.' + k))}</span>`);

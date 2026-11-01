@@ -332,7 +332,21 @@ namespace OpenStreamMS.Services.Sunshine
             int     WebRtcPort         = 0,
             /// <summary>Rango UDP de media WebRTC (<c>webrtc_media_port_min/max</c>). 0 = no tocar.</summary>
             int     WebRtcMediaPortMin = 0,
-            int     WebRtcMediaPortMax = 0);
+            int     WebRtcMediaPortMax = 0,
+            /// <summary>
+            /// <c>min_log_level</c> de Sunshine (2 info, 3 warning, 4 error, 6 none). Null = no tocar.
+            /// Lo fija el nivel de log global de OpenStreamMS.
+            /// </summary>
+            int?    MinLogLevel        = null);
+
+        /// <summary>Nivel global de OpenStreamMS a <c>min_log_level</c> de Sunshine.</summary>
+        public static int ToSunshineLogLevel(OpenStreamMS.Services.LogThreshold t) => t switch
+        {
+            OpenStreamMS.Services.LogThreshold.Warning => 3,
+            OpenStreamMS.Services.LogThreshold.Error   => 4,
+            OpenStreamMS.Services.LogThreshold.Off     => 6,
+            _                                          => 2,
+        };
 
         /// <summary>Clave de <c>sunshine.conf</c> con los protocolos que sirve Sunshine.</summary>
         public const string StreamProtocolKey = "stream_protocol";
@@ -422,6 +436,8 @@ namespace OpenStreamMS.Services.Sunshine
                 overrides["webrtc_media_port_min"] = cfg.WebRtcMediaPortMin.ToString();
                 overrides["webrtc_media_port_max"] = cfg.WebRtcMediaPortMax.ToString();
             }
+            if (cfg.MinLogLevel is { } logLevel)
+                overrides["min_log_level"] = logLevel.ToString();
 
             var lines   = new List<string>();
             var applied = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

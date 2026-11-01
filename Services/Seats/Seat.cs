@@ -97,7 +97,7 @@ public class SeatDevice
 }
 
 /// <summary>
-/// Puesto local: monitor + salida de audio + teclados/ratones/mandos físicos, con una sesión
+/// Puesto local: monitor + salida y entrada de audio + teclados/ratones/mandos físicos, con una sesión
 /// de OpenStreamMS asignada que se muestra en el monitor y recibe la entrada de esos dispositivos.
 /// </summary>
 public class Seat
@@ -108,6 +108,12 @@ public class Seat
     /// <summary>Id del endpoint MMDevice de salida, o null para no llevar audio al puesto.</summary>
     public string?           AudioOutId   { get; set; }
     public string?           AudioOutName { get; set; }
+    /// <summary>
+    /// Id del endpoint MMDevice de captura (micrófono), o null si el puesto no lleva micrófono.
+    /// Llega a la sesión por la redirección de audio de RDP: dentro aparece como "Remote Audio".
+    /// </summary>
+    public string?           AudioInId    { get; set; }
+    public string?           AudioInName  { get; set; }
     public List<SeatDevice>  Devices      { get; set; } = [];
     public Guid?             SessionId    { get; set; }
     public bool              AutoStart    { get; set; }

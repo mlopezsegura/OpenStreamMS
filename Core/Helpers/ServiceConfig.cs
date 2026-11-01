@@ -31,6 +31,16 @@ namespace OpenStreamMS.Core.Helpers
         public string RdpClient              { get; set; } = "freerdp";
         /// <summary>Puerto en que escucha la API REST (defecto: 5000).</summary>
         public int ApiPort                   { get; set; } = 5000;
+        /// <summary>
+        /// Nivel mínimo de log para todo OpenStreamMS y sus Sunshine: "Info", "Warning",
+        /// "Error" u "Off" (nada). Se cambia desde el panel (Más → Ajustes).
+        /// </summary>
+        public string LogLevel               { get; set; } = "Error";
+
+        /// <summary>Nivel de log efectivo (Error, el de por defecto, si el valor guardado no es válido).</summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public OpenStreamMS.Services.LogThreshold LogThreshold =>
+            OpenStreamMS.Services.Logger.ParseThreshold(LogLevel) ?? OpenStreamMS.Services.LogThreshold.Error;
 
         // ── Autenticación ────────────────────────────────────────────────────
         /// <summary>
