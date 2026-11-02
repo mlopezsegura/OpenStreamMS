@@ -223,7 +223,12 @@ internal sealed class ActiveSeatHost
                     return;
                 }
 
-                // 3. Ubicar el monitor en la topología de la consola
+                // 3. Ubicar el monitor en la topología de la consola. Antes, llevarlo a la esquina
+                //    del primario: si ya estaba en el escritorio al encender el puesto (extendido a
+                //    mano o de un puesto anterior), Activate no lo coloca y puede tocar al primario
+                //    por todo un borde; el cursor de la consola se colaría en el puesto.
+                if (_monitor is not null && !DisplayTopology.PlaceAtCorner(_monitor.DevicePath))
+                    Logger.Warning("[SeatHost] No se pudo llevar el monitor a la esquina del primario.");
                 var (monX, monY, monW, monH) = LocateMonitor(width, height);
 
                 Logger.Log($"[SeatHost] Presentando en ventana ({monX},{monY} {monW}x{monH})");
