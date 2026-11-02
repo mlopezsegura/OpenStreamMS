@@ -66,7 +66,9 @@ internal sealed class TrayApp : ApplicationContext
 
         _showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ShowWindowEvent);
         _showWait  = ThreadPool.RegisterWaitForSingleObject(_showEvent,
-            (_, _) => _ui.BeginInvoke(OpenWeb), null, Timeout.Infinite, executeOnlyOnce: false);
+            // Lambda y no el grupo de métodos: OpenWeb(url = null) se volvería un Action<string?>
+            // y BeginInvoke lo llamaría sin argumentos (TargetParameterCountException).
+            (_, _) => _ui.BeginInvoke(new Action(() => OpenWeb())), null, Timeout.Infinite, executeOnlyOnce: false);
 
         if (showWindow) OpenWeb();
     }
