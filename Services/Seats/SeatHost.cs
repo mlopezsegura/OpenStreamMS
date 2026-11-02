@@ -129,7 +129,9 @@ internal sealed class ActiveSeatHost
         _thread = new Thread(RunPresenter)
         {
             IsBackground = true,
-            Name = $"SeatHost_{_seatId:N}"
+            Name = $"SeatHost_{_seatId:N}",
+            // Alta: con la CPU llena del juego, cada fotograma y cada movimiento del cursor salen sin esperar turno.
+            Priority = ThreadPriority.Highest,
         };
         _thread.Start();
     }
@@ -271,6 +273,7 @@ internal sealed class ActiveSeatHost
                     Flags = SwapChainFlags.FrameLatencyWaitableObject
                 };
 
+                SeatAgent.TryRaiseGpuPriority(_dev!, "presentador");
                 _sc = factory.CreateSwapChainForHwnd(_dev!, _hwnd, scDesc);
                 using var sc2 = _sc.QueryInterface<IDXGISwapChain2>();
                 sc2.MaximumFrameLatency = 1;
@@ -306,7 +309,8 @@ internal sealed class ActiveSeatHost
                 var receiveThread = new Thread(() => ReceiveLoop(channel))
                 {
                     IsBackground = true,
-                    Name = $"SeatHost_Receive_{_seatId:N}"
+                    Name = $"SeatHost_Receive_{_seatId:N}",
+                    Priority = ThreadPriority.Highest,
                 };
                 receiveThread.Start();
 
@@ -320,6 +324,8 @@ internal sealed class ActiveSeatHost
                 int lastSeq = 0, lastCursor = 0;
                 bool haveFrame = false;
                 int copied = 0, busy = 0, presented = 0;
+                var frameLatency = new SeatLatency("composición→pantalla");
+                var cursorLatency = new SeatLatency("lectura→pantalla");
                 long nextStats = Environment.TickCount64 + 10_000, nextLocate = Environment.TickCount64 + 2_000;
                 long nextRaise = 0, nextSweep = 0;
                 var placed = (monX, monY, monW, monH);
@@ -361,16 +367,26 @@ internal sealed class ActiveSeatHost
                     if (Environment.TickCount64 >= nextStats)
                     {
                         nextStats += 10_000;
-                        Logger.Log($"[SeatHost] 10 s: avisos={_frameSeq} copiados={copied} ocupados={busy} presentados={presented} entrada={SeatInputRouter.Routed} audio_cortes={_audioBuffer?.Underruns} audio_descartes={_audioBuffer?.Drops}");
+                        Logger.Log($"[SeatHost] 10 s: avisos={_frameSeq} copiados={copied} ocupados={busy} presentados={presented} entrada={SeatInputRouter.Routed} audio_cortes={_audioBuffer?.Underruns} audio_descartes={_audioBuffer?.Drops}" +
+                                   frameLatency.Flush() + cursorLatency.Flush());
                     }
                     // Despierta con un fotograma/cursor nuevo o con un mensaje de la ventana.
                     Native.MsgWaitForMultipleObjects(1, wakeHandles, false, 100, Native.QS_ALLINPUT);
                     PumpMessages();
                     ConsoleShare.Enforce();
 
-                    bool dirty = false;
+                    bool newFrame = _frameSeq != lastSeq, newCursor = _cursorSeq != lastCursor;
+                    if (!newFrame && !(newCursor && haveFrame)) continue;
+
+                    // Primero se espera a que haya hueco para presentar y después se toma lo más nuevo:
+                    // lo que llegue durante la espera (otro fotograma, más movimiento del cursor)
+                    // entra en esta presentación en vez de esperar a la siguiente.
+                    Native.WaitForSingleObject(waitable, 100);
+
                     int seq = _frameSeq;
                     int frameIdx = _currentFrameIdx;
+                    long frameQpc = _currentFrameQpc;
+                    bool frameCopied = false;
                     if (seq != lastSeq && frameIdx >= 0 && frameIdx < _keyedMutexes.Length)
                     {
                         var km = _keyedMutexes[frameIdx];
@@ -378,23 +394,25 @@ internal sealed class ActiveSeatHost
                         {
                             try { _ctx!.CopyResource(_lastFrame, _sharedTextures[frameIdx]); }
                             finally { km.ReleaseSync(0); }
-                            haveFrame = dirty = true;
+                            haveFrame = frameCopied = true;
                             copied++;
                         }
                         else busy++;
                         lastSeq = seq;   // si el agente ya la reescribió, llegará otro aviso
                     }
-                    int cursor = _cursorSeq;
-                    if (cursor != lastCursor) { lastCursor = cursor; dirty |= haveFrame; }
+                    lastCursor = _cursorSeq;
 
-                    if (dirty)
+                    // Ya se esperó al hueco: se presenta siempre que haya imagen (aunque la copia
+                    // estuviera ocupada), para no dejar el objeto de espera sin devolver.
+                    if (haveFrame)
                     {
-                        Native.WaitForSingleObject(waitable, 100);
                         using var bb = _sc.GetBuffer<ID3D11Texture2D>(0);
                         _ctx!.CopyResource(bb, _lastFrame);
                         _cursorRenderer?.DrawCursor(bb, _curX, _curY, _curVisible);
                         _sc.Present(1, PresentFlags.None);
                         presented++;
+                        if (frameCopied) frameLatency.AddSince(frameQpc);
+                        cursorLatency.AddSince(Interlocked.Exchange(ref _cursorSrcQpc, 0));
                     }
                 }
             }
@@ -410,6 +428,10 @@ internal sealed class ActiveSeatHost
     }
 
     private volatile int _currentFrameIdx = -1;
+    /// <summary>QPC de composición del último fotograma avisado (lo pone el agente).</summary>
+    private long _currentFrameQpc;
+    /// <summary>QPC de lectura del ratón del movimiento más antiguo aún no presentado (0 = ninguno).</summary>
+    private long _cursorSrcQpc;
     private volatile int _frameSeq, _cursorSeq;
     private readonly AutoResetEvent _wake = new(false);
     private ID3D11Texture2D? _lastFrame;
@@ -427,6 +449,7 @@ internal sealed class ActiveSeatHost
                 case SeatMsg.Frame:
                     if (data.Length >= 4)
                     {
+                        if (data.Length >= 12) Volatile.Write(ref _currentFrameQpc, BinaryPrimitives.ReadInt64LittleEndian(data.AsSpan(4, 8)));
                         _currentFrameIdx = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(0, 4));
                         _frameSeq++;
                         _wake.Set();
@@ -439,6 +462,8 @@ internal sealed class ActiveSeatHost
                         _curX = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(0, 4));
                         _curY = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(4, 4));
                         _curVisible = BinaryPrimitives.ReadInt32LittleEndian(data.AsSpan(8, 4)) != 0;
+                        if (data.Length >= 20 && BinaryPrimitives.ReadInt64LittleEndian(data.AsSpan(12, 8)) is long src and not 0)
+                            Interlocked.CompareExchange(ref _cursorSrcQpc, src, 0);
                         _cursorSeq++;
                         _wake.Set();
                     }

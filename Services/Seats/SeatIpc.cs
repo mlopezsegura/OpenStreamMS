@@ -16,10 +16,10 @@ internal enum SeatMsg : byte
     Audio       = 3,   // agente → anfitrión: PCM en el formato anunciado
     Input       = 4,   // anfitrión → agente: SeatInputEvent
     CursorShape = 5,   // agente → anfitrión: [int tipo][int w][int h][int pitch][int hotX][int hotY][bytes]
-    CursorPos   = 6,   // agente → anfitrión: [int x][int y][int visible]
+    CursorPos   = 6,   // agente → anfitrión: [int x][int y][int visible][long qpc de lectura del ratón, 0 = sin marca]
 }
 
-/// <summary>Evento de entrada de un teclado o ratón físico (16 bytes).</summary>
+/// <summary>Evento de entrada de un teclado o ratón físico (24 bytes).</summary>
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
 internal struct SeatInputEvent
 {
@@ -35,6 +35,8 @@ internal struct SeatInputEvent
     public ushort Code;
     public int    Dx;
     public int    Dy;
+    /// <summary>QPC de cuando se leyó del aparato (servicio o consola); 0 = sin marca. Solo para medir latencia.</summary>
+    public long   Qpc;
 
     public static readonly int Size = Marshal.SizeOf<SeatInputEvent>();
 }
