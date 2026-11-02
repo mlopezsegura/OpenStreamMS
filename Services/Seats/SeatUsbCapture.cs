@@ -225,7 +225,8 @@ internal sealed unsafe class UsbHidReader : IDisposable
     {
         _instanceId = instanceId;
         _emit = emit;
-        _thread = new Thread(Run) { IsBackground = true, Name = $"SeatUsb {instanceId}" };
+        // Prioridad alta: con el juego cargando la CPU, cada informe sale sin esperar turno.
+        _thread = new Thread(Run) { IsBackground = true, Name = $"SeatUsb {instanceId}", Priority = ThreadPriority.Highest };
         _thread.Start();
     }
 

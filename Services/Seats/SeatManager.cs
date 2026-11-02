@@ -2,6 +2,7 @@ using Microsoft.Extensions.Hosting;
 using OpenStreamMS.Core.Api;
 using OpenStreamMS.Core.Helpers;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 
 using System.IO.Pipes;
 using System.Runtime.InteropServices;
@@ -525,6 +526,7 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
             {
                 try
                 {
+                    ev.Qpc = Stopwatch.GetTimestamp();   // el informe acaba de llegar del aparato
                     active.AgentChannel.Send(SeatMsg.Input, MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref ev, 1)));
                     if (++sent is 1 or 100 or 1000)
                         Logger.Log($"[SeatUsb] {sent} evento(s) enviados al agente de '{seat.Name}' (último: tipo={ev.Kind} flags={ev.Flags:X} dx={ev.Dx} dy={ev.Dy}).");

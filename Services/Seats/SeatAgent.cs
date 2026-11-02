@@ -23,6 +23,20 @@ public static class SeatAgent
     private static volatile bool _stopping;
     private static int _inputsReceived;
 
+    // ── Cursor por vía rápida ──
+    // La posición sale de GetCursorPos en un hilo propio (CursorPoller) en cuanto cambia, sin
+    // esperar a que DWM componga y DDA entregue el fotograma: DDA solo dice si se ve y su forma.
+    private static volatile bool _ddaVisible = true;
+    private static readonly AutoResetEvent _cursorKick = new(false);
+    /// <summary>QPC del movimiento inyectado más antiguo que aún no se ha visto en el cursor (0 = ninguno).</summary>
+    private static long _pendingMoveQpc;
+    /// <summary>Última vez (TickCount64) que GetCursorPos funcionó; si no, el cursor vuelve a salir de DDA.</summary>
+    private static long _pollerOkTick;
+    private static bool PollerHealthy => Environment.TickCount64 - Volatile.Read(ref _pollerOkTick) < 250;
+
+    [DllImport("winmm.dll")] private static extern uint timeBeginPeriod(uint period);
+    [DllImport("winmm.dll")] private static extern uint timeEndPeriod(uint period);
+
     /// <param name="outputName">Salida a capturar (<c>\\.\DISPLAYn</c>); null = la primera del escritorio
     /// (la única que tiene una sesión RDP). La mitad de la consola captura su pantalla virtual.</param>
     /// <param name="audio">false en la consola: su audio ya suena en local.</param>
@@ -147,13 +161,27 @@ public static class SeatAgent
             var captureThread = new Thread(() => CaptureLoop(channel, dev!, ctx!, o1, dupl, sharedTextures, keyedMutexes))
             {
                 IsBackground = true,
-                Name = "SeatAgent_Capture"
+                Name = "SeatAgent_Capture",
+                Priority = ThreadPriority.Highest,
             };
             captureThread.Start();
+            TryRaiseGpuPriority(dev!, "agente");
+
+            // 6b. Cursor por vía rápida (coordenadas de la salida capturada, como las de DDA)
+            int offX = od.DesktopCoordinates.Left, offY = od.DesktopCoordinates.Top;
+            new Thread(() => CursorPoller(channel, offX, offY))
+            {
+                IsBackground = true,
+                Name = "SeatAgent_Cursor",
+                Priority = ThreadPriority.Highest,
+            }.Start();
 
             // 7. Bucle de inyección de entrada (hilo principal)
             var injector = new Injector();
             injector.EnsureInputDesktop();
+            Thread.CurrentThread.Priority = ThreadPriority.Highest;
+            var injectLatency = new SeatLatency("lectura→inyección");
+            long nextInjectStats = Environment.TickCount64 + 10_000;
 
             while (!_stopping)
             {
@@ -170,6 +198,17 @@ public static class SeatAgent
                             if (Interlocked.Increment(ref _inputsReceived) <= 3)
                                 Logger.Log($"[SeatAgent] Entrada recibida: tipo={ev.Kind} flags={ev.Flags:X} dx={ev.Dx} dy={ev.Dy} código={ev.Code:X}");
                             injector.Inject(ev);
+                            injectLatency.AddSince(ev.Qpc);
+                            if (ev.Kind == SeatInputEvent.Mouse && (ev.Dx != 0 || ev.Dy != 0))
+                            {
+                                Interlocked.CompareExchange(ref _pendingMoveQpc, ev.Qpc, 0);
+                                _cursorKick.Set();
+                            }
+                            if (Environment.TickCount64 >= nextInjectStats)
+                            {
+                                nextInjectStats = Environment.TickCount64 + 10_000;
+                                if (injectLatency.Flush() is { Length: > 0 } st) Logger.Log($"[SeatAgent] 10 s:{st}");
+                            }
                         }
                         else Logger.Warning($"[SeatAgent] Mensaje de entrada de {data.Length} bytes (se esperaban {SeatInputEvent.Size}).");
                         break;
@@ -218,7 +257,7 @@ public static class SeatAgent
         bool lastPointerVisible = false;
 
         Span<byte> framePayload = stackalloc byte[12];
-        Span<byte> posPayload = stackalloc byte[12];
+        Span<byte> posPayload = stackalloc byte[20];
         int sent = 0, ringBusy = 0;
         long nextStats = Environment.TickCount64 + 10_000;
 
@@ -254,17 +293,23 @@ public static class SeatAgent
                 bool curVisible = info.PointerPosition.Visible;
                 int curX = info.PointerPosition.Position.X;
                 int curY = info.PointerPosition.Position.Y;
-                if (info.LastMouseUpdateTime != 0 &&
-                    (curX != lastPointerX || curY != lastPointerY || curVisible != lastPointerVisible))
+                if (info.LastMouseUpdateTime != 0)
                 {
-                    lastPointerX = curX;
-                    lastPointerY = curY;
-                    lastPointerVisible = curVisible;
+                    if (curVisible != _ddaVisible) { _ddaVisible = curVisible; _cursorKick.Set(); }
+                    // Sin GetCursorPos (escritorio seguro, sin permiso): la posición sale de DDA, como antes.
+                    if (!PollerHealthy &&
+                        (curX != lastPointerX || curY != lastPointerY || curVisible != lastPointerVisible))
+                    {
+                        lastPointerX = curX;
+                        lastPointerY = curY;
+                        lastPointerVisible = curVisible;
 
-                    BinaryPrimitives.WriteInt32LittleEndian(posPayload[0..], curX);
-                    BinaryPrimitives.WriteInt32LittleEndian(posPayload[4..], curY);
-                    BinaryPrimitives.WriteInt32LittleEndian(posPayload[8..], curVisible ? 1 : 0);
-                    channel.Send(SeatMsg.CursorPos, posPayload);
+                        BinaryPrimitives.WriteInt32LittleEndian(posPayload[0..], curX);
+                        BinaryPrimitives.WriteInt32LittleEndian(posPayload[4..], curY);
+                        BinaryPrimitives.WriteInt32LittleEndian(posPayload[8..], curVisible ? 1 : 0);
+                        BinaryPrimitives.WriteInt64LittleEndian(posPayload[12..], 0);
+                        channel.Send(SeatMsg.CursorPos, posPayload);
+                    }
                 }
 
                 // ── Cursor Shape ──
@@ -321,7 +366,8 @@ public static class SeatAgent
                         }
                         ctx.Flush();
 
-                        long qpc = Stopwatch.GetTimestamp();
+                        // Cuándo compuso DWM ese fotograma (QPC): el presentador mide desde ahí.
+                        long qpc = info.LastPresentTime != 0 ? info.LastPresentTime : Stopwatch.GetTimestamp();
                         BinaryPrimitives.WriteInt32LittleEndian(framePayload[0..], ringIdx);
                         BinaryPrimitives.WriteInt64LittleEndian(framePayload[4..], qpc);
                         channel.Send(SeatMsg.Frame, framePayload);
@@ -342,6 +388,75 @@ public static class SeatAgent
                 dupl.ReleaseFrame();
             }
         }
+    }
+
+    /// <summary>
+    /// Manda la posición del cursor en cuanto cambia: se despierta con cada movimiento inyectado
+    /// (o cada 1 ms, para lo que muevan las aplicaciones). Mide desde que se leyó el ratón.
+    /// </summary>
+    private static void CursorPoller(SeatChannel channel, int offX, int offY)
+    {
+        timeBeginPeriod(1);
+        try
+        {
+            Injector.AttachThreadToInputDesktop();
+            var latency = new SeatLatency("lectura→cursor");
+            Span<byte> payload = stackalloc byte[20];
+            int lastX = int.MinValue, lastY = int.MinValue;
+            bool lastVisible = false;
+            long nextAttach = 0, nextStats = Environment.TickCount64 + 10_000;
+            while (!_stopping)
+            {
+                _cursorKick.WaitOne(1);
+                long now = Environment.TickCount64;
+                if (now >= nextStats)
+                {
+                    nextStats = now + 10_000;
+                    if (latency.Flush() is { Length: > 0 } st) Logger.Log($"[SeatAgent] 10 s:{st}");
+                }
+                if (!Injector.TryGetCursorPos(out int x, out int y))
+                {
+                    // Cambio de escritorio (bloqueo, UAC): se vuelve a enganchar; mientras, manda DDA.
+                    if (now >= nextAttach) { nextAttach = now + 250; Injector.AttachThreadToInputDesktop(); }
+                    continue;
+                }
+                Volatile.Write(ref _pollerOkTick, now);
+                x -= offX; y -= offY;
+                bool visible = _ddaVisible;
+                if (x == lastX && y == lastY && visible == lastVisible) continue;
+                bool hiddenMove = !visible && !lastVisible;   // juego con el cursor oculto: no hay nada que pintar
+                lastX = x; lastY = y; lastVisible = visible;
+                if (hiddenMove) { Interlocked.Exchange(ref _pendingMoveQpc, 0); continue; }
+
+                long src = Interlocked.Exchange(ref _pendingMoveQpc, 0);
+                if (src != 0 && SeatLatency.Ms(src, Stopwatch.GetTimestamp()) > 100) src = 0;   // movimiento que no movió nada (borde)
+                latency.AddSince(src);
+                BinaryPrimitives.WriteInt32LittleEndian(payload[0..], x);
+                BinaryPrimitives.WriteInt32LittleEndian(payload[4..], y);
+                BinaryPrimitives.WriteInt32LittleEndian(payload[8..], visible ? 1 : 0);
+                BinaryPrimitives.WriteInt64LittleEndian(payload[12..], src);
+                try { channel.Send(SeatMsg.CursorPos, payload); }
+                catch { break; }   // tubería cerrada: el agente se está apagando
+            }
+        }
+        catch (Exception ex) { Logger.Warning($"[SeatAgent] Cursor rápido detenido: {ex.Message}"); }
+        finally { timeEndPeriod(1); }
+    }
+
+    /// <summary>
+    /// Sube la prioridad de GPU del dispositivo (copias y presentación son poca cosa, pero con la GPU
+    /// llena del juego esperarían turno). Hace falta SeIncreaseBasePriorityPrivilege: sin él, se queda igual.
+    /// </summary>
+    internal static void TryRaiseGpuPriority(ID3D11Device dev, string who)
+    {
+        try
+        {
+            using var dxgi = dev.QueryInterface<IDXGIDevice>();
+            var r = dxgi.SetGPUThreadPriority(7);
+            Logger.Log(r.Success ? $"[Seats] Prioridad de GPU alta para el {who}."
+                                 : $"[Seats] Prioridad de GPU del {who} sin cambiar (0x{r.Code:X8}).");
+        }
+        catch (Exception ex) { Logger.Log($"[Seats] Prioridad de GPU del {who} sin cambiar: {ex.Message}"); }
     }
 
     /// <summary>Rehace la duplicación en el escritorio de entrada actual; null si el agente se está apagando.</summary>
@@ -561,6 +676,14 @@ internal sealed class Injector
     [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] private static extern int GetClassName(IntPtr h, char[] buf, int max);
+
+    /// <summary>Posición del cursor (punto caliente) en coordenadas de la sesión; false si el hilo no está en el escritorio de entrada.</summary>
+    public static bool TryGetCursorPos(out int x, out int y)
+    {
+        bool ok = GetCursorPos(out var p);
+        x = p.X; y = p.Y;
+        return ok;
+    }
 
     /// <summary>Cursor, ventana activa y escritorio de entrada de la sesión (diagnóstico).</summary>
     public static string Diagnostics()

@@ -213,6 +213,7 @@ internal static class SeatInputRouter
             ev = new SeatInputEvent { Kind = SeatInputEvent.Keyboard, Code = k.MakeCode, Flags = k.Flags };
         }
 
+        ev.Qpc = System.Diagnostics.Stopwatch.GetTimestamp();
         Freeze(shield: !isMouse || ev.Flags != 0);
         Interlocked.Increment(ref Routed);
         try { route.Channel.Send(SeatMsg.Input, MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref ev, 1))); }
