@@ -338,7 +338,13 @@ static void RunTray(bool showWindow = false)
 
 static bool IsPublicPath(string path) => path.ToLowerInvariant() is
     "/login" or "/login.html" or "/setup" or "/setup.html" or "/style.css" or
-    "/app.js" or "/seats.js" or "/i18n.js" or "/theme.js" or "/favicon.svg" or "/favicon.ico";
+    "/app.js" or "/seats.js" or "/i18n.js" or "/ui-messages.js" or "/theme.js" or "/favicon.svg" or "/favicon.ico" or
+    "/locales/bg.json" or "/locales/cs.json" or "/locales/de.json" or "/locales/en.json" or
+    "/locales/en_gb.json" or "/locales/en_us.json" or "/locales/es.json" or "/locales/fr.json" or
+    "/locales/hu.json" or "/locales/it.json" or "/locales/ja.json" or "/locales/ko.json" or
+    "/locales/pl.json" or "/locales/pt.json" or "/locales/pt_br.json" or "/locales/ru.json" or
+    "/locales/sv.json" or "/locales/tr.json" or "/locales/uk.json" or "/locales/vi.json" or
+    "/locales/zh.json" or "/locales/zh_tw.json";
 
 // ── Llamadas locales ─────────────────────────────────────────────────────────
 

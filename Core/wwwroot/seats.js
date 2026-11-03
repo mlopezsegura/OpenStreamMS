@@ -209,7 +209,7 @@ async function saveSeatHardware(original, s) {
     devices: s.devices, exclusiveSession: s.exclusiveSession, autoStart: s.autoStart,
   });
   if (res && res.ok) { Object.assign(original, s); return true; }
-  toast((res && await res.text()) || t('toast.connectionError'), true);
+  toast((res && await I18n.responseError(res)) || t('toast.connectionError'), true);
   return false;
 }
 
@@ -351,7 +351,8 @@ function switchTab(tab) {
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => { if (location.hash === '#seats') switchTab('seats'); });
+document.addEventListener('DOMContentLoaded', async () => {
+  if (!await I18n.ready) return; if (location.hash === '#seats') switchTab('seats'); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden && seatTimer) loadSeats(); });
 
 async function loadSeats() {
@@ -420,10 +421,10 @@ function renderSeatCard(s) {
       </div>
       <div class="card-meta seat-line">${monitor}</div>
       ${renderSeatHardware(s, locked)}
-      ${(starting || s.state === 'Stopped') && s.statusDetail ? `<div class="card-detail">${esc(s.statusDetail)}</div>` : ''}
+      ${(starting || s.state === 'Stopped') && s.statusDetail ? `<div class="card-detail">${esc(I18n.status(s.statusDetail))}</div>` : ''}
       ${warning}
       ${noInput}
-      ${s.errorMessage ? `<div class="card-error">${esc(s.errorMessage)}</div>` : ''}
+      ${s.errorMessage ? `<div class="card-error">${esc(I18n.message(s.errorMessage))}</div>` : ''}
       <div class="card-footer">
         <label class="toggle" title="${esc(t('seat.autostart'))}">
           <input type="checkbox" ${s.autoStart ? 'checked' : ''} onchange="setSeatAutoStart('${s.id}', this.checked)">
@@ -458,14 +459,14 @@ function seatBadge(state) {
 async function seatAction(id, action) {
   const res = await api('POST', `/api/seats/${id}/${action}`);
   if (!res) return;
-  if (!res.ok) { toast(await res.text() || t('toast.connectionError'), true); return; }
+  if (!res.ok) { toast(await I18n.responseError(res) || t('toast.connectionError'), true); return; }
   loadSeats();
   setTimeout(loadMonitorMap, 4000);   // al encender o apagar, la consola puede ganar o perder su mitad
 }
 
 async function setSeatAutoStart(id, enabled) {
   const res = await api('PATCH', `/api/seats/${id}/autostart`, { enabled });
-  if (!res || !res.ok) { toast((res && await res.text()) || t('toast.autostartError'), true); loadSeats(); }
+  if (!res || !res.ok) { toast((res && await I18n.responseError(res)) || t('toast.autostartError'), true); loadSeats(); }
   else toast(enabled ? t('toast.autostartOn') : t('toast.autostartOff'));
 }
 
@@ -554,7 +555,7 @@ function toggleMicMeter() {
       const res = await api('GET', `/api/seats/identify/mic?id=${encodeURIComponent(id)}`);
       if (!res || !res.ok) return;
       const { level, error } = await res.json();
-      if (error) { stopMicMeter(); setMicStatus(t('seat.micError', { error }), 'error'); return; }
+      if (error) { stopMicMeter(); setMicStatus(t('seat.micError', { error: I18n.message(error) }), 'error'); return; }
       // Escala logarítmica (como un vúmetro): la voz normal queda a media barra.
       const db = level > 0 ? 20 * Math.log10(level) : -60;
       const pct = Math.max(0, Math.min(100, (db + 60) / 60 * 100));
@@ -590,7 +591,7 @@ async function testSeatMonitor() {
   if (!id) return;
   const res = await api('POST', '/api/seats/identify/monitor', { id });
   if (!res) return;
-  if (!res.ok) { toast(await res.text() || t('toast.connectionError'), true); return; }
+  if (!res.ok) { toast(await I18n.responseError(res) || t('toast.connectionError'), true); return; }
   toast(t('seat.testingMonitor'));
 }
 
@@ -599,7 +600,7 @@ async function testSeatAudio() {
   if (!id) return;
   const res = await api('POST', '/api/seats/identify/audio', { id });
   if (!res) return;
-  if (!res.ok) { toast(await res.text() || t('toast.connectionError'), true); return; }
+  if (!res.ok) { toast(await I18n.responseError(res) || t('toast.connectionError'), true); return; }
   toast(t('seat.testingAudio'));
 }
 
@@ -868,7 +869,7 @@ async function submitSeat(e) {
     }
     const res = await api(id ? 'PUT' : 'POST', id ? `/api/seats/${id}` : '/api/seats', body);
     if (!res) return;
-    if (!res.ok) { fail(await res.text() || t('toast.connectionError')); return; }
+    if (!res.ok) { fail(await I18n.responseError(res) || t('toast.connectionError')); return; }
     if (restart) {
       const start = await api('POST', `/api/seats/${id}/start`);
       if (start && !start.ok) toast(await start.text() || t('toast.connectionError'), true);
@@ -907,7 +908,21 @@ async function waitSeatState(id, state, timeoutMs) {
   return false;
 }
 
-window.addEventListener('langchange', () => { if (activeTab === 'seats') renderSeats(); });
+window.addEventListener('langchange', () => {
+  if (activeTab === 'seats') renderSeats();
+  if (!document.getElementById('seat-modal').classList.contains('hidden')) {
+    const f = document.getElementById('seat-form');
+    const dimensions = [f.Width.value, f.Height.value, f.RefreshHz.value];
+    renderSeatInventory({
+      monitor: f.Monitor.value, area: f.Area.value || 'Full',
+      audio: f.AudioOut.value, mic: f.AudioIn.value,
+      devices: new Set([...document.querySelectorAll('#seat-devices input:checked')].map(c => c.value)),
+    });
+    [f.Width.value, f.Height.value, f.RefreshHz.value] = dimensions;
+    document.getElementById('seat-modal-title').textContent = t(editingSeat ? 'seat.editTitle' : 'seat.newTitle');
+    updateSeatPreview();
+  }
+});
 
 // ── Vista previa del editor de puestos ─────────────────────────────────────
 function updateSeatPreview() {
@@ -938,7 +953,8 @@ function updateSeatPreview() {
     </div>`, `${mon ? mon.devicePath : ''}|${area}`);
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  if (!await I18n.ready) return;
   const form = document.getElementById('seat-form');
   form?.addEventListener('input', updateSeatPreview);
   form?.addEventListener('change', updateSeatPreview);
