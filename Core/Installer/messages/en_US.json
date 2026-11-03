@@ -1,0 +1,13 @@
+{
+  "GroupService": "Service:",
+  "TaskStartService": "Start the service right after installing",
+  "GroupSeats": "Local seats:",
+  "TaskRemoteIdd": "Install the seat display driver (RemoteIdd, experimental: test certificate; restarts Remote Desktop)",
+  "IconComment": "OpenStreamMS control panel",
+  "StatusInstallService": "Registering the Windows service and installing drivers (ViGEmBus, HidHide)...",
+  "StatusRemoveRemoteIdd": "Removing the previous display driver (RemoteIdd)...",
+  "StatusInstallRemoteIdd": "Installing the seat display driver (RemoteIdd)...",
+  "StatusStartService": "Starting the service...",
+  "AskPurgeData": "Also delete all OpenStreamMS data?%n%nSessions, seats and settings; the osms- users of isolated sessions and their profiles (including games and settings saved in them); stream profiles, ProgramData\\OpenStreamMS and temporary files.%n%nIf you answer No, sessions and settings are kept for a reinstall.",
+  "AskRemoveDeps": "Also uninstall RDP Wrapper, ViGEmBus and HidHide?%n%nAnswer No if other applications use them."
+}

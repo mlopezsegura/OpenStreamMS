@@ -1,0 +1,13 @@
+{
+  "GroupService": "Service :",
+  "TaskStartService": "Démarrer le service juste après l'installation",
+  "GroupSeats": "Postes locaux :",
+  "TaskRemoteIdd": "Installer le pilote d'affichage des postes (RemoteIdd, expérimental : certificat de test ; redémarre le Bureau à distance)",
+  "IconComment": "Panneau de contrôle OpenStreamMS",
+  "StatusInstallService": "Enregistrement du service Windows et installation des pilotes (ViGEmBus, HidHide)...",
+  "StatusRemoveRemoteIdd": "Suppression de l'ancien pilote d'affichage (RemoteIdd)...",
+  "StatusInstallRemoteIdd": "Installation du pilote d'affichage des postes (RemoteIdd)...",
+  "StatusStartService": "Démarrage du service...",
+  "AskPurgeData": "Supprimer aussi toutes les données d'OpenStreamMS ?%n%nSessions, postes et paramètres ; les utilisateurs osms- des sessions isolées et leurs profils (y compris les jeux et réglages qui y sont enregistrés) ; les profils de stream, ProgramData\\OpenStreamMS et les fichiers temporaires.%n%nSi vous répondez Non, les sessions et les paramètres sont conservés pour une réinstallation.",
+  "AskRemoveDeps": "Désinstaller aussi RDP Wrapper, ViGEmBus et HidHide ?%n%nRépondez Non si d'autres applications les utilisent."
+}

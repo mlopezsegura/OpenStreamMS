@@ -22,6 +22,16 @@ The corresponding source code for the Sunshine binaries is available at the comm
 linked above. If that link ever becomes unavailable, open an issue in this repository
 and the maintainer will provide the corresponding source for the distributed version.
 
+## Inno Setup language resources
+
+The installer uses official Inno Setup language files and additional unmodified
+translations from https://github.com/jrsoftware/issrc at the commit recorded in
+`Core/Installer/Languages/sources.json`. Copyright and translator attribution are
+retained in those files. Redistribution is under the Inno Setup License, included
+as `Core/Installer/Languages/InnoSetup-LICENSE.txt`. British English and Vietnamese
+are maintained unofficial translations; Chinese Simplified and Traditional are
+listed as official on https://jrsoftware.org/files/istrans/.
+
 ## Trademarks
 
 Sunshine, Moonlight, FreeRDP, Windows and Remote Desktop are trademarks of their

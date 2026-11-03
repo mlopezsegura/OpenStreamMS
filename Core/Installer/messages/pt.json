@@ -1,0 +1,13 @@
+{
+  "GroupService": "Serviço:",
+  "TaskStartService": "Iniciar o serviço logo após a instalação",
+  "GroupSeats": "Postos locais:",
+  "TaskRemoteIdd": "Instalar o controlador de ecrã dos postos (RemoteIdd, experimental: certificado de teste; reinicia o Ambiente de Trabalho Remoto)",
+  "IconComment": "Painel de controlo do OpenStreamMS",
+  "StatusInstallService": "A registar o serviço do Windows e a instalar controladores (ViGEmBus, HidHide)...",
+  "StatusRemoveRemoteIdd": "A remover o controlador de ecrã anterior (RemoteIdd)...",
+  "StatusInstallRemoteIdd": "A instalar o controlador de ecrã dos postos (RemoteIdd)...",
+  "StatusStartService": "A iniciar o serviço...",
+  "AskPurgeData": "Eliminar também todos os dados do OpenStreamMS?%n%nSessões, postos e definições; os utilizadores osms- das sessões isoladas e os respetivos perfis (incluindo jogos e definições guardados neles); perfis de stream, ProgramData\\OpenStreamMS e ficheiros temporários.%n%nSe responder Não, as sessões e as definições são mantidas para uma reinstalação.",
+  "AskRemoveDeps": "Desinstalar também o RDP Wrapper, o ViGEmBus e o HidHide?%n%nResponda Não se outras aplicações os utilizarem."
+}

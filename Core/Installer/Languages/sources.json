@@ -1,0 +1,18 @@
+{
+  "repository": "https://github.com/jrsoftware/issrc",
+  "commit": "5bcadfcd05e9857a47a6880a2ac0694c9ab60122",
+  "files": {
+    "ChineseSimplified.isl": "Files/Languages/ChineseSimplified.isl",
+    "ChineseTraditional.isl": "Files/Languages/ChineseTraditional.isl",
+    "EnglishBritish.isl": "Files/Languages/Unofficial/EnglishBritish.isl",
+    "Vietnamese.isl": "Files/Languages/Unofficial/Vietnamese.isl",
+    "InnoSetup-LICENSE.txt": "license.txt"
+  },
+  "license": "Inno Setup License (vendored alongside unchanged attribution)",
+  "status": {
+    "ChineseSimplified": "official",
+    "ChineseTraditional": "official",
+    "EnglishBritish": "unofficial maintained",
+    "Vietnamese": "unofficial maintained"
+  }
+}

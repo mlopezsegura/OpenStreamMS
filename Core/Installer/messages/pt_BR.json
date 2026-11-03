@@ -1,0 +1,13 @@
+{
+  "GroupService": ":",
+  "TaskStartService": "Inicie o serviço logo após a instalação\nEstações de trabalho locais",
+  "GroupSeats": "Estações de trabalho locais:",
+  "TaskRemoteIdd": "Instale o driver de vídeo da estação de trabalho (RemoteIdd, experimental: certificado de teste; reinicia a Área de Trabalho Remota)\nPainel de controle",
+  "IconComment": "OpenStreamMS",
+  "StatusInstallService": "Registrando o serviço Windows e instalando drivers (ViGEmBus, HidHide)...",
+  "StatusRemoveRemoteIdd": "Removendo o driver de vídeo anterior (RemoteIdd)...",
+  "StatusInstallRemoteIdd": "Instalando o driver de vídeo da estação de trabalho (RemoteIdd)...",
+  "StatusStartService": "Iniciando o serviço...",
+  "AskPurgeData": "Exclua também todos os dados OpenStreamMS?%n%nSessões, estações de trabalho locais e configurações; os usuários osms- de sessões isoladas e seus perfis (incluindo jogos e configurações neles salvos); perfis de fluxo, ProgramData\\OpenStreamMS e arquivos temporários.%n%nSe você responder Não, as sessões e configurações serão mantidas para uma reinstalação.",
+  "AskRemoveDeps": "Desinstale também RDP Wrapper, ViGEmBus e HidHide?%n%nResponda Não se outros aplicativos os usarem."
+}

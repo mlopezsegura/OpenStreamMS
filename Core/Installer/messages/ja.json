@@ -1,0 +1,13 @@
+{
+  "GroupService": "サービス:",
+  "TaskStartService": "インストール直後にサービスを開始する",
+  "GroupSeats": "ローカルワークステーション:",
+  "TaskRemoteIdd": "ワークステーション ディスプレイ ドライバーをインストールします (RemoteIdd、実験的: テスト証明書、リモート デスクトップを再起動します)",
+  "IconComment": "OpenStreamMS コントロールパネル",
+  "StatusInstallService": "Windows サービスを登録し、ドライバー (ViGEmBus、HidHide) をインストールしています...",
+  "StatusRemoveRemoteIdd": "以前のディスプレイ ドライバー (RemoteIdd) を削除しています...",
+  "StatusInstallRemoteIdd": "ワークステーション ディスプレイ ドライバー (RemoteIdd) をインストールしています...",
+  "StatusStartService": "サービスを開始しています...",
+  "AskPurgeData": "OpenStreamMS のすべてのデータも削除しますか？%n%nセッション、ワークステーション、設定、分離セッションの osms- ユーザーとそのプロファイル（保存されたゲームと設定を含む）、ストリーミングプロファイル、ProgramData\\OpenStreamMS、一時ファイルが対象です。%n%n「いいえ」を選ぶと、再インストールに備えてセッションと設定を保持します。",
+  "AskRemoveDeps": "RDP Wrapper、ViGEmBus、HidHide もアンインストールしますか？%n%nほかのアプリケーションが使用している場合は「いいえ」を選んでください。"
+}
