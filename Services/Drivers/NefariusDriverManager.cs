@@ -246,26 +246,36 @@ public abstract class NefariusDriverManager
 
     private async Task<int> RunProcessAsync(string fileName, string args, string workingDir, CancellationToken ct)
     {
+        // Sin redirigir stdout/stderr: los instaladores WiX Burn no escriben nada ahí, pero
+        // lanzan procesos hijos que heredan la tubería, y WaitForExitAsync espera a que se
+        // cierre; si un hijo se queda vivo, la operación no acababa nunca ("Working…").
         var psi = new ProcessStartInfo(fileName, args)
         {
-            WorkingDirectory       = workingDir,
-            UseShellExecute        = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError  = true,
-            CreateNoWindow         = true,
+            WorkingDirectory = workingDir,
+            UseShellExecute  = false,
+            CreateNoWindow   = true,
         };
 
-        using var p = new Process { StartInfo = psi, EnableRaisingEvents = true };
-        p.OutputDataReceived += (_, e) => { if (e.Data is not null) AppendLog(e.Data); };
-        p.ErrorDataReceived  += (_, e) => { if (e.Data is not null) AppendLog($"[stderr] {e.Data}"); };
-
+        using var p = new Process { StartInfo = psi };
         p.Start();
-        p.BeginOutputReadLine();
-        p.BeginErrorReadLine();
 
-        await p.WaitForExitAsync(ct);
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(ProcessTimeout);
+        try
+        {
+            await p.WaitForExitAsync(timeout.Token);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            try { p.Kill(entireProcessTree: true); } catch { }
+            throw new TimeoutException(
+                $"El instalador no terminó en {ProcessTimeout.TotalMinutes:0} minutos y se ha cancelado. " +
+                "Si el driver ya aparece como instalado, basta con reiniciar el equipo.");
+        }
         return p.ExitCode;
     }
+
+    private static readonly TimeSpan ProcessTimeout = TimeSpan.FromMinutes(5);
 
     private void AppendLog(string line)
     {

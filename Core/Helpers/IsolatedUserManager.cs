@@ -166,8 +166,8 @@ internal static class IsolatedUserManager
 
         // NetUserAdd NO añade a ningún grupo: sin Users no hay logon interactivo,
         // sin Remote Desktop Users termsrv rechaza la conexión de FreeRDP.
-        AddToLocalGroup(username, WellKnownSidType.BuiltinUsersSid);
-        AddToLocalGroup(username, WellKnownSidType.BuiltinRemoteDesktopUsersSid);
+        AddToLocalGroup(username, WellKnownSidType.BuiltinUsersSid, required: true);
+        AddToLocalGroup(username, WellKnownSidType.BuiltinRemoteDesktopUsersSid, required: false);
         HideFromLoginScreen(username);
         RemoveLegacySteamDeny(username);
 
@@ -468,13 +468,28 @@ internal static class IsolatedUserManager
 
     // ── Privados ──────────────────────────────────────────────────────────────
 
-    static void AddToLocalGroup(string username, WellKnownSidType groupSid)
+    static void AddToLocalGroup(string username, WellKnownSidType groupSid, bool required)
     {
         // Resolver el nombre LOCALIZADO del grupo desde su SID well-known
         // ("Remote Desktop Users" es "Usuarios de escritorio remoto" en es-ES).
-        var sid     = new SecurityIdentifier(groupSid, null);
-        var account = ((NTAccount)sid.Translate(typeof(NTAccount))).Value;
-        var group   = account.Contains('\\') ? account[(account.IndexOf('\\') + 1)..] : account;
+        var sid = new SecurityIdentifier(groupSid, null);
+        string group;
+        try
+        {
+            var account = ((NTAccount)sid.Translate(typeof(NTAccount))).Value;
+            group = account.Contains('\\') ? account[(account.IndexOf('\\') + 1)..] : account;
+        }
+        catch (IdentityNotMappedException)
+        {
+            // Hay Windows "aligerados" (Tiny11, Atlas, ReviOS…) que borran grupos integrados.
+            // Antes esto subía tal cual ("Some or all identity references could not be
+            // translated") y la sesión no arrancaba sin decir qué faltaba.
+            var msg = $"[IsolatedUser] Este Windows no tiene el grupo integrado {GroupLabel(groupSid)} ({sid.Value}); " +
+                      $"no se puede añadir '{username}'.";
+            if (required) throw new InvalidOperationException(msg);
+            Logger.Error(msg + " Se sigue, pero Windows puede rechazar su conexión de escritorio remoto.");
+            return;
+        }
 
         var member = new LOCALGROUP_MEMBERS_INFO_3
         {
@@ -485,6 +500,13 @@ internal static class IsolatedUserManager
         if (rc is not (NERR_Success or ERROR_MEMBER_IN_ALIAS))
             Logger.Warning($"[IsolatedUser] No se pudo añadir '{username}' al grupo '{group}': error {rc}.");
     }
+
+    static string GroupLabel(WellKnownSidType groupSid) => groupSid switch
+    {
+        WellKnownSidType.BuiltinUsersSid              => "'Users'",
+        WellKnownSidType.BuiltinRemoteDesktopUsersSid => "'Remote Desktop Users'",
+        _                                             => groupSid.ToString(),
+    };
 
     static void HideFromLoginScreen(string username)
     {
