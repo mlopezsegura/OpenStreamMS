@@ -37,6 +37,7 @@ window.addEventListener('langchange', () => {
   for (const k of DRIVER_KEYS) {
     const st = drivers[k].lastStatus;
     if (st) { updateDriverPill(k, st); renderDriverStatus(k, st); }
+    renderDriverLog(k);
   }
   // Ventana de sesión abierta: puerto derivado, título y botón
   updateDerivedWebPort();
@@ -1084,8 +1085,8 @@ async function sunmgrUnpairAll() {
 // Misma UI para los dos: pastilla en la barra + modal. Ids de los elementos
 // con prefijo <clave>- y textos i18n con prefijo <clave>.
 const drivers = {
-  vigem:   { api: '/api/vigembus', lastStatus: null, logTimer: null },
-  hidhide: { api: '/api/hidhide',  lastStatus: null, logTimer: null },
+  vigem:   { api: '/api/vigembus', lastStatus: null, logTimer: null, logLines: [] },
+  hidhide: { api: '/api/hidhide',  lastStatus: null, logTimer: null, logLines: [] },
 };
 const DRIVER_KEYS = Object.keys(drivers);
 
@@ -1137,7 +1138,7 @@ function renderDriverStatus(k, st) {
   badge.innerHTML = `<span class="badge-dot"></span>${esc(t(key))}`;
 
   document.getElementById(`${k}-version`).textContent = st.installedVersion || '—';
-  document.getElementById(`${k}-service`).textContent = st.serviceState     || '—';
+  document.getElementById(`${k}-service`).textContent = I18n.driverServiceState(st.serviceState);
   document.getElementById(`${k}-driver`).textContent  = st.driverImagePath  || '—';
 
   document.getElementById(`${k}-reboot-banner`).style.display = st.rebootRequired ? '' : 'none';
@@ -1151,13 +1152,19 @@ async function driverFetchLog(k) {
   const res = await api('GET', `${drivers[k].api}/log`);
   if (!res || !res.ok) return;
   const data = await res.json();
+  drivers[k].logLines = data.lines || [];
+  renderDriverLog(k);
+}
+
+function renderDriverLog(k) {
   const box  = document.getElementById(`${k}-log-box`);
-  if (!data.lines || data.lines.length === 0) {
+  const lines = drivers[k].logLines;
+  if (lines.length === 0) {
     box.innerHTML = `<span class="log-empty">${esc(t('vigem.log.empty'))}</span>`;
     return;
   }
   const wasAtBottom = box.scrollHeight - box.scrollTop <= box.clientHeight + 10;
-  box.textContent = data.lines.join('\n');
+  box.textContent = lines.map(line => I18n.driverLog(line)).join('\n');
   if (wasAtBottom) box.scrollTop = box.scrollHeight;
 }
 

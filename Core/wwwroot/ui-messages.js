@@ -55,4 +55,42 @@
     if (/^(Desconectado|Apagado):?/.test(text)) return this.t('seat.status.stopped');
     return this.t('seat.status.pending');
   };
+  I18n.driverServiceState = function(state) {
+    const key = { Running: 'driver.log.running', Stopped: 'driver.log.stopped' }[state];
+    return key ? this.t(key) : String(state || '—');
+  };
+  // Compatibility with the existing Spanish-text driver API. Keep timestamps,
+  // paths, exit codes and unrecognized vendor diagnostics; render as textContent.
+  I18n.driverLog = function(raw) {
+    const line = String(raw ?? '');
+    const stamp = line.match(/^(\[\d{2}:\d{2}:\d{2}\] )(.*)$/s);
+    const prefix = stamp?.[1] || '';
+    const text = stamp?.[2] ?? line;
+    const translate = (key, params) => prefix + this.t('driver.log.' + key, params);
+    let m;
+    if ((m = text.match(/^--- (Inicio|Fin): (install|uninstall) \((\d{2}:\d{2}:\d{2})\) ---$/))) {
+      return translate(m[1] === 'Inicio' ? 'start' : 'end', {
+        action: this.t(m[2] === 'install' ? 'vigem.btn.install' : 'vigem.btn.uninstall'), time: m[3],
+      });
+    }
+    if ((m = text.match(/^Usando el instalador incluido: (.+)$/s))) return translate('bundled', { path: m[1] });
+    if ((m = text.match(/^Descargando última release de (.+)…$/s))) return translate('download', { repo: m[1] });
+    if ((m = text.match(/^Asset: (.+)$/s))) return translate('asset', { name: m[1] });
+    if ((m = text.match(/^Descargado en: (.+)$/s))) return translate('downloaded', { path: m[1] });
+    if ((m = text.match(/^Ejecutando instalador silencioso \((.*)\)…$/s))) return translate('executing', { args: m[1] });
+    if ((m = text.match(/^✗ No se encontró el comando de desinstalación de (.+) en el registro\.$/s))) return translate('noUninstall', { name: m[1] });
+    if ((m = text.match(/^Usando comando de desinstalación registrado: (.+)$/s))) return translate('uninstallCommand', { command: m[1] });
+    if ((m = text.match(/^Instalador salió con código (-?\d+)\.$/))) return translate('exitCode', { code: m[1] });
+    if ((m = text.match(/^✓ (.+) (instalado|desinstalado) correctamente\.$/s))) return translate(m[2] === 'instalado' ? 'installed' : 'uninstalled', { name: m[1] });
+    if (text === '⚠ Se requiere reiniciar Windows para completar la operación.') return prefix + this.t('vigem.rebootRequired');
+    if (text === '✗ Cancelado por el usuario.') return translate('cancelled');
+    if (text === '✗ Fallo fatal durante la instalación (revisa el log de Windows Installer).') return translate('fatal');
+    if (text === '✗ Código de salida desconocido.') return translate('unknownExit');
+    if ((m = text.match(/^Estado actual: Installed=(True|False), Version=(.*), ServiceState=(.*)$/s))) {
+      return translate('status', { installed: this.t('driver.log.' + (m[1] === 'True' ? 'yes' : 'no')), version: m[2], service: this.driverServiceState(m[3]) });
+    }
+    if ((m = text.match(/^(?:ERROR: )?No se encontró el instalador \.exe en la última release de (.+)\.$/s))) return translate('missingInstaller', { repo: m[1] });
+    if ((m = text.match(/^ERROR: (.*)$/s))) return translate('error', { detail: m[1] });
+    return line;
+  };
 })();

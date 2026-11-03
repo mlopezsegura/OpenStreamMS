@@ -15,6 +15,7 @@ const server = http.createServer((req, res) => {
   fs.createReadStream(file).pipe(res);
 });
 const results = [];
+const driverFixture = require('./fixtures/driver-log.json');
 (async () => {
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const origin = process.env.I18N_BASE_URL || 'http://127.0.0.1:' + server.address().port;
@@ -26,6 +27,7 @@ const results = [];
       const context = await browser.newContext({ locale: lang.replaceAll('_', '-'), colorScheme: 'dark', reducedMotion: 'reduce', viewport: { width: 1280, height: 900 } });
       const errors = [];
       const dictionaries = [];
+      const driverMutations = [];
       const page = await context.newPage();
       page.on('pageerror', e => errors.push(e.message));
       page.on('response', r => { if (/\/locales\/\w+\.json$/.test(r.url())) dictionaries.push({ path: new URL(r.url()).pathname, status: r.status() }); });
@@ -33,7 +35,15 @@ const results = [];
       await page.route('**/api/**', route => {
         const url = new URL(route.request().url());
         let body = [];
+        const driver = url.pathname.match(/^\/api\/(vigembus|hidhide)\/(status|log)$/);
+        if (url.pathname.match(/^\/api\/(vigembus|hidhide)\//) && route.request().method() !== 'GET') driverMutations.push(url.pathname);
         if (url.pathname.endsWith('/status')) body = { installed: true, active: true, busy: false };
+        if (driver) {
+          const name = driver[1] === 'vigembus' ? 'ViGEmBus' : 'HidHide';
+          body = driver[2] === 'status'
+            ? { installed: true, installedVersion: '1.22.0', serviceState: 'Running', driverImagePath: `C:\\Tests\\drivers\\${name}.sys`, busy: false, rebootRequired: false }
+            : { lines: [...driverFixture.slice(0,10),driverFixture.at(-1)].map(row => row.raw.replaceAll('ViGEmBus',name)) };
+        }
         if (url.pathname === '/api/settings') body = { logLevel: 'Error' };
         if (url.pathname === '/api/seats/inventory') body = { monitors: [], audioOutputs: [], audioInputs: [], devices: [] };
         return route.fulfill({ json: body });
@@ -63,6 +73,25 @@ const results = [];
           assert.equal(await page.locator('#seat-modal-title').textContent(), table['seat.newTitle']);
           await page.screenshot({ path: path.join(output, lang + '-new-seat.png'), fullPage: true });
           await page.evaluate(() => closeSeatModal());
+          for (const k of ['vigem','hidhide']) {
+            await page.evaluate(k => openDriverModal(k), k);
+            const box = page.locator(`#${k}-log-box`);
+            await page.waitForFunction(k => document.getElementById(`${k}-log-box`).textContent.includes('ViGEmBus_1.22.0') || document.getElementById(`${k}-log-box`).textContent.includes('HidHide_1.22.0'), k);
+            const log = await box.textContent();
+            assert.ok(log.includes(await page.evaluate(() => t('driver.log.bundled', { path: '' }))), lang + ':' + k);
+            assert.ok(log.includes('/quiet /install /norestart'), lang + ': installer args intact');
+            assert.ok(log.includes('[13:35:17]'), lang + ': timestamps intact');
+            assert.ok(log.includes('<img src=x onerror=alert(1)> {code}'), lang + ': vendor diagnostics intact');
+            assert.equal(await box.locator('img').count(),0,lang + ': log is plain text');
+            assert.equal(await page.locator(`#${k}-service`).textContent(),table['driver.log.running']);
+            await page.screenshot({path:path.join(output,`${lang}-${k}-log.png`),fullPage:true});
+            await page.evaluate(() => I18n.setLanguage('en'));
+            assert.ok((await box.textContent()).includes('Using bundled installer: '),lang + ': open log switches to English');
+            await page.evaluate(l => I18n.setLanguage(l),lang);
+            assert.equal(await box.textContent(),log,lang + ': original log locale restored');
+            await page.evaluate(k => closeDriverModal(k),k);
+            results.push({lang,check:k + ' localized log, service state, live switching, plain-text diagnostics',status:'passed'});
+          }
         }
         await page.screenshot({ path: path.join(output, lang + '-' + file.replace('.html', '') + '.png'), fullPage: true });
         results.push({ lang, page: file, status: 'passed' });
@@ -75,6 +104,7 @@ const results = [];
         assert.equal(await page.locator('html').getAttribute('lang'), lang.replaceAll('_', '-'));
       }
       assert.deepEqual(errors, [], lang + ' page errors');
+      assert.deepEqual(driverMutations, [], 'driver inspection must never install or uninstall');
       assert.ok(dictionaries.some(r => r.path === '/locales/en.json' && r.status === 200));
       assert.ok(dictionaries.some(r => r.path === '/locales/' + lang + '.json' && r.status === 200));
       assert.ok(dictionaries.every(r => r.status === 200));

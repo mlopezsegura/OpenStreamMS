@@ -80,6 +80,7 @@ function environment({ language = 'en', stored, fail = [], delay = {}, tables = 
   context.window = context;
   context.dispatchEvent = event => events.push(event.type);
   vm.runInContext(loader, context);
+  vm.runInContext(fs.readFileSync(path.join(web, 'ui-messages.js'), 'utf8'), context);
   return { I18n: context.I18n, document, selector, classes, writes, events };
 }
 
@@ -160,6 +161,33 @@ test('regional catalogs inherit missing keys from their base before English', as
     const e = environment({ language:code, tables:{...catalogs,[code]:{}} }); await e.I18n.ready;
     assert.equal(e.I18n.t('login.welcome'),catalogs[base]['login.welcome'],code);
   }
+});
+
+test('driver logs localize real operation messages without losing diagnostic details', async () => {
+  const fixture = require('./fixtures/driver-log.json');
+  const e = environment({ language: 'ru' }); await e.I18n.ready;
+  for (const {raw, ru} of fixture) assert.equal(e.I18n.driverLog(raw), ru);
+  assert.equal(e.I18n.driverServiceState('Running'), 'Работает');
+  assert.equal(e.I18n.driverServiceState('StartPending'), 'StartPending');
+  assert.equal(e.I18n.driverServiceState(null), '—');
+  for (const lang of Object.keys(catalogs)) {
+    await e.I18n.setLanguage(lang);
+    const line = e.I18n.driverLog(fixture[1].raw);
+    assert.ok(line.startsWith('[13:35:17] '), lang);
+    assert.ok(line.endsWith('C:\\Tests\\drivers\\ViGEmBus_1.22.0_x64_x86_arm64.exe'), lang);
+    assert.ok(!/driver\.log\./.test(line), lang);
+    assert.equal(e.I18n.driverLog(fixture.at(-1).raw), fixture.at(-1).raw, lang);
+  }
+  await e.I18n.setLanguage('ru');
+  assert.equal(e.I18n.driverLog(fixture[0].raw), fixture[0].ru);
+  await e.I18n.setLanguage('en');
+  assert.match(e.I18n.driverLog(fixture[0].raw), /Start: Install/);
+});
+
+test('missing driver log translations fall back to English with intact parameters', async () => {
+  const ru = {...catalogs.ru}; delete ru['driver.log.exitCode'];
+  const e = environment({language:'ru',tables:{...catalogs,ru}}); await e.I18n.ready;
+  assert.equal(e.I18n.driverLog('[01:02:03] Instalador salió con código 1603.'), '[01:02:03] Installer exited with code 1603.');
 });
 
 test('tray and installer catalogs have matching keys, formatting and no empty translations', () => {

@@ -41,5 +41,10 @@ listed by Inno Setup. Unmodified attribution and the Inno Setup License are reta
 Test with `node --test tests/i18n.test.cjs`, then the Edge fixture harness
 `tests/i18n-browser.cjs` and the published-file/HTTP tests. The fixture intercepts
 API calls and cannot validate real streaming, installation, driver or RDP behavior.
-CLI/operator logs, API documentation and arbitrary external error details are not
-certified localized by these catalogs; unknown UI errors use a localized summary.
+The driver dialog translates OpenStreamMS-owned operation log lines from the
+existing text API, including progress, exit codes and service states. Language
+switching rerenders cached raw lines immediately. Paths, arguments, timestamps
+and unrecognized vendor diagnostics remain intact and are rendered as plain text.
+Backend log files and API payloads are unchanged. CLI/operator logs, API
+documentation and arbitrary external error details are not certified localized
+by these catalogs; unknown UI errors use a localized summary.

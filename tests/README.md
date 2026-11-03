@@ -24,10 +24,13 @@ $env:I18N_TEST_OUTPUT = 'C:/path/to/test-results'
 node tests/i18n-browser.cjs
 ```
 
-All API requests in this suite are intercepted. The suite checks the five
+All API requests in this suite are intercepted. The suite checks all 22
 languages on Login, Setup and Dashboard, language persistence, open session/seat
 forms, preservation of unsaved fields, errors, fallback and Russian action labels
-at 375/720/1280 pixels in light/dark themes. Screenshots and JSON results are saved.
+at 375/720/1280 pixels in light/dark themes. Driver dialogs also check localized
+progress/success/failure log rendering, live language changes, preserved technical
+details and safe text rendering. Driver API calls must remain GET-only; no driver
+is installed or removed. Screenshots and JSON results are saved.
 
 For real ASP.NET static-file and public-path checks, generate a separate host
 outside the product source tree:
