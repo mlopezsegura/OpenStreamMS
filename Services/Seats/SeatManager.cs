@@ -73,6 +73,9 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
     private volatile int _generation;
     public int Generation => _generation;
 
+    /// <summary>Usuarios a los que cada puesto encendido apagó la Game Bar del mando (ver <see cref="GuideButtonGuard"/>).</summary>
+    private readonly ConcurrentDictionary<Guid, IReadOnlyList<string>> _guideUsers = new();
+
     /// <summary>
     /// Sesión de Windows del puesto activo que tiene asignado ese puerto USB, o false si
     /// ningún puesto encendido lo reclama (entonces el dispositivo va a la consola).
@@ -324,6 +327,12 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
             // taparía también los monitores de los puestos.
             ConsoleLockGuard.Engage();
 
+            // El botón Guía de cualquier mando abre la Game Bar en todas las sesiones: se apaga
+            // para la del puesto y la de la consola mientras el puesto esté encendido.
+            var guideUsers = GuideButtonGuard.UsersFor(session.RdpSessionId);
+            GuideButtonGuard.Engage(guideUsers);
+            _guideUsers[seat.Id] = guideUsers;
+
             seat.State = SeatState.Running;
             seat.StatusDetail = "Activo: imagen, audio y periféricos conectados.";
             Interlocked.Increment(ref _generation);   // que GamepadSessionIsolation reasigne los mandos
@@ -462,6 +471,8 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
 
         // Antes que nada: el monitor físico vuelve a ser el principal de la consola.
         if (seat.Monitor is { } sm && _consoleHalf?.MonitorPath == sm.DevicePath) StopConsoleHalf();
+
+        if (_guideUsers.TryRemove(id, out var guideUsers)) GuideButtonGuard.Release(guideUsers);
 
         if (_activeSeats.TryRemove(id, out var active))
         {
