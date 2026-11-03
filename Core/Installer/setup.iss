@@ -7,7 +7,7 @@
 #define AppName      "OpenStreamMS"
 ; La CI pasa la versión con /DAppVersion=x.y.z (sale del tag de la release).
 #ifndef AppVersion
-  #define AppVersion "1.0.0"
+  #define AppVersion "1.5.1"
 #endif
 #define AppPublisher "mlopezsegura"
 #define AppURL       "https://github.com/mlopezsegura/OpenStreamMS"
@@ -18,6 +18,8 @@
 AppId={{F2A1B3C4-D5E6-7890-ABCD-EF1234567891}
 AppName={#AppName}
 AppVersion={#AppVersion}
+VersionInfoVersion={#AppVersion}
+VersionInfoTextVersion={#AppVersion}
 AppVerName={#AppName} {#AppVersion}
 AppPublisher={#AppPublisher}
 AppPublisherURL={#AppURL}
@@ -45,71 +47,10 @@ CloseApplications=yes
 MinVersion=10.0.17763
 
 [Languages]
-; El primero es el que se usa si el idioma de Windows no está en la lista.
-Name: "english"; MessagesFile: "compiler:Default.isl"
-Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
-Name: "french"; MessagesFile: "compiler:Languages\French.isl"
-Name: "portuguese"; MessagesFile: "compiler:Languages\Portuguese.isl"
-Name: "brazilianportuguese"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl"
+#include "languages.generated.iss"
 
-; Textos propios del instalador en cada idioma. Los de Inno (botones, páginas) salen del .isl.
 [CustomMessages]
-spanish.GroupService=Servicio:
-english.GroupService=Service:
-spanish.TaskStartService=Iniciar el servicio ahora tras la instalación
-english.TaskStartService=Start the service right after installing
-spanish.GroupSeats=Puestos locales:
-english.GroupSeats=Local seats:
-spanish.TaskRemoteIdd=Instalar el driver de pantalla de los puestos (RemoteIdd, experimental: certificado de prueba; reinicia Escritorio remoto)
-english.TaskRemoteIdd=Install the seat display driver (RemoteIdd, experimental: test certificate; restarts Remote Desktop)
-spanish.IconComment=Panel de control de OpenStreamMS
-english.IconComment=OpenStreamMS control panel
-spanish.StatusInstallService=Registrando servicio de Windows e instalando drivers (ViGEmBus, HidHide)...
-english.StatusInstallService=Registering the Windows service and installing drivers (ViGEmBus, HidHide)...
-spanish.StatusRemoveRemoteIdd=Quitando el driver de pantalla anterior (RemoteIdd)...
-english.StatusRemoveRemoteIdd=Removing the previous display driver (RemoteIdd)...
-spanish.StatusInstallRemoteIdd=Instalando el driver de pantalla de los puestos (RemoteIdd)...
-english.StatusInstallRemoteIdd=Installing the seat display driver (RemoteIdd)...
-spanish.StatusStartService=Iniciando servicio...
-english.StatusStartService=Starting the service...
-spanish.AskPurgeData=¿Borrar también todos los datos de OpenStreamMS?%n%nSesiones, puestos y configuración; los usuarios osms- de las sesiones aisladas y sus perfiles (incluidos juegos y ajustes guardados en ellos); perfiles de stream, ProgramData\OpenStreamMS y ficheros temporales.%n%nSi respondes No, se conservan las sesiones y la configuración para una reinstalación.
-english.AskPurgeData=Also delete all OpenStreamMS data?%n%nSessions, seats and settings; the osms- users of isolated sessions and their profiles (including games and settings saved in them); stream profiles, ProgramData\OpenStreamMS and temporary files.%n%nIf you answer No, sessions and settings are kept for a reinstall.
-spanish.AskRemoveDeps=¿Desinstalar también RDP Wrapper, ViGEmBus y HidHide?%n%nResponde No si otras aplicaciones los usan.
-english.AskRemoveDeps=Also uninstall RDP Wrapper, ViGEmBus and HidHide?%n%nAnswer No if other applications use them.
-
-french.GroupService=Service :
-portuguese.GroupService=Serviço:
-brazilianportuguese.GroupService=Serviço:
-french.TaskStartService=Démarrer le service juste après l'installation
-portuguese.TaskStartService=Iniciar o serviço logo após a instalação
-brazilianportuguese.TaskStartService=Iniciar o serviço logo após a instalação
-french.GroupSeats=Postes locaux :
-portuguese.GroupSeats=Postos locais:
-brazilianportuguese.GroupSeats=Postos locais:
-french.TaskRemoteIdd=Installer le pilote d'affichage des postes (RemoteIdd, expérimental : certificat de test ; redémarre le Bureau à distance)
-portuguese.TaskRemoteIdd=Instalar o controlador de ecrã dos postos (RemoteIdd, experimental: certificado de teste; reinicia o Ambiente de Trabalho Remoto)
-brazilianportuguese.TaskRemoteIdd=Instalar o controlador de ecrã dos postos (RemoteIdd, experimental: certificado de teste; reinicia o Ambiente de Trabalho Remoto)
-french.IconComment=Panneau de contrôle OpenStreamMS
-portuguese.IconComment=Painel de controlo do OpenStreamMS
-brazilianportuguese.IconComment=Painel de controlo do OpenStreamMS
-french.StatusInstallService=Enregistrement du service Windows et installation des pilotes (ViGEmBus, HidHide)...
-portuguese.StatusInstallService=A registar o serviço do Windows e a instalar controladores (ViGEmBus, HidHide)...
-brazilianportuguese.StatusInstallService=A registar o serviço do Windows e a instalar controladores (ViGEmBus, HidHide)...
-french.StatusRemoveRemoteIdd=Suppression de l'ancien pilote d'affichage (RemoteIdd)...
-portuguese.StatusRemoveRemoteIdd=A remover o controlador de ecrã anterior (RemoteIdd)...
-brazilianportuguese.StatusRemoveRemoteIdd=A remover o controlador de ecrã anterior (RemoteIdd)...
-french.StatusInstallRemoteIdd=Installation du pilote d'affichage des postes (RemoteIdd)...
-portuguese.StatusInstallRemoteIdd=A instalar o controlador de ecrã dos postos (RemoteIdd)...
-brazilianportuguese.StatusInstallRemoteIdd=A instalar o controlador de ecrã dos postos (RemoteIdd)...
-french.StatusStartService=Démarrage du service...
-portuguese.StatusStartService=A iniciar o serviço...
-brazilianportuguese.StatusStartService=A iniciar o serviço...
-french.AskPurgeData=Supprimer aussi toutes les données d'OpenStreamMS ?%n%nSessions, postes et paramètres ; les utilisateurs osms- des sessions isolées et leurs profils (y compris les jeux et réglages qui y sont enregistrés) ; les profils de stream, ProgramData\OpenStreamMS et les fichiers temporaires.%n%nSi vous répondez Non, les sessions et les paramètres sont conservés pour une réinstallation.
-portuguese.AskPurgeData=Eliminar também todos os dados do OpenStreamMS?%n%nSessões, postos e definições; os utilizadores osms- das sessões isoladas e os respetivos perfis (incluindo jogos e definições guardados neles); perfis de stream, ProgramData\OpenStreamMS e ficheiros temporários.%n%nSe responder Não, as sessões e as definições são mantidas para uma reinstalação.
-brazilianportuguese.AskPurgeData=Eliminar também todos os dados do OpenStreamMS?%n%nSessões, postos e definições; os utilizadores osms- das sessões isoladas e os respetivos perfis (incluindo jogos e definições guardados neles); perfis de stream, ProgramData\OpenStreamMS e ficheiros temporários.%n%nSe responder Não, as sessões e as definições são mantidas para uma reinstalação.
-french.AskRemoveDeps=Désinstaller aussi RDP Wrapper, ViGEmBus et HidHide ?%n%nRépondez Non si d'autres applications les utilisent.
-portuguese.AskRemoveDeps=Desinstalar também o RDP Wrapper, o ViGEmBus e o HidHide?%n%nResponda Não se outras aplicações os utilizarem.
-brazilianportuguese.AskRemoveDeps=Desinstalar também o RDP Wrapper, o ViGEmBus e o HidHide?%n%nResponda Não se outras aplicações os utilizarem.
+#include "messages.generated.iss"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
@@ -120,7 +61,7 @@ Name: "remoteidd"; Description: "{cm:TaskRemoteIdd}"; GroupDescription: "{cm:Gro
 
 [Files]
 ; Toda la salida de dotnet publish (runtime incluido)
-Source: "publish\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "publish\*"; DestDir: "{app}"; Excludes: "service.config.json"; Flags: ignoreversion recursesubdirs createallsubdirs
 ; service.config.json: solo si no existe ya (no sobreescribir configuración del usuario)
 Source: "publish\service.config.json"; DestDir: "{app}"; Flags: onlyifdoesntexist uninsneveruninstall
 

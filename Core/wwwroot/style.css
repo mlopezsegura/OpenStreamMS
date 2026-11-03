@@ -1735,3 +1735,14 @@ section#view-sessions, section#view-seats { animation: viewIn .35s var(--ease); 
 .orphan-meta { font-size: .76rem; color: var(--muted-h); }
 .orphan-path { font-size: .72rem; color: var(--muted); font-family: ui-monospace, monospace; word-break: break-all; }
 .orphan-row .btn { flex: none; }
+
+/* Translation length varies by language. Let actions wrap at narrow widths. */
+.modal-footer, .modal-actions { flex-wrap: wrap; }
+.modal-footer .btn, .modal-actions .btn, .auth-box .btn {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  text-align: center;
+  justify-content: center;
+}
+#i18n-error { padding: .8rem 1.2rem; color: var(--text); background: var(--surface); }

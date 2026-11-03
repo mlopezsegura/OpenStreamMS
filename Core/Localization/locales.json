@@ -1,0 +1,33 @@
+{
+  "source": "Sunshine/assets/web/assets/locale",
+  "locales": [
+    "bg",
+    "cs",
+    "de",
+    "en",
+    "en_GB",
+    "en_US",
+    "es",
+    "fr",
+    "hu",
+    "it",
+    "ja",
+    "ko",
+    "pl",
+    "pt",
+    "pt_BR",
+    "ru",
+    "sv",
+    "tr",
+    "uk",
+    "vi",
+    "zh",
+    "zh_TW"
+  ],
+  "parents": {
+    "en_GB": "en",
+    "en_US": "en",
+    "pt_BR": "pt",
+    "zh_TW": "zh"
+  }
+}

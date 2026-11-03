@@ -85,7 +85,7 @@ del /q "%OUT%\RemoteIdd.lib" "%OUT%\RemoteIdd.exp" 2>nul
 copy /y "%~dp0RemoteIdd.inf" "%OUT%\RemoteIdd.inf" >nul
 :: Fecha UTC, no la local (-d *): Inf2Cat compara con UTC y entre medianoche y la 1-2 h en
 :: España rechazaba el INF ("DriverVer set to a date in the future").
-for /f %%d in ('powershell -NoProfile -Command "(Get-Date).ToUniversalTime().ToString('MM/dd/yyyy')"') do set DRIVER_DATE=%%d
+for /f %%d in ('powershell -NoProfile -Command "(Get-Date).ToUniversalTime().ToString('MM/dd/yyyy', [Globalization.CultureInfo]::InvariantCulture)"') do set DRIVER_DATE=%%d
 "%W%\bin\10.0.26100.0\x64\stampinf.exe" -f "%OUT%\RemoteIdd.inf" -a amd64 -u 2.33.0 -d %DRIVER_DATE% -v 0.1.0.0 >nul || exit /b 1
 "%W%\tools\10.0.26100.0\x64\infverif.exe" /w "%OUT%\RemoteIdd.inf" || exit /b 1
 

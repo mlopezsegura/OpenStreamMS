@@ -120,12 +120,12 @@ internal sealed class AppWindow : Form
         catch (Exception ex) { Logger.Warning($"[App] No se pudo abrir {u.AbsoluteUri}: {ex.Message}"); }
     }
 
-    private const string OfflinePage = """
-        <!doctype html><html lang="es"><meta charset="utf-8">
+    private static string OfflinePage => $"""
+        <!doctype html><html lang="{TrayText.Language}"><meta charset="utf-8">
         <body style="margin:0;height:100vh;display:grid;place-items:center;background:#0f0f14;
                      color:#c9c9d6;font:15px 'Segoe UI',sans-serif;text-align:center">
-        <div><div style="font-size:18px;color:#fff;margin-bottom:8px">Esperando al servicio OpenStreamMS…</div>
-        Se reintenta solo. Si no arranca, revisa el servicio en services.msc.</div>
+        <div><div style="font-size:18px;color:#fff;margin-bottom:8px">{System.Net.WebUtility.HtmlEncode(TrayText.Get("offline.title"))}</div>
+        {System.Net.WebUtility.HtmlEncode(TrayText.Get("offline.hint"))}</div>
         """;
 
     protected override void Dispose(bool disposing)

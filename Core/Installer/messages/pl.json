@@ -1,0 +1,13 @@
+{
+  "GroupService": "Serwis:",
+  "TaskStartService": "Uruchom usługę zaraz po instalacji",
+  "GroupSeats": "Lokalne stanowiska:",
+  "TaskRemoteIdd": "Zainstaluj sterownik ekranu stacji roboczej (RemoteIdd, eksperymentalny: certyfikat testowy; uruchamia ponownie Pulpit zdalny)\nPanel sterowania",
+  "IconComment": "OpenStreamMS",
+  "StatusInstallService": "Rejestracja usługi Windows i instalacja sterowników (ViGEmBus, HidHide)...",
+  "StatusRemoveRemoteIdd": "Usuwanie poprzedniego sterownika ekranu (RemoteIdd)...",
+  "StatusInstallRemoteIdd": "Instalowanie sterownika ekranu stacji roboczej (RemoteIdd)...",
+  "StatusStartService": "Uruchamianie usługi...",
+  "AskPurgeData": "Usunąć także wszystkie dane OpenStreamMS?%n%nSesje, lokalne stacje robocze i ustawienia; użytkownicy osms- izolowanych sesji i ich profile (w tym gry i zapisane w nich ustawienia); profile strumieniowe, ProgramData\\OpenStreamMS i pliki tymczasowe.%n%nJeśli odpowiesz Nie, sesje i ustawienia zostaną zachowane na potrzeby ponownej instalacji.",
+  "AskRemoveDeps": "Odinstaluj także RDP Wrapper, ViGEmBus i HidHide?%n%nAOdpowiedź Nie, jeśli używają ich inne aplikacje."
+}

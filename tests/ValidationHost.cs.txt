@@ -1,0 +1,46 @@
+using System.Globalization;
+using System.Reflection;
+using OpenStreamMS.Services.TrayApp;
+
+if (args.FirstOrDefault() == "--tray-test")
+{
+    CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(args[1]);
+    var dictionaries = (Dictionary<string, Dictionary<string, string>>)typeof(TrayText)
+        .GetField("Texts", BindingFlags.NonPublic | BindingFlags.Static)!.GetValue(null)!;
+    var english = dictionaries["en"];
+    foreach (var (lang, table) in dictionaries)
+    {
+        if (!table.Keys.Order().SequenceEqual(english.Keys.Order())) throw new Exception($"Tray keys: {lang}");
+        foreach (var (key, value) in table)
+        {
+            var expected = System.Text.RegularExpressions.Regex.Matches(english[key], @"\{\d+\}").Select(m => m.Value).Order();
+            var actual = System.Text.RegularExpressions.Regex.Matches(value, @"\{\d+\}").Select(m => m.Value).Order();
+            if (!expected.SequenceEqual(actual)) throw new Exception($"Tray placeholders: {lang}:{key}");
+            _ = string.Format(value, "TV", "Сеанс");
+        }
+    }
+    var expectedLanguage = args.Length > 2 ? args[2] : TrayText.ResolveLanguage(args[1]);
+    if (TrayText.Language != expectedLanguage || TrayText.Get("sessions") != dictionaries[expectedLanguage]["sessions"])
+        throw new Exception("Windows UI language detection failed");
+    Console.WriteLine($"PASS Tray {args[1]} => {TrayText.Language}; {english.Count} keys; all dictionaries and format parameters valid");
+    return;
+}
+
+// Only static files and fake form responses. No OpenStreamMS service, native
+// engine, driver, user, registry or firewall code is linked into this host.
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions { WebRootPath = args[0] });
+builder.WebHost.UseUrls(args[1]);
+var app = builder.Build();
+app.Use(async (ctx, next) =>
+{
+    var requestPath = ctx.Request.Path.Value ?? "/";
+    if (IsPublicPath(requestPath) || ctx.Request.Cookies.ContainsKey("validation-session")) { await next(); return; }
+    ctx.Response.Redirect("/login.html");
+});
+app.UseDefaultFiles();
+app.UseStaticFiles();
+app.MapPost("/login", (HttpContext ctx) => Results.Redirect("/login.html?error=1"));
+app.MapPost("/setup", (HttpContext ctx) => Results.Redirect("/setup.html?error=short"));
+await app.RunAsync();
+
+// IS_PUBLIC_PATH_FROM_PROGRAM_CS

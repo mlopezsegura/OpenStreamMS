@@ -11,7 +11,8 @@ let toastTimer       = null;
 let credentialsTested = false;   // true solo si el último test de credenciales fue exitoso
 
 // ── Inicialización ─────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  if (!await I18n.ready) return;
   startRefresh();
   rdpRefresh();
   DRIVER_KEYS.forEach(driverRefresh);
@@ -36,6 +37,7 @@ window.addEventListener('langchange', () => {
   for (const k of DRIVER_KEYS) {
     const st = drivers[k].lastStatus;
     if (st) { updateDriverPill(k, st); renderDriverStatus(k, st); }
+    renderDriverLog(k);
   }
   // Ventana de sesión abierta: puerto derivado, título y botón
   updateDerivedWebPort();
@@ -137,7 +139,7 @@ function renderCard(s) {
   const screen = s.local
     ? `<div class="screen-thumb screen-local">${uiIcon('pc')}<span class="screen-res">${esc(t('card.localShort'))}</span></div>`
     : `<div class="screen-thumb"><span class="screen-res">${s.rdpWidth}×${s.rdpHeight}</span>
-         <span class="screen-fps">${s.rdpFrameRate || 60} fps</span></div>`;
+         <span class="screen-fps">${s.rdpFrameRate || 60} ${esc(t('unit.fps'))}</span></div>`;
   const power = isBusy
     ? `<button type="button" class="power-btn busy" disabled title="${esc(t(s.state === 'Starting' ? 'btn.starting' : 'btn.stopping'))}" aria-label="${esc(t(s.state === 'Starting' ? 'btn.starting' : 'btn.stopping'))}">${uiIcon('power')}</button>`
     : `<button type="button" class="power-btn ${isRunning ? 'on' : 'off'}" onclick="${isRunning ? 'stopSession' : 'startSession'}('${s.id}')"
@@ -276,7 +278,7 @@ function badge(state) {
 async function startSession(id) {
   const res = await api('POST', `/api/sessions/${id}/start`);
   if (!res) return;
-  if (!res.ok) { toast(await res.text(), true); return; }
+  if (!res.ok) { toast(await I18n.responseError(res), true); return; }
   toast(t('toast.starting'));
   loadSessions();
 }
@@ -284,7 +286,7 @@ async function startSession(id) {
 async function stopSession(id) {
   const res = await api('POST', `/api/sessions/${id}/stop`);
   if (!res) return;
-  if (!res.ok) { toast(await res.text(), true); return; }
+  if (!res.ok) { toast(await I18n.responseError(res), true); return; }
   toast(t('toast.stopped'));
   loadSessions();
 }
@@ -293,7 +295,7 @@ async function restartSession(id, name) {
   if (!await ask(t('confirm.restart', { name }), { ok: t('btn.restart') })) return;
   const res = await api('POST', `/api/sessions/${id}/restart`);
   if (!res) return;
-  if (!res.ok) { toast(await res.text(), true); return; }
+  if (!res.ok) { toast(await I18n.responseError(res), true); return; }
   toast(t('toast.restarting'));
   loadSessions();
 }
@@ -315,7 +317,7 @@ async function deleteSession(id, name) {
   }
   const res = await api('DELETE', `/api/sessions/${id}${keepUser ? '?keepUser=true' : ''}`);
   if (!res) return;
-  if (res.status === 400) { toast(await res.text(), true); return; }
+  if (res.status === 400) { toast(await I18n.responseError(res), true); return; }
   if (!res.ok && res.status !== 204) { toast(t('toast.deleteError'), true); return; }
   toast(keepUser ? t('toast.deletedKeptUser', { name, user: s.isolatedUser }) : t('toast.deleted', { name }));
   loadSessions();
@@ -362,7 +364,7 @@ async function testCredentials() {
     const res = await api('POST', '/api/sessions/test-credentials', { username, domain, password });
     if (!res) return false;
     const data = await res.json();
-    showCredTestResult(data.success, data.message);
+    showCredTestResult(data.success, t(data.success ? 'credTest.success' : 'new.errorTestCreds'));
     credentialsTested = data.success;
     return data.success;
   } finally {
@@ -604,8 +606,8 @@ async function submitSession(e) {
     }
     if (!res) return;
     if (!res.ok) {
-      const msg = await res.text();
-      if (/port|puerto/i.test(msg)) byId('sess-advanced').open = true;
+      const msg = await I18n.responseError(res);
+      if (/port|puerto|порт/i.test(msg)) byId('sess-advanced').open = true;
       fail(msg || t('toast.connectionError'));
       return;
     }
@@ -671,7 +673,7 @@ async function fetchLogs() {
 
   status.textContent = t('log.status', {
     count: data.linesReturned,
-    time:  new Date().toLocaleTimeString(),
+    time:  new Date().toLocaleTimeString(I18n.lang),
   });
 
   if (data.lines.length === 0) {
@@ -861,7 +863,7 @@ async function rdpInstall() {
   if (!await ask(msg, { ok: t('rdp.btn.install') })) return;
   const res = await api('POST', '/api/rdpwrap/install');
   if (!res) return;
-  if (!res.ok) { toast(await res.text(), true); return; }
+  if (!res.ok) { toast(await I18n.responseError(res), true); return; }
   rdpRefresh();
 }
 
@@ -869,7 +871,7 @@ async function rdpUpdate() {
   if (!await ask(t('rdp.confirm.update'), { ok: t('rdp.btn.update') })) return;
   const res = await api('POST', '/api/rdpwrap/update');
   if (!res) return;
-  if (!res.ok) { toast(await res.text(), true); return; }
+  if (!res.ok) { toast(await I18n.responseError(res), true); return; }
   rdpRefresh();
 }
 
@@ -877,7 +879,7 @@ async function rdpUninstall() {
   if (!await ask(t('rdp.confirm.uninstall'), { danger: true, ok: t('rdp.btn.uninstall') })) return;
   const res = await api('POST', '/api/rdpwrap/uninstall');
   if (!res) return;
-  if (!res.ok) { toast(await res.text(), true); return; }
+  if (!res.ok) { toast(await I18n.responseError(res), true); return; }
   rdpRefresh();
 }
 
@@ -911,7 +913,7 @@ async function sunmgrTranslateError(res) {
     if (body && body.code) {
       const key = `sunmgr.err.${body.code}`;
       const fallback = `sunmgr.pair.${body.code === 'invalid_pin' ? 'failed' : ''}`;
-      return t(key, { detail: body.message || '' });
+      return t(I18n.has(key) ? key : 'sunmgr.pair.failed', { detail: /^HTTP \d+$/.test(body.message || '') ? body.message : t('error.request') });
     }
   } catch { /* body no-JSON */ }
   return t('toast.connectionError');
@@ -1020,7 +1022,7 @@ async function sunmgrPair(e) {
       result.textContent = t('sunmgr.err.multiple_pending');
     } else if (code === 'proxy_error') {
       result.className = 'auth-alert error';
-      result.textContent = t('sunmgr.err.proxy_error', { detail: body?.message || '' });
+      result.textContent = t('sunmgr.err.proxy_error', { detail: /^HTTP \d+$/.test(body?.message || '') ? body.message : t('error.request') });
     } else {
       // invalid_pin u otro → mensaje de PIN incorrecto
       result.className = 'auth-alert error';
@@ -1083,8 +1085,8 @@ async function sunmgrUnpairAll() {
 // Misma UI para los dos: pastilla en la barra + modal. Ids de los elementos
 // con prefijo <clave>- y textos i18n con prefijo <clave>.
 const drivers = {
-  vigem:   { api: '/api/vigembus', lastStatus: null, logTimer: null },
-  hidhide: { api: '/api/hidhide',  lastStatus: null, logTimer: null },
+  vigem:   { api: '/api/vigembus', lastStatus: null, logTimer: null, logLines: [] },
+  hidhide: { api: '/api/hidhide',  lastStatus: null, logTimer: null, logLines: [] },
 };
 const DRIVER_KEYS = Object.keys(drivers);
 
@@ -1136,7 +1138,7 @@ function renderDriverStatus(k, st) {
   badge.innerHTML = `<span class="badge-dot"></span>${esc(t(key))}`;
 
   document.getElementById(`${k}-version`).textContent = st.installedVersion || '—';
-  document.getElementById(`${k}-service`).textContent = st.serviceState     || '—';
+  document.getElementById(`${k}-service`).textContent = I18n.driverServiceState(st.serviceState);
   document.getElementById(`${k}-driver`).textContent  = st.driverImagePath  || '—';
 
   document.getElementById(`${k}-reboot-banner`).style.display = st.rebootRequired ? '' : 'none';
@@ -1150,13 +1152,19 @@ async function driverFetchLog(k) {
   const res = await api('GET', `${drivers[k].api}/log`);
   if (!res || !res.ok) return;
   const data = await res.json();
+  drivers[k].logLines = data.lines || [];
+  renderDriverLog(k);
+}
+
+function renderDriverLog(k) {
   const box  = document.getElementById(`${k}-log-box`);
-  if (!data.lines || data.lines.length === 0) {
+  const lines = drivers[k].logLines;
+  if (lines.length === 0) {
     box.innerHTML = `<span class="log-empty">${esc(t('vigem.log.empty'))}</span>`;
     return;
   }
   const wasAtBottom = box.scrollHeight - box.scrollTop <= box.clientHeight + 10;
-  box.textContent = data.lines.join('\n');
+  box.textContent = lines.map(line => I18n.driverLog(line)).join('\n');
   if (wasAtBottom) box.scrollTop = box.scrollHeight;
 }
 
@@ -1177,7 +1185,7 @@ async function driverInstall(k) {
   if (!await ask(t(`${k}.confirm.install`), { ok: t('vigem.btn.install') })) return;
   const res = await api('POST', `${drivers[k].api}/install`);
   if (!res) return;
-  if (!res.ok) { toast(await res.text(), true); return; }
+  if (!res.ok) { toast(await I18n.responseError(res), true); return; }
   driverRefresh(k);
 }
 
@@ -1185,7 +1193,7 @@ async function driverUninstall(k) {
   if (!await ask(t(`${k}.confirm.uninstall`), { danger: true, ok: t('vigem.btn.uninstall') })) return;
   const res = await api('POST', `${drivers[k].api}/uninstall`);
   if (!res) return;
-  if (!res.ok) { toast(await res.text(), true); return; }
+  if (!res.ok) { toast(await I18n.responseError(res), true); return; }
   driverRefresh(k);
 }
 
@@ -1227,7 +1235,7 @@ async function powerAction(kind) {
   const body = (kind === 'cancel') ? undefined : { delaySeconds: delay };
   const res  = await api('POST', path, body);
   if (!res) return;
-  if (!res.ok) { toast(await res.text(), true); return; }
+  if (!res.ok) { toast(await I18n.responseError(res), true); return; }
 
   const data = await res.json().catch(() => null);
   if (kind === 'cancel') {
@@ -1364,7 +1372,7 @@ function moveTabIndicator() {
 }
 window.addEventListener('resize', moveTabIndicator);
 window.addEventListener('langchange', () => { moveTabIndicator(); updateSystemPill(); });
-document.addEventListener('DOMContentLoaded', () => requestAnimationFrame(moveTabIndicator));
+document.addEventListener('DOMContentLoaded', async () => { if (await I18n.ready) requestAnimationFrame(moveTabIndicator); });
 
 // ── Vista previa en vivo de las ventanas de configuración ─────────────────
 function setPreview(box, html, popKey) {
@@ -1393,7 +1401,7 @@ function updateSessionPreview() {
   const pw = Math.round(Math.min(170, Math.max(110, 82 * ratio)));
   const screen = local
     ? `<div class="preview-screen">${uiIcon('pc')}<span class="preview-fps">${esc(t('card.localShort'))}</span></div>`
-    : `<div class="preview-screen" style="width:${pw}px"><span class="preview-res">${w}×${h}</span><span class="preview-fps">${esc(fps)} fps</span></div>`;
+    : `<div class="preview-screen" style="width:${pw}px"><span class="preview-res">${w}×${h}</span><span class="preview-fps">${esc(fps)} ${esc(t('unit.fps'))}</span></div>`;
   const chips = [];
   if (proto !== 'WebRtc')    chips.push(`<span class="chip chip-moonlight">${uiIcon('moon')}Moonlight <b>${esc(port || '')}</b></span>`);
   if (proto !== 'Moonlight') chips.push(`<span class="chip chip-webrtc">${uiIcon('web')}WebRTC <b>${esc(webPort || '')}</b></span>`);
@@ -1406,7 +1414,8 @@ function updateSessionPreview() {
     </div>`, local ? 'local' : `${w}x${h}`);
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  if (!await I18n.ready) return;
   const form = byId('sess-form');
   form?.addEventListener('input', updateSessionPreview);
   form?.addEventListener('change', updateSessionPreview);
@@ -1540,7 +1549,7 @@ async function saveSettings() {
   try {
     const res = await api('PUT', '/api/settings/logging', { logLevel: sel.value });
     if (!res) return;
-    if (!res.ok) { toast(await res.text() || t('toast.connectionError'), true); return; }
+    if (!res.ok) { toast(await I18n.responseError(res) || t('toast.connectionError'), true); return; }
     hide('settings-modal');
     toast(t('settings.saved', { level: t('settings.log.' + sel.value) }));
   } finally {
@@ -1616,7 +1625,7 @@ function errorBox(s) {
          <button type="button" class="btn btn-ghost btn-xs" onclick="openSessionLog('${s.id}')">${esc(t('ux.viewLog'))}</button>
          <button type="button" class="btn btn-ghost btn-xs" onclick="retrySession('${s.id}')">${esc(t('ux.retry'))}</button>
        </div>` : '';
-  return `<div class="card-error" role="alert"><span>${esc(s.errorMessage)}</span>${actions}</div>`;
+  return `<div class="card-error" role="alert"><span>${esc(I18n.message(s.errorMessage))}</span>${actions}</div>`;
 }
 
 // Una sesión RDP necesita el multi-RDP: si falta, se dice en la tarjeta con su botón.
@@ -1720,7 +1729,7 @@ async function deleteOrphan(key) {
   if (!await ask(msg, { danger: true, ok: t('btn.delete') })) return;
   const res = await api('DELETE', `/api/sessions/isolated-users?key=${encodeURIComponent(key)}`);
   if (!res) return;
-  if (!res.ok && res.status !== 204) { toast(await res.text() || t('toast.deleteError'), true); return; }
+  if (!res.ok && res.status !== 204) { toast(await I18n.responseError(res) || t('toast.deleteError'), true); return; }
   toast(t('orphans.deleted', { name: o.name }));
   if (orphanSized) orphanSized = orphanSized.filter(x => x.key !== key);
   await loadOrphans();
@@ -1736,7 +1745,7 @@ function openSessionLog(id) {
 async function retrySession(id) {
   const res = await api('POST', `/api/sessions/${id}/restart`);
   if (!res) return;
-  if (!res.ok) { toast(await res.text(), true); return; }
+  if (!res.ok) { toast(await I18n.responseError(res), true); return; }
   toast(t('toast.restarting'));
   loadSessions();
 }
