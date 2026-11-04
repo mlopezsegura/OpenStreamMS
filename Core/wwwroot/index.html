@@ -519,6 +519,20 @@
         </div>
         <div class="hint" data-i18n="settings.logHint">Vale para el servicio, la bandeja, los puestos y Sunshine. Cada Sunshine lo aplica la próxima vez que se reinicie su sesión.</div>
       </div>
+
+      <h4 class="settings-section" data-i18n="settings.diagSection">Diagnóstico</h4>
+      <div class="form-row">
+        <p class="hint diag-hint" data-i18n="settings.diagHint">Genera un .zip con la versión de Windows, datos del equipo, los logs de OpenStreamMS y de Sunshine (también los de la sesión anterior) y los errores de Windows. Oculta el nombre del equipo, las cuentas y los correos. Para más detalle, pon antes el nivel de log en Info y reproduce el fallo. Revísalo antes de enviarlo.</p>
+        <label for="diag-days" data-i18n="settings.diagDays">Eventos de Windows</label>
+        <div class="diag-row">
+          <select id="diag-days">
+            <option value="1" data-i18n="settings.diagDays1">Último día</option>
+            <option value="3" selected data-i18n="settings.diagDays3">Últimos 3 días</option>
+            <option value="7" data-i18n="settings.diagDays7">Últimos 7 días</option>
+          </select>
+          <button class="btn btn-ghost" type="button" id="diag-download" onclick="downloadDiagnostics()" data-i18n="settings.diagDownload">Descargar paquete de diagnóstico</button>
+        </div>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" type="button" onclick="hide('settings-modal')" data-i18n="btn.cancel">Cancelar</button>

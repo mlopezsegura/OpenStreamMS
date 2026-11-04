@@ -1661,6 +1661,11 @@ section#view-sessions, section#view-seats { animation: viewIn .35s var(--ease); 
   text-transform: uppercase; color: var(--muted-h);
 }
 .settings-section:not(:first-child) { margin-top: 1.4rem; padding-top: 1.1rem; border-top: 1px solid rgba(var(--c-ink),.07); }
+/* Diagnóstico: periodo de eventos y botón de descarga en una fila; en móvil, uno debajo del otro. */
+.form-row .diag-hint { margin: 0 0 .8rem; }
+.diag-row { display: flex; flex-wrap: wrap; gap: .55rem; align-items: center; }
+.form-row .diag-row select { width: auto; flex: 1 1 10rem; }
+.diag-row .btn { flex: 1 1 auto; }
 .theme-picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: .55rem; }
 .form-row .theme-option {
   position: relative; display: flex; flex-direction: column; gap: .4rem; margin: 0; padding: .45rem;

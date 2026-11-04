@@ -1557,6 +1557,35 @@ async function saveSettings() {
   }
 }
 
+// ── Paquete de diagnóstico: .zip con datos del equipo, logs y eventos de Windows ──
+async function downloadDiagnostics() {
+  const btn = byId('diag-download');
+  if (btn.disabled) return;
+  btn.disabled = true;
+  btn.textContent = t('settings.diagWorking');
+  try {
+    const days = byId('diag-days').value;
+    const res = await api('GET', `/api/diagnostics/bundle?days=${encodeURIComponent(days)}`);
+    if (!res) return;
+    if (!res.ok) { toast(await I18n.responseError(res) || t('settings.diagFailed'), true); return; }
+    const blob = await res.blob();
+    const disposition = res.headers.get('Content-Disposition') || '';
+    const match = /filename\*=UTF-8''([^;]+)/i.exec(disposition) || /filename="?([^";]+)"?/i.exec(disposition);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = match ? decodeURIComponent(match[1]) : 'openstreamms-diag.zip';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    toast(t('settings.diagDone'));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = t('settings.diagDownload');
+  }
+}
+
 // ── Conectar un dispositivo: dirección del PC y puertos de la sesión ──────
 let networkInfo = null;
 

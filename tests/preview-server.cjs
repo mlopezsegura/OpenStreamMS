@@ -19,6 +19,11 @@ http.createServer((req,res) => {
     if (url.pathname === '/api/seats/inventory') return json({monitors:[{devicePath:'TEST-DISPLAY',friendlyName:'Тестовый монитор',width:1920,height:1080,active:true,primary:false}],audioOutputs:[{id:'test-output',name:'Тестовый аудиовыход'}],audioInputs:[{id:'test-mic',name:'Тестовый микрофон'}],devices:[{kind:'Keyboard',usbPort:'TEST-USB-1',name:'Тестовая клавиатура'},{kind:'Mouse',usbPort:'TEST-USB-2',name:'Тестовая мышь'}]});
     if (url.pathname === '/api/sessions/ports/suggest') return json({ sunshineStreamPort:48010,webRtcPort:8010,webRtcMediaPortMin:48100,webRtcMediaPortMax:48200 });
     if (url.pathname === '/api/system/network') return json({ addresses:['192.0.2.10'] });
+    if (url.pathname === '/api/diagnostics/bundle') {
+      // Zip vacío (solo el registro de fin de directorio): prueba la descarga sin datos del equipo.
+      res.writeHead(200,{'Content-Type':'application/zip','Content-Disposition':'attachment; filename=openstreamms-diag-fixture.zip'});
+      return res.end(Buffer.concat([Buffer.from('PK\x05\x06','latin1'), Buffer.alloc(18)]));
+    }
     return json([]);
   }
   const file = path.resolve(web, '.' + url.pathname.replace(/\/$/, '/index.html'));

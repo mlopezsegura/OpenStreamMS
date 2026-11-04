@@ -919,7 +919,7 @@ public static class SessionEndpoints
 
     // ── mapping ──────────────────────────────────────────────────────────────
 
-    static SessionResponse ToResponse(StreamSession s) => new(
+    internal static SessionResponse ToResponse(StreamSession s) => new(
         s.Id, s.Name, s.Username, s.Domain, s.SunshineExePath,
         s.RdpBackground, s.VddEnabled, s.RdpWidth, s.RdpHeight,
         s.RdpFrameRate, s.RdpColorDepth,
