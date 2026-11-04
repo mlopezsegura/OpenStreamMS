@@ -85,6 +85,12 @@ switch (command)
         RequireAdmin();
         RemoveDependencies();
         break;
+    case "--diagnostics":
+        // Paquete de diagnóstico sin el panel: --diagnostics [salida.zip] [--days N]
+        AttachParentConsole();
+        RequireAdmin();
+        Environment.Exit(OpenStreamMS.Core.Api.DiagnosticsEndpoints.RunCli(args));
+        break;
     case "--help":
     case "-h":
         AttachParentConsole();
@@ -308,6 +314,9 @@ static async Task RunService(string[] args)
 
     // ── Ajustes globales (nivel de log) y datos de red ───────────────────────
     app.MapSettingsApi();
+
+    // ── Paquete de diagnóstico (.zip para depurar un equipo) ─────────────────
+    app.MapDiagnosticsApi();
 
     Logger.Log($"[Service] Web disponible en http://localhost:{config.ApiPort}");
     Logger.Log($"[Service] API docs en http://localhost:{config.ApiPort}/scalar/v1");
@@ -601,6 +610,9 @@ static void PrintHelp()
                                                (ProgramData, usuarios osms-, perfiles de stream, temporales)
           OpenStreamMS.exe --tray              Mostrar icono en la bandeja del sistema
           OpenStreamMS.exe --open              Abrir el panel en su ventana (y la bandeja)
+          OpenStreamMS.exe --diagnostics [salida.zip] [--days N]
+                                               Generar el paquete de diagnóstico (por defecto
+                                               en el escritorio, eventos de 3 días)
           OpenStreamMS.exe --seat-agent <pipe> [--output \\.\DISPLAYn] [--no-audio]
                                                Ejecutar agente de puesto en la sesión
           OpenStreamMS.exe --seat-host <pipe>  Ejecutar presentador de puesto en la consola
