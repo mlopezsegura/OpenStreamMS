@@ -9,5 +9,5 @@
   "StatusInstallRemoteIdd": "Installieren des Workstation-Anzeigetreibers (RemoteIdd)...",
   "StatusStartService": "Dienst starten...",
   "AskPurgeData": "Außerdem alle OpenStreamMS-Daten löschen?%n%nSitzungen, lokale Workstations und Einstellungen; die osms--Benutzer isolierter Sitzungen und ihre Profile (einschließlich der darin gespeicherten Spiele und Einstellungen); Stream-Profile, ProgramData\\OpenStreamMS und temporäre Dateien.%n%nWenn Sie mit „Nein“ antworten, bleiben Sitzungen und Einstellungen für eine Neuinstallation erhalten.",
-  "AskRemoveDeps": "Deinstallieren Sie auch RDP Wrapper, ViGEmBus und HidHide?%n%nAnswer Nein, wenn andere Anwendungen sie verwenden."
+  "AskRemoveDeps": "Deinstallieren Sie auch TermWrap, ViGEmBus und HidHide?%n%nAnswer Nein, wenn andere Anwendungen sie verwenden."
 }

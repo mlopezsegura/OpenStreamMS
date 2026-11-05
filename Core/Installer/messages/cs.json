@@ -9,5 +9,5 @@
   "StatusInstallRemoteIdd": "Instalace ovladače zobrazení pracovní stanice (RemoteIdd)...",
   "StatusStartService": "Spouštění služby...",
   "AskPurgeData": "Smazat také všechna data OpenStreamMS?%n%nSRelace, místní pracovní stanice a nastavení; uživatelé osms- izolovaných relací a jejich profily (včetně her a nastavení v nich uložených); profily streamu, ProgramData\\OpenStreamMS a dočasné soubory.%n%nPokud odpovíte Ne, relace a nastavení budou zachovány pro přeinstalaci.",
-  "AskRemoveDeps": "Odinstalujte také RDP Wrapper, ViGEmBus a HidHide?%n%nAOdpověď Ne, pokud je používají jiné aplikace."
+  "AskRemoveDeps": "Odinstalujte také TermWrap, ViGEmBus a HidHide?%n%nAOdpověď Ne, pokud je používají jiné aplikace."
 }

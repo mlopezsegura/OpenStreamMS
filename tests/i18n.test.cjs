@@ -41,7 +41,10 @@ test('all original effective translations survive extraction unchanged', () => {
   const original = cp.execFileSync('git', ['show', '79a032e5d00efb37bb53a71991408acbd94c3a11:Core/wwwroot/i18n.js'], { cwd: root, encoding: 'utf8' });
   const context = vm.createContext({});
   vm.runInContext(original.slice(0, original.indexOf('const SUPPORTED')) + '\nglobalThis.catalogs = MESSAGES;', context);
-  for (const [lang, table] of Object.entries(context.catalogs)) for (const [key, value] of Object.entries(table)) assert.equal(catalogs[lang][key], value, lang + ':' + key);
+  // Textos cambiados a propósito después de la extracción: asmtron se quitó y TermWrap es el único multi-RDP.
+  const changed = new Set(['about.credit.rdpwrap', 'rdp.title', 'rdp.description', 'rdp.btn.install', 'rdp.row.bundle', 'rdp.confirm.install',
+    'rdp.btn.update', 'rdp.confirm.update', 'rdp.btn.uninstall', 'rdp.confirm.uninstall', 'rdp.confirm.leaveRemoteIdd']);
+  for (const [lang, table] of Object.entries(context.catalogs)) for (const [key, value] of Object.entries(table)) if (!changed.has(key)) assert.equal(catalogs[lang][key], value, lang + ':' + key);
 });
 
 test('every static HTML and JS translation reference exists', () => {

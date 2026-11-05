@@ -48,7 +48,7 @@ Manages the full lifecycle of isolated RDP streaming sessions — creation, moni
 To uninstall, use **Apps & Features** → *OpenStreamMS* → Uninstall. It asks two questions:
 
 - **Delete all data?** Yes removes sessions, seats and settings, the isolated `osms-…` users with their profiles (including games and settings stored in them), stream profiles, `%ProgramData%\OpenStreamMS` and temporary files. No keeps sessions and settings for a reinstall.
-- **Also uninstall RDP Wrapper, ViGEmBus and HidHide?** Answer No if other applications use them.
+- **Also uninstall TermWrap, ViGEmBus and HidHide?** Answer No if other applications use them.
 
 Silent uninstall: `unins000.exe /VERYSILENT [/PURGEDATA] [/REMOVEDEPS]`.
 

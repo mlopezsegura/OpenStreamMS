@@ -9,42 +9,30 @@ public static class RdpWrapperEndpoints
 {
     public static IEndpointRouteBuilder MapRdpWrapperApi(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/rdpwrap").WithTags("RDP Wrapper");
+        var group = app.MapGroup("/api/rdpwrap").WithTags("Multi-RDP (TermWrap)");
 
         group.MapGet("/status", (RdpWrapperManager mgr) =>
                 TypedResults.Ok(mgr.GetStatus()))
              .WithName("GetRdpWrapperStatus")
-             .WithSummary("Estado del RDP Wrapper")
-             .WithDescription("Devuelve qué wrapper usa TermService (asmtron o TermWrap), si está cargado de verdad en el proceso, su versión, la de termsrv.dll y el destino actual de ServiceDll.");
+             .WithSummary("Estado del multi-RDP")
+             .WithDescription("Devuelve a qué apunta ServiceDll de TermService (TermWrap, o asmtron en una instalación antigua), si está cargado de verdad en el proceso, la versión de TermWrap y la de termsrv.dll.");
 
         group.MapGet("/log", (RdpWrapperManager mgr) =>
                 TypedResults.Ok(new RdpWrapperLogResponse(mgr.GetLog(), mgr.IsBusy, mgr.GetStatus().LastAction)))
              .WithName("GetRdpWrapperLog")
              .WithSummary("Log de la última operación")
-             .WithDescription("Últimas líneas del log generado durante install/update/uninstall. Se refresca desde la UI cada pocos segundos.");
+             .WithDescription("Últimas líneas del log de instalar/reparar. Se refresca desde la UI cada pocos segundos.");
 
         group.MapPost("/install", async (RdpWrapperManager mgr) =>
                 await RunAsync(mgr, mgr.InstallAsync))
              .WithName("InstallRdpWrapper")
-             .WithSummary("Instalar RDP Wrapper")
+             .WithSummary("Instalar o reparar TermWrap")
              .WithDescription("""
-                Descarga la última release portable de asmtron/rdpwrap, la extrae en
-                %ProgramFiles%\\RDP Wrapper y ejecuta autoupdate.bat para aplicar el parche
-                y reiniciar TermService. IMPORTANTE: reinicia TermService; las sesiones RDP
-                activas se cerrarán.
+                Descarga TermWrap 0.7 de llccd/TermWrap (hash fijo) si falta, lo copia en
+                %ProgramFiles%\RDP Wrapper, pone ServiceDll de TermService en TermWrap.dll y
+                reinicia TermService si no hay sesiones RDP abiertas; si las hay, el cambio se
+                aplica al reiniciar el equipo.
                 """);
-
-        group.MapPost("/update", async (RdpWrapperManager mgr) =>
-                await RunAsync(mgr, mgr.UpdateAsync))
-             .WithName("UpdateRdpWrapper")
-             .WithSummary("Actualizar rdpwrap.ini")
-             .WithDescription("Re-ejecuta autoupdate.bat para refrescar rdpwrap.ini si el build de Windows cambió. Requiere tener el bundle ya instalado.");
-
-        group.MapPost("/uninstall", async (RdpWrapperManager mgr) =>
-                await RunAsync(mgr, mgr.UninstallAsync))
-             .WithName("UninstallRdpWrapper")
-             .WithSummary("Desinstalar RDP Wrapper")
-             .WithDescription("Ejecuta RDPWInst.exe -u para restaurar la termsrv.dll original. Reinicia TermService; las sesiones RDP activas se cerrarán.");
 
         return app;
     }
@@ -54,7 +42,7 @@ public static class RdpWrapperEndpoints
     {
         if (mgr.IsBusy)
             return Task.FromResult<Results<Accepted, BadRequest<string>>>(
-                TypedResults.BadRequest("Ya hay una operación de RDP Wrapper en curso."));
+                TypedResults.BadRequest("Ya hay una operación de multi-RDP en curso."));
 
         // Lanzado en background: la UI hace polling a /log y /status para el progreso.
         _ = Task.Run(() => op(CancellationToken.None));

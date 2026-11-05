@@ -9,5 +9,5 @@
   "StatusInstallRemoteIdd": "İş istasyonu ekran sürücüsünü yükleme (RemoteIdd)...",
   "StatusStartService": "Hizmet başlatılıyor...",
   "AskPurgeData": "Ayrıca tüm OpenStreamMS verileri silinsin mi?%n%nOturumlar, yerel iş istasyonları ve ayarlar; izole oturumların osms- kullanıcıları ve profilleri (bunlara kaydedilen oyunlar ve ayarlar dahil); akış profilleri, ProgramData\\OpenStreamMS ve geçici dosyalar.%n%nHayır yanıtını verirseniz, oturumlar ve ayarlar yeniden yükleme için saklanır.",
-  "AskRemoveDeps": "Ayrıca RDP Wrapper, ViGEmBus ve HidHide'yi de kaldırın?%n%nABaşka uygulamalar bunları kullanıyorsa Yanıt Hayır."
+  "AskRemoveDeps": "Ayrıca TermWrap, ViGEmBus ve HidHide'yi de kaldırın?%n%nABaşka uygulamalar bunları kullanıyorsa Yanıt Hayır."
 }

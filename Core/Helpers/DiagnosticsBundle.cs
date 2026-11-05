@@ -279,7 +279,7 @@ internal static partial class DiagnosticsBundle
         root["remoteIddActive"] = RdpWrapperManager.IsRemoteIddActive();
         root["remoteIddPendingRestart"] = RdpWrapperManager.IsRemoteIddPendingRestart();
         root["remoteIddUsable"] = RdpWrapperManager.IsRemoteIddUsable();
-        summary.AppendLine($"RDP Wrapper:   {rdpStatus.Wrapper ?? "ninguno"} (cargado: {rdpStatus.Loaded?.ToString() ?? "?"}, termsrv {rdpStatus.TermsrvVersion})");
+        summary.AppendLine($"Multi-RDP:     {rdpStatus.Wrapper ?? "ninguno"} (cargado: {rdpStatus.Loaded?.ToString() ?? "?"}, termsrv {rdpStatus.TermsrvVersion})");
         summary.AppendLine($"RemoteIdd:     {(RdpWrapperManager.IsRemoteIddUsable() ? "en uso" : RdpWrapperManager.IsRemoteIddActive() ? "instalado, pendiente de reinicio" : "no")}");
 
         var drivers = new JsonObject();

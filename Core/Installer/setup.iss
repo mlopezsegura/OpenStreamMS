@@ -179,7 +179,7 @@ var
 //  - Borrar todos los datos: sesiones, puestos y configuración de {app}, y lo que OpenStreamMS
 //    deja fuera (usuarios osms- y sus perfiles, carpetas _OpenStreamMS_Stream,
 //    %ProgramData%\OpenStreamMS, registro y temporales). Si no, se conservan para reinstalar.
-//  - Quitar también RDP Wrapper, ViGEmBus y HidHide (otras aplicaciones pueden usarlos).
+//  - Quitar también TermWrap, ViGEmBus y HidHide (otras aplicaciones pueden usarlos).
 // Texto de [CustomMessages] con los %n convertidos en saltos de línea.
 function Msg(const Name: String): String;
 begin

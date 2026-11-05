@@ -822,12 +822,7 @@ function renderRdpStatus(st) {
   document.getElementById('rdp-termsrv').textContent     = st.termsrvVersion || '—';
   document.getElementById('rdp-service-dll').textContent = st.serviceDllPath || '—';
 
-  // Habilitar/deshabilitar botones según estado. Actualizar solo tiene sentido con asmtron
-  // (con TermWrap no hay rdpwrap.ini que refrescar).
-  const busy = !!st.busy;
-  document.getElementById('rdp-btn-install').disabled   = busy;
-  document.getElementById('rdp-btn-update').disabled    = busy || st.wrapper !== 'asmtron' || !st.installed;
-  document.getElementById('rdp-btn-uninstall').disabled = busy || st.wrapper !== 'asmtron';
+  document.getElementById('rdp-btn-install').disabled = !!st.busy;
 }
 
 async function rdpFetchLog() {
@@ -859,25 +854,8 @@ function closeRdpModal() {
 }
 
 async function rdpInstall() {
-  const msg = t('rdp.confirm.install') + (rdpLastStatus?.remoteIdd ? '\n\n' + t('rdp.confirm.leaveRemoteIdd') : '');
-  if (!await ask(msg, { ok: t('rdp.btn.install') })) return;
+  if (!await ask(t('rdp.confirm.install'), { ok: t('rdp.btn.install') })) return;
   const res = await api('POST', '/api/rdpwrap/install');
-  if (!res) return;
-  if (!res.ok) { toast(await I18n.responseError(res), true); return; }
-  rdpRefresh();
-}
-
-async function rdpUpdate() {
-  if (!await ask(t('rdp.confirm.update'), { ok: t('rdp.btn.update') })) return;
-  const res = await api('POST', '/api/rdpwrap/update');
-  if (!res) return;
-  if (!res.ok) { toast(await I18n.responseError(res), true); return; }
-  rdpRefresh();
-}
-
-async function rdpUninstall() {
-  if (!await ask(t('rdp.confirm.uninstall'), { danger: true, ok: t('rdp.btn.uninstall') })) return;
-  const res = await api('POST', '/api/rdpwrap/uninstall');
   if (!res) return;
   if (!res.ok) { toast(await I18n.responseError(res), true); return; }
   rdpRefresh();

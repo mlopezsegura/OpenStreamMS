@@ -9,5 +9,5 @@
   "StatusInstallRemoteIdd": "Instalando o driver de vídeo da estação de trabalho (RemoteIdd)...",
   "StatusStartService": "Iniciando o serviço...",
   "AskPurgeData": "Exclua também todos os dados OpenStreamMS?%n%nSessões, estações de trabalho locais e configurações; os usuários osms- de sessões isoladas e seus perfis (incluindo jogos e configurações neles salvos); perfis de fluxo, ProgramData\\OpenStreamMS e arquivos temporários.%n%nSe você responder Não, as sessões e configurações serão mantidas para uma reinstalação.",
-  "AskRemoveDeps": "Desinstale também RDP Wrapper, ViGEmBus e HidHide?%n%nResponda Não se outros aplicativos os usarem."
+  "AskRemoveDeps": "Desinstale também TermWrap, ViGEmBus e HidHide?%n%nResponda Não se outros aplicativos os usarem."
 }

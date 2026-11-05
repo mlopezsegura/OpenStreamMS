@@ -9,5 +9,5 @@
   "StatusInstallRemoteIdd": "正在安裝工作站顯示驅動程式 (RemoteIdd)...",
   "StatusStartService": "正在啟動服務...",
   "AskPurgeData": "還刪除所有 OpenStreamMS 資料？ %n%n 會話、本機工作站和設定；隔離會話的 osms- 使用者及其個人資料（包括其中保存的遊戲和設定）；串流設定檔、ProgramData\\OpenStreamMS 和臨時檔案。 %n%n 如果您回答“否”，會話和設定將保留以供重新安裝。",
-  "AskRemoveDeps": "還要卸載 RDP Wrapper、ViGEmBus 和 HidHide？ %n%n 回答否，如果其他應用程式使用它們。"
+  "AskRemoveDeps": "還要卸載 TermWrap、ViGEmBus 和 HidHide？ %n%n 回答否，如果其他應用程式使用它們。"
 }

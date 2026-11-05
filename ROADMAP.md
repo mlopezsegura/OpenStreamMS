@@ -107,8 +107,8 @@ driver's swapchain to Sunshine over shared memory, bypassing RDP's own video pat
 **Status: working on a real seat and offered as an optional installer task.** The first real-seat
 test (1920×1080, Moonlight at a steady 60 Hz, no dropped frames) passed; the UAC secure desktop no
 longer turns the stream black, and auto capture picks `remoteidd` whenever the provider is active.
-It still uses a test certificate, needs TermWrap (OpenStreamMS falls back to asmtron's RDP Wrapper
-when TermWrap fails) and takes effect after a restart. Pending: attestation signing for real
+It still uses a test certificate, needs TermWrap (OpenStreamMS's only multi-RDP; RemoteIdd is taken out of
+RDP-Tcp when TermWrap fails) and takes effect after a restart. Pending: attestation signing for real
 installs. Everything lives in
 `Native/RemoteIdd/` — start with `GUIA.md`. `build.cmd` builds against the official WDK NuGet
 package (no WDK install) and runs the tests: frame hand-off contract, cross-process GPU
