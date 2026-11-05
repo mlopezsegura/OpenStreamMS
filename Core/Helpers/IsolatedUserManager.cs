@@ -25,7 +25,9 @@ namespace OpenStreamMS.Core.Helpers;
 ///   - Contraseña aleatoria (24 chars, 4 clases) ROTADA en cada arranque y nunca
 ///     persistida en disco — solo vive en memoria durante el arranque de la sesión.
 ///   - Usuario oculto de la pantalla de login (SpecialAccounts\UserList).
-///   - Miembro únicamente de Users + Remote Desktop Users.
+///   - Miembro únicamente de Users + Remote Desktop Users. Donde no existe ese grupo
+///     (Windows Home), recibe directamente el derecho de inicio de sesión remoto y
+///     acceso a la escucha RDP-Tcp; se le quitan al borrar la cuenta.
 ///
 /// CICLO DE VIDA:
 ///   - EnsureUser            → crea el usuario (o rota la contraseña si ya existe).
@@ -167,7 +169,8 @@ internal static class IsolatedUserManager
         // NetUserAdd NO añade a ningún grupo: sin Users no hay logon interactivo,
         // sin Remote Desktop Users termsrv rechaza la conexión de FreeRDP.
         AddToLocalGroup(username, WellKnownSidType.BuiltinUsersSid, required: true);
-        AddToLocalGroup(username, WellKnownSidType.BuiltinRemoteDesktopUsersSid, required: false);
+        if (!AddToLocalGroup(username, WellKnownSidType.BuiltinRemoteDesktopUsersSid, required: false))
+            GrantRemoteLogonRight(username);
         HideFromLoginScreen(username);
         RemoveLegacySteamDeny(username);
 
@@ -254,6 +257,19 @@ internal static class IsolatedUserManager
         bool profileGone = TryDeleteProfile(username, out var error);
 
         RemoveLegacySteamDeny(username);   // antes de borrar la cuenta: hace falta su SID
+
+        // Derechos dados a la cuenta (inicio de sesión remoto en Home, apagar): sin esto
+        // quedarían en la directiva local con un SID que ya no existe.
+        if (sid is not null)
+        {
+            try
+            {
+                var sidObj = new SecurityIdentifier(sid);
+                using (var policy = LsaPolicy.Open()) policy.RemoveAll(sidObj);
+                SetWinStationAccess(sidObj, grant: false);
+            }
+            catch (Exception ex) { Logger.Warning($"[IsolatedUser] No se pudieron quitar los derechos de '{username}': {ex.Message}"); }
+        }
 
         int rc = NetUserDel(null, username);
         if (rc == NERR_Success)
@@ -468,7 +484,8 @@ internal static class IsolatedUserManager
 
     // ── Privados ──────────────────────────────────────────────────────────────
 
-    static void AddToLocalGroup(string username, WellKnownSidType groupSid, bool required)
+    /// <summary>Devuelve false si este Windows no tiene el grupo (Home, versiones "aligeradas").</summary>
+    static bool AddToLocalGroup(string username, WellKnownSidType groupSid, bool required)
     {
         // Resolver el nombre LOCALIZADO del grupo desde su SID well-known
         // ("Remote Desktop Users" es "Usuarios de escritorio remoto" en es-ES).
@@ -487,8 +504,8 @@ internal static class IsolatedUserManager
             var msg = $"[IsolatedUser] Este Windows no tiene el grupo integrado {GroupLabel(groupSid)} ({sid.Value}); " +
                       $"no se puede añadir '{username}'.";
             if (required) throw new InvalidOperationException(msg);
-            Logger.Error(msg + " Se sigue, pero Windows puede rechazar su conexión de escritorio remoto.");
-            return;
+            Logger.Log(msg + " Se le da el derecho de inicio de sesión remoto directamente.");
+            return false;
         }
 
         var member = new LOCALGROUP_MEMBERS_INFO_3
@@ -499,6 +516,89 @@ internal static class IsolatedUserManager
         int rc = NetLocalGroupAddMembers(null, group, 3, ref member, 1);
         if (rc is not (NERR_Success or ERROR_MEMBER_IN_ALIAS))
             Logger.Warning($"[IsolatedUser] No se pudo añadir '{username}' al grupo '{group}': error {rc}.");
+        return true;
+    }
+
+    /// <summary>
+    /// Windows Home (y algunos Windows "aligerados") no tiene el grupo Remote Desktop Users
+    /// (S-1-5-32-555), que es quien tiene "Permitir inicio de sesión a través de Servicios de
+    /// Escritorio remoto" (SeRemoteInteractiveLogonRight). Sin él, termsrv rechaza el inicio de
+    /// sesión del usuario aislado y la sesión nunca aparece. El derecho se da a la cuenta.
+    /// Se quita al borrarla (<see cref="RemoveUser"/>).
+    /// </summary>
+    static void GrantRemoteLogonRight(string username)
+    {
+        const string right = "SeRemoteInteractiveLogonRight";
+        try
+        {
+            var sid = (SecurityIdentifier)new NTAccount(username).Translate(typeof(SecurityIdentifier));
+            using var policy = LsaPolicy.Open();
+            if (!policy.Has(sid, right)) policy.Add(sid, right);
+            if (policy.Has(sid, "SeDenyRemoteInteractiveLogonRight"))
+                Logger.Warning($"[IsolatedUser] '{username}' tiene denegado el inicio de sesión remoto por directiva; la sesión no podrá arrancar.");
+            SetWinStationAccess(sid, grant: true);
+            Logger.Log($"[IsolatedUser] '{username}' puede iniciar sesión por escritorio remoto ({right} y acceso a RDP-Tcp).");
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"[IsolatedUser] No se pudo dar a '{username}' el derecho de inicio de sesión remoto: {ex.Message}. " +
+                         "Windows rechazará su conexión de escritorio remoto.");
+        }
+    }
+
+    const string WinStationsKey = @"SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations";
+    const string RdpTcpKey = WinStationsKey + @"\RDP-Tcp";
+    // Lo mismo que tiene Remote Desktop Users por defecto: WINSTATION_QUERY | LOGON | CONNECT ("Acceso de usuario").
+    const int WinStationUserAccess = 0x121;
+
+    /// <summary>
+    /// Además del derecho, termsrv comprueba los permisos de la escucha RDP-Tcp (los de
+    /// WinStations\DefaultSecurity si RDP-Tcp no tiene "Security" propio). Por defecto solo
+    /// Administradores y Remote Desktop Users pueden iniciar sesión; sin ese grupo, se da
+    /// "Acceso de usuario" a la cuenta. Al quitarlo, si RDP-Tcp vuelve a ser igual que el
+    /// predeterminado se borra su "Security" para dejarlo como estaba.
+    /// </summary>
+    static void SetWinStationAccess(SecurityIdentifier sid, bool grant)
+    {
+        using var root = Registry.LocalMachine.OpenSubKey(WinStationsKey)
+            ?? throw new InvalidOperationException($"no existe HKLM\\{WinStationsKey}");
+        using var rdpTcp = Registry.LocalMachine.OpenSubKey(RdpTcpKey, writable: true)
+            ?? throw new InvalidOperationException($"no existe HKLM\\{RdpTcpKey}");
+
+        var defaultBytes = root.GetValue("DefaultSecurity") as byte[];
+        var currentBytes = rdpTcp.GetValue("Security") as byte[] ?? defaultBytes;
+        if (currentBytes is null)
+        {
+            Logger.Warning("[IsolatedUser] RDP-Tcp no tiene permisos legibles (ni Security ni DefaultSecurity); no se tocan.");
+            return;
+        }
+
+        var sd = new RawSecurityDescriptor(currentBytes, 0);
+        var acl = sd.DiscretionaryAcl ?? new RawAcl(GenericAcl.AclRevision, 0);
+        bool has = false;
+        for (int i = acl.Count - 1; i >= 0; i--)
+        {
+            if (acl[i] is not CommonAce ace || ace.SecurityIdentifier != sid) continue;
+            if (grant && ace.AceQualifier == AceQualifier.AccessAllowed && (ace.AccessMask & WinStationUserAccess) == WinStationUserAccess)
+                has = true;
+            else if (!grant)
+                acl.RemoveAce(i);
+        }
+        if (grant && has) return;
+        if (!grant && acl.Count == (sd.DiscretionaryAcl?.Count ?? 0)) return;   // no había nada suyo
+
+        if (grant)
+            acl.InsertAce(acl.Count, new CommonAce(AceFlags.None, AceQualifier.AccessAllowed,
+                                                   WinStationUserAccess, sid, false, null));
+        sd.DiscretionaryAcl = acl;
+        sd.SetFlags(sd.ControlFlags | ControlFlags.DiscretionaryAclPresent);
+
+        var bytes = new byte[sd.BinaryLength];
+        sd.GetBinaryForm(bytes, 0);
+        if (!grant && defaultBytes is not null && bytes.AsSpan().SequenceEqual(defaultBytes))
+            rdpTcp.DeleteValue("Security", throwOnMissingValue: false);
+        else
+            rdpTcp.SetValue("Security", bytes, RegistryValueKind.Binary);
     }
 
     static string GroupLabel(WellKnownSidType groupSid) => groupSid switch
