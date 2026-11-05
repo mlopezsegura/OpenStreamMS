@@ -1356,7 +1356,9 @@ $dmVerify.dmSize = [System.Runtime.InteropServices.Marshal]::SizeOf($dmVerify)
         /// Pasos (idempotentes; se ejecutan antes de cada creacion de sesion):
         ///   1. fDenyTSConnections = 0        → termsrv acepta conexiones RDP entrantes.
         ///   2. RDP-Tcp\fEnableWinStation = 1 → listener RDP-Tcp activo.
-        ///   3. TermService arrancado (y no Deshabilitado): el listener es trigger-start,
+        ///   3. fSingleSessionPerUser = 0     → varias sesiones por usuario (ver
+        ///      <see cref="EnsureMultipleSessionsPerUser"/>).
+        ///   4. TermService arrancado (y no Deshabilitado): el listener es trigger-start,
         ///      pero si algun endurecimiento previo dejo el servicio parado/off la
         ///      conexion loopback fallaria.
         /// </para>
@@ -1372,8 +1374,47 @@ $dmVerify.dmSize = [System.Runtime.InteropServices.Marshal]::SizeOf($dmVerify)
                           "fDenyTSConnections", 0, RegistryValueKind.DWord);
             WriteRegistry(@"SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp",
                           "fEnableWinStation", 1, RegistryValueKind.DWord);
+            EnsureMultipleSessionsPerUser();
 
             EnsureTermServiceRunning();
+        }
+
+        /// <summary>
+        /// Pone fSingleSessionPerUser = 0. Windows lo trae a 1 en todas las ediciones: con 1,
+        /// si el usuario del puesto ya tiene una sesión (por ejemplo, la de consola), termsrv
+        /// le devuelve esa en vez de crear otra, aunque TermWrap/RDPWrap permitan sesiones
+        /// simultáneas (el parche quita el límite de sesiones, no esta opción). Es lo mismo
+        /// que la casilla "Single session per user" de RDPConf.
+        /// <para>
+        /// Si una directiva lo fuerza a 1 (HKLM\SOFTWARE\Policies\...\Terminal Services), esa
+        /// gana al valor normal: no se toca (la reescribiría la GPO) y solo se avisa.
+        /// </para>
+        /// </summary>
+        static void EnsureMultipleSessionsPerUser()
+        {
+            const string tsKey = @"SYSTEM\CurrentControlSet\Control\Terminal Server";
+            const string policyKey = @"SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services";
+            const string name = "fSingleSessionPerUser";
+
+            try
+            {
+                using (var key = Registry.LocalMachine.OpenSubKey(tsKey))
+                {
+                    if (key?.GetValue(name) is not int current || current != 0)
+                        WriteRegistry(tsKey, name, 0, RegistryValueKind.DWord);
+                }
+
+                using var policy = Registry.LocalMachine.OpenSubKey(policyKey);
+                if (policy?.GetValue(name) is int forced && forced != 0)
+                    Logger.Warning($"[RDP] Una directiva fuerza {name}={forced} (HKLM\\{policyKey}): " +
+                                   "si el usuario del puesto ya tiene sesión abierta, Windows la reutilizará " +
+                                   "en vez de crear otra. Desactiva \"Restringir a los usuarios de Servicios " +
+                                   "de Escritorio remoto a una única sesión\" o usa un usuario distinto.");
+            }
+            catch (Exception ex)
+            {
+                Logger.Warning($"[RDP] No se pudo comprobar {name}: {ex.Message}");
+            }
         }
 
         /// <summary>

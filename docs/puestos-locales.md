@@ -133,8 +133,11 @@ restauran en su siguiente arranque.
 
 - **Usuarios nuevos**: la pantalla de privacidad de primer uso deja el escritorio
   estático. Completarla una vez o usar la directiva `DisablePrivacyExperience`.
-- **Varias sesiones por usuario** (`fSingleSessionPerUser=0`): reconectar sin
-  desconectar antes crea otra sesión.
+- **Varias sesiones por usuario** (`fSingleSessionPerUser=0`): OpenStreamMS lo pone
+  al crear la sesión. Windows lo trae a 1, y entonces, si el usuario ya tiene sesión
+  (por ejemplo, la de consola), la RDP se queda con esa aunque TermWrap permita sesiones
+  simultáneas. Si una directiva lo fuerza a 1, se avisa en el log. Efecto secundario:
+  reconectar sin desconectar antes crea otra sesión.
 - **Misma GPU**: el monitor del puesto y la sesión deben compartir adaptador.
 - **Antitrampas**: la entrada inyectada lleva la marca `INJECTED`; algunos juegos
   con antitrampas pueden rechazarla.
