@@ -104,6 +104,10 @@ public sealed class RdpWrapperManager
     {
         await RunExclusiveAsync("install", async () =>
         {
+#if TERMWRAP_ONLY
+            await InstallTermWrapAsync(ct);
+            return;
+#endif
             AppendLog("Descargando última release de asmtron/rdpwrap…");
             var (assetUrl, assetName) = await FetchLatestPortableZipUrlAsync(ct);
             AppendLog($"Asset: {assetName}");
@@ -132,6 +136,10 @@ public sealed class RdpWrapperManager
     {
         await RunExclusiveAsync("update", async () =>
         {
+#if TERMWRAP_ONLY
+            await InstallTermWrapAsync(ct);
+            return;
+#endif
             var autoupdate = Path.Combine(_installDir, "autoupdate.bat");
             if (!File.Exists(autoupdate))
             {
@@ -149,6 +157,13 @@ public sealed class RdpWrapperManager
     {
         await RunExclusiveAsync("uninstall", async () =>
         {
+#if TERMWRAP_ONLY
+            TermWrapInstaller.RestoreWindowsServiceDll(AppendLog);
+            ApplyTermServiceChange();
+            AppendLog("✓ Multi-RDP (TermWrap) quitado. Los ficheros se quedan en " + TermWrapInstaller.InstallDir + ".");
+            await Task.CompletedTask;
+            return;
+#endif
             var rdpwinst = Path.Combine(_installDir, "RDPWInst.exe");
             if (!File.Exists(rdpwinst))
             {
@@ -233,6 +248,9 @@ public sealed class RdpWrapperManager
 
     private void EnsureMultiRdpCore(CancellationToken ct)
     {
+#if TERMWRAP_ONLY
+        EnsureTermWrap(ct);
+#endif
         if (!IsRemoteIddActive()) return;
         if (IsRemoteIddPendingRestart())
         {
@@ -250,9 +268,15 @@ public sealed class RdpWrapperManager
             Logger.Log("[RdpWrap] TermWrap activo y RDP-Tcp escuchando: RemoteIdd disponible.");
             return;
         }
+#if TERMWRAP_ONLY
+        // Sin asmtron al que volver: se quita RemoteIdd de RDP-Tcp y se deja TermWrap.
+        Logger.Error($"[RdpWrap] RemoteIdd sin TermWrap funcional ({problem}). Se quita RemoteIdd de RDP-Tcp; el multi-RDP sigue siendo TermWrap.");
+        LeaveRemoteIdd();
+#else
         Logger.Error($"[RdpWrap] RemoteIdd sin TermWrap funcional ({problem}). Se vuelve a RDP Wrapper de asmtron.");
         LeaveRemoteIdd();
         SetServiceDllToAsmtron();
+#endif
 
         // Parar TermService con sesiones remotas o de puesto vivas puede dejarlo parado a medias
         // (StopPending) y entonces el equipo no llega a apagarse ni reiniciarse. Con sesiones así
@@ -333,6 +357,66 @@ public sealed class RdpWrapperManager
         catch { return []; }
     }
 
+#if TERMWRAP_ONLY
+    // ── Compilación solo TermWrap (dotnet publish -p:MultiRdp=TermWrap) ──────
+
+    /// <summary>
+    /// El ensure de arranque: el multi-RDP de esta compilación es TermWrap. Si ServiceDll apunta
+    /// a otra cosa (termsrv.dll de Windows, rdpwrap.dll de asmtron, o un Windows Update que lo
+    /// cambió) se vuelve a poner TermWrap, descargándolo si faltan sus ficheros.
+    /// </summary>
+    private void EnsureTermWrap(CancellationToken ct)
+    {
+        try
+        {
+            var st = GetStatus();
+            if (st.Wrapper == "TermWrap" && TermWrapInstaller.FilesOk())
+            {
+                if (st.Loaded != true)
+                    Logger.Warning("[RdpWrap] TermWrap puesto pero no cargado en TermService (se cargará al reiniciarlo).");
+                return;
+            }
+            Logger.Log($"[RdpWrap] Multi-RDP: ServiceDll = {st.ServiceDllPath}; se pone TermWrap.");
+            TermWrapInstaller.EnsureFilesAsync(AppendLog, ct).GetAwaiter().GetResult();
+            TermWrapInstaller.DisableAsmtronAutoupdate(AppendLog);
+            if (TermWrapInstaller.PointServiceDll(AppendLog) || GetStatus().Loaded != true)
+                ApplyTermServiceChange();
+            Logger.Log($"[RdpWrap] Multi-RDP con TermWrap. Estado: {GetStatus()}");
+        }
+        catch (Exception ex)
+        {
+            Logger.Error($"[RdpWrap] No se pudo poner TermWrap como multi-RDP: {ex.Message}");
+        }
+    }
+
+    private async Task InstallTermWrapAsync(CancellationToken ct)
+    {
+        await TermWrapInstaller.EnsureFilesAsync(AppendLog, ct);
+        TermWrapInstaller.DisableAsmtronAutoupdate(AppendLog);
+        TermWrapInstaller.PointServiceDll(AppendLog);
+        if (GetStatus().Loaded != true) ApplyTermServiceChange();
+        AppendLog(GetStatus().Installed
+            ? "✓ Multi-RDP (TermWrap) instalado y activo."
+            : "✗ TermWrap aún no está cargado: se cargará al reiniciar el equipo.");
+    }
+
+    /// <summary>
+    /// Reinicia TermService para que cargue el ServiceDll nuevo, salvo con sesiones remotas o de
+    /// puesto abiertas: pararlo así puede dejarlo a medias y colgar el apagado. Entonces el cambio
+    /// se aplica en el próximo arranque.
+    /// </summary>
+    private void ApplyTermServiceChange()
+    {
+        var live = OpenStreamMS.Core.Helpers.RdpSessionCreator.DescribeNonConsoleUserSessions();
+        if (live.Count > 0)
+        {
+            AppendLog($"Hay sesiones abiertas ({string.Join(", ", live)}): TermService no se reinicia ahora; el cambio se aplica al reiniciar el equipo.");
+            return;
+        }
+        RestartTermService();
+    }
+#endif
+
     private void SetServiceDllToAsmtron()
     {
         var dll = Path.Combine(_installDir, "rdpwrap.dll");
@@ -376,7 +460,12 @@ public sealed class RdpWrapperManager
         {
             // Las tres acciones dejan ServiceDll en rdpwrap.dll o termsrv.dll y reinician TermService:
             // con el proveedor de RemoteIdd aún en RDP-Tcp, el RDP dejaría de escuchar.
+#if TERMWRAP_ONLY
+            // TermWrap sigue llevando el proveedor de RemoteIdd: solo al quitarlo hay que sacarlo.
+            if (action == "uninstall" && IsRemoteIddActive()) LeaveRemoteIdd();
+#else
             if (IsRemoteIddActive()) LeaveRemoteIdd();
+#endif
             await work();
         }
         catch (Exception ex)
