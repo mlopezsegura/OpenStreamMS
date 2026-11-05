@@ -2,6 +2,7 @@ using Microsoft.Win32;
 using OpenStreamMS.Services;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 using ServiceController = System.ServiceProcess.ServiceController;
 using ServiceControllerStatus = System.ServiceProcess.ServiceControllerStatus;
 
@@ -151,6 +152,7 @@ namespace OpenStreamMS.Core.Helpers
             // bundled se compilo SIN H264 (ver /buildconfig), asi que con el termsrv
             // cae a RemoteFX progressive por CPU: a 4K la composicion se desploma a
             // 8-15 fps con la imagen en movimiento (diente de sierra 60→8).
+            Exception? mstscError = null;
             if (preferMstsc)
             {
                 try
@@ -162,12 +164,31 @@ namespace OpenStreamMS.Core.Helpers
                 catch (Exception ex)
                 {
                     Logger.Warning($"[RDP] mstsc fallo ({ex.Message}); reintentando con FreeRDP...");
+                    mstscError = ex;
                 }
             }
 
             Logger.Log($"[RDP] Sin sesion para '{user.Username}', creando via FreeRDP...");
-            return CreateSessionWithFreeRdp(user, address, rdpWidth, rdpHeight,
-                                            rdpFrameRate, rdpColorDepth, out freeRdpPid);
+            int pid = 0;
+            uint id = WithMstscError(mstscError, () => CreateSessionWithFreeRdp(user, address, rdpWidth, rdpHeight,
+                                                                            rdpFrameRate, rdpColorDepth, out pid));
+            freeRdpPid = pid;
+            return id;
+        }
+
+        /// <summary>
+        /// Ejecuta el respaldo con FreeRDP y, si también falla, añade al error por qué falló antes
+        /// mstsc: ese aviso solo se registra como Warning y con el nivel de log por defecto se pierde.
+        /// </summary>
+        static uint WithMstscError(Exception? mstscError, Func<uint> freeRdp)
+        {
+            if (mstscError is null) return freeRdp();
+            try { return freeRdp(); }
+            catch (Exception ex) when (ex is InvalidOperationException or TimeoutException)
+            {
+                string msg = $"{ex.Message} Antes fallo mstsc: {mstscError.Message}";
+                throw ex is TimeoutException ? new TimeoutException(msg, ex) : new InvalidOperationException(msg, ex);
+            }
         }
 
         /// <summary>
@@ -212,7 +233,10 @@ namespace OpenStreamMS.Core.Helpers
                 catch (Exception ex)
                 {
                     Logger.Warning($"[RDP] mstsc falló al reconectar ({ex.Message}); reintentando con FreeRDP...");
-                    id = CreateSessionWithFreeRdp(user, address, rdpWidth, rdpHeight, rdpFrameRate, rdpColorDepth, out clientPid);
+                    int pid = 0;
+                    id = WithMstscError(ex, () => CreateSessionWithFreeRdp(user, address, rdpWidth, rdpHeight,
+                                                                           rdpFrameRate, rdpColorDepth, out pid));
+                    clientPid = pid;
                 }
             }
             else
@@ -239,10 +263,65 @@ namespace OpenStreamMS.Core.Helpers
         }
 
         const int WtsDisconnected = 4;
-        /// <summary>FreeRDP: ERRINFO_RPC_INITIATED_DISCONNECT (0x10001), el servidor cortó la conexión.</summary>
+
+        // Códigos de salida de wfreerdp: (clase << 16) | código, de include/freerdp/error.h
+        // (clase 1 = ERRINFO del servidor, clase 2 = ERRCONNECT del cliente).
+        /// <summary>ERRINFO_RPC_INITIATED_DISCONNECT (0x10001): el servidor cortó la conexión.</summary>
         const int ErrRpcInitiatedDisconnect = 0x10001;
-        /// <summary>FreeRDP: ERRCONNECT_CONNECT_FAILED (0x20006), no hubo conexión TCP con el servidor RDP.</summary>
+        /// <summary>ERRCONNECT_PRE_CONNECT_FAILED (0x20001): falló antes de conectar (canales, complementos).</summary>
+        const int ErrPreConnectFailed = 0x20001;
+        /// <summary>ERRCONNECT_POST_CONNECT_FAILED (0x20003): conectó y autenticó, pero el cliente no pudo
+        /// preparar su ventana o superficie de dibujo.</summary>
+        const int ErrPostConnectFailed = 0x20003;
+        /// <summary>ERRCONNECT_CONNECT_FAILED (0x20006): no hubo conexión TCP con el servidor RDP.</summary>
         const int ErrConnectFailed = 0x20006;
+        /// <summary>ERRCONNECT_TLS_CONNECT_FAILED (0x20008).</summary>
+        const int ErrTlsConnectFailed = 0x20008;
+        /// <summary>ERRCONNECT_AUTHENTICATION_FAILED (0x20009).</summary>
+        const int ErrAuthenticationFailed = 0x20009;
+        /// <summary>ERRCONNECT_LOGON_FAILURE (0x20014).</summary>
+        const int ErrLogonFailure = 0x20014;
+        /// <summary>ERRCONNECT_WRONG_PASSWORD (0x20015).</summary>
+        const int ErrWrongPassword = 0x20015;
+        /// <summary>ERRCONNECT_ACCESS_DENIED (0x20016).</summary>
+        const int ErrAccessDenied = 0x20016;
+        /// <summary>wfreerdp con un argumento que no entiende: imprime la ayuda y sale.</summary>
+        const int ErrBadArgument = -1001;
+
+        static readonly Regex FreeRdpNoise = new(
+            @"\[(freerdp_warn_deprecated|warn_contact_details|warn_credential_args|wf_has_console)\]",
+            RegexOptions.Compiled);
+        /// <summary>"[20:01:36:712] [24520:000083fc] " al principio de cada línea de wfreerdp.</summary>
+        static readonly Regex FreeRdpLinePrefix = new(@"^\[[\d:]+\] \[[0-9a-fA-F:]+\] ", RegexOptions.Compiled);
+
+        /// <summary>Explica en una frase el código de salida de wfreerdp.</summary>
+        static string ExplainFreeRdpExit(int exitCode, int rdpWidth, int rdpHeight) => exitCode switch
+        {
+            // Con RemoteIdd suele ser un modo de pantalla que el driver no anuncia.
+            ErrRpcInitiatedDisconnect =>
+                $"El servidor cerro la conexion: la resolucion {rdpWidth}x{rdpHeight} puede no estar " +
+                "entre los modos del driver de pantalla (con RemoteIdd, mira remoteidd-driver.log).",
+            ErrPreConnectFailed =>
+                "FreeRDP fallo antes de conectar (PRE_CONNECT_FAILED): no pudo cargar algun canal o " +
+                "complemento, por ejemplo el audio o el microfono.",
+            ErrPostConnectFailed =>
+                "FreeRDP conecto y se autentico, pero no pudo preparar su ventana o su superficie de " +
+                "dibujo (POST_CONNECT_FAILED). El fallo es del cliente RDP en la sesion 0 del servicio, " +
+                "no del usuario ni del driver de pantalla.",
+            // Visto con TermService colgado tras un reinicio fallido.
+            ErrConnectFailed =>
+                "No se pudo conectar con Escritorio remoto: no escucha en el puerto RDP. Reinicia el " +
+                "equipo si TermService se quedo a medias (por ejemplo tras instalar el driver de pantalla).",
+            ErrTlsConnectFailed =>
+                "Fallo la negociacion TLS con Escritorio remoto (certificado o capa de seguridad RDP).",
+            ErrAuthenticationFailed or ErrLogonFailure or ErrWrongPassword =>
+                "Escritorio remoto rechazo el usuario o la contraseña.",
+            ErrAccessDenied =>
+                "El usuario no tiene permiso para iniciar sesion por Escritorio remoto.",
+            ErrBadArgument =>
+                "Argumento no soportado: wfreerdp imprime la ayuda y sale.",
+            _ => $"Codigo de FreeRDP 0x{exitCode:X}.",
+        };
 
         public static RdpSessionInfo? FindConflictingConsoleSession(StreamUserConfig user)
         {
@@ -413,9 +492,26 @@ namespace OpenStreamMS.Core.Helpers
             var proc = Process.Start(psi)
                 ?? throw new InvalidOperationException("[RDP] No se pudo iniciar wfreerdp.exe");
 
-            // Con /log-level:ERROR todo lo que llegue por stderr es un error real.
-            proc.OutputDataReceived += (_, e) => { if (e.Data is not null) Logger.Log($"[FreeRDP] {e.Data}"); };
-            proc.ErrorDataReceived += (_, e) => { if (e.Data is not null) Logger.Warning($"[FreeRDP] {e.Data}"); };
+            // Con /log-level:ERROR todo lo que llegue por stderr es un error real. Las últimas
+            // líneas van también en el mensaje de error: con el nivel de log por defecto (Error)
+            // los avisos no se guardan y sin ellas no hay forma de saber por qué cortó.
+            var outputTail = new Queue<string>();
+            void Keep(string line)
+            {
+                // wfreerdp avisa siempre de que está obsoleto y de que /p es inseguro: ruido.
+                if (FreeRdpNoise.IsMatch(line)) return;
+                line = FreeRdpLinePrefix.Replace(line, "");
+                if (!string.IsNullOrEmpty(user.Password))
+                    line = line.Replace(user.Password, "<redacted>");
+                if (line.Length > 300) line = line[..300] + "…";
+                lock (outputTail)
+                {
+                    outputTail.Enqueue(line);
+                    while (outputTail.Count > 8) outputTail.Dequeue();
+                }
+            }
+            proc.OutputDataReceived += (_, e) => { if (e.Data is not null) { Logger.Log($"[FreeRDP] {e.Data}"); Keep(e.Data); } };
+            proc.ErrorDataReceived += (_, e) => { if (e.Data is not null) { Logger.Warning($"[FreeRDP] {e.Data}"); Keep(e.Data); } };
             proc.BeginOutputReadLine();
             proc.BeginErrorReadLine();
 
@@ -424,23 +520,18 @@ namespace OpenStreamMS.Core.Helpers
             if (newSession < 0)
             {
                 if (proc.HasExited)
+                {
+                    // Sin timeout, WaitForExit espera a que se vacíen stdout y stderr.
+                    proc.WaitForExit();
+                    string output;
+                    lock (outputTail)
+                        output = outputTail.Count == 0
+                            ? " FreeRDP no escribio nada."
+                            : " Salida de FreeRDP: " + string.Join(" | ", outputTail.Where(l => l.Trim().Length > 0));
                     throw new InvalidOperationException(
-                        $"[RDP] FreeRDP termino con ExitCode={proc.ExitCode} sin crear sesion para '{user.Username}'. " +
-                        (proc.ExitCode switch
-                        {
-                            // 0x10001: el servidor cortó tras autenticar. Con RemoteIdd suele ser un modo
-                            // de pantalla que el driver no anuncia (ver remoteidd-driver.log).
-                            ErrRpcInitiatedDisconnect =>
-                                $"El servidor cerro la conexion: la resolucion {rdpWidth}x{rdpHeight} puede no estar " +
-                                "entre los modos del driver de pantalla (con RemoteIdd, mira remoteidd-driver.log).",
-                            // 0x20006: ni siquiera conectó. Escritorio remoto no escucha (visto con TermService
-                            // colgado tras un reinicio fallido).
-                            ErrConnectFailed =>
-                                "No se pudo conectar con Escritorio remoto: no escucha en el puerto RDP. Reinicia el " +
-                                "equipo si TermService se quedo a medias (por ejemplo tras instalar el driver de pantalla).",
-                            _ => "ExitCode=-1001 suele indicar un argumento no soportado " +
-                                 "(wfreerdp imprime la ayuda y sale); revisa tambien usuario/contraseña.",
-                        }));
+                        $"[RDP] FreeRDP termino con ExitCode={proc.ExitCode} (0x{proc.ExitCode:X}) sin crear sesion " +
+                        $"para '{user.Username}'. {ExplainFreeRdpExit(proc.ExitCode, rdpWidth, rdpHeight)}{output}");
+                }
 
                 try { proc.Kill(entireProcessTree: true); } catch { /* ignorar */ }
                 throw new TimeoutException(
@@ -954,6 +1045,7 @@ namespace OpenStreamMS.Core.Helpers
 Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
+using System.Text.RegularExpressions;
 
 public static class DisplayHelper
 {{
