@@ -9,5 +9,5 @@
   "StatusInstallRemoteIdd": "Instalowanie sterownika ekranu stacji roboczej (RemoteIdd)...",
   "StatusStartService": "Uruchamianie usługi...",
   "AskPurgeData": "Usunąć także wszystkie dane OpenStreamMS?%n%nSesje, lokalne stacje robocze i ustawienia; użytkownicy osms- izolowanych sesji i ich profile (w tym gry i zapisane w nich ustawienia); profile strumieniowe, ProgramData\\OpenStreamMS i pliki tymczasowe.%n%nJeśli odpowiesz Nie, sesje i ustawienia zostaną zachowane na potrzeby ponownej instalacji.",
-  "AskRemoveDeps": "Odinstaluj także RDP Wrapper, ViGEmBus i HidHide?%n%nAOdpowiedź Nie, jeśli używają ich inne aplikacje."
+  "AskRemoveDeps": "Odinstaluj także TermWrap, ViGEmBus i HidHide?%n%nAOdpowiedź Nie, jeśli używają ich inne aplikacje."
 }

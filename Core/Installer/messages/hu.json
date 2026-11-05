@@ -9,5 +9,5 @@
   "StatusInstallRemoteIdd": "A munkaállomás kijelző-illesztőprogramjának telepítése (RemoteIdd)...",
   "StatusStartService": "A szolgáltatás indítása...",
   "AskPurgeData": "Töröl továbbá minden OpenStreamMS adatot?%n%nSessions, helyi munkaállomások és beállítások; az elszigetelt munkamenetek osms- felhasználói és profiljaik (beleértve a bennük elmentett játékokat és beállításokat); streamprofilok, ProgramData\\OpenStreamMS és ideiglenes fájlok.%n%nHa nemmel válaszol, a munkamenetek és a beállítások megmaradnak az újratelepítéshez.",
-  "AskRemoveDeps": "Távolítsa el a RDP Wrapper, ViGEmBus és HidHide?%n%nA elemeket is. Nem, ha más alkalmazások használják őket."
+  "AskRemoveDeps": "Távolítsa el a TermWrap, ViGEmBus és HidHide?%n%nA elemeket is. Nem, ha más alkalmazások használják őket."
 }

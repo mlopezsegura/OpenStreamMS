@@ -9,5 +9,5 @@
   "StatusInstallRemoteIdd": "A instalar o controlador de ecrã dos postos (RemoteIdd)...",
   "StatusStartService": "A iniciar o serviço...",
   "AskPurgeData": "Eliminar também todos os dados do OpenStreamMS?%n%nSessões, postos e definições; os utilizadores osms- das sessões isoladas e os respetivos perfis (incluindo jogos e definições guardados neles); perfis de stream, ProgramData\\OpenStreamMS e ficheiros temporários.%n%nSe responder Não, as sessões e as definições são mantidas para uma reinstalação.",
-  "AskRemoveDeps": "Desinstalar também o RDP Wrapper, o ViGEmBus e o HidHide?%n%nResponda Não se outras aplicações os utilizarem."
+  "AskRemoveDeps": "Desinstalar também o TermWrap, o ViGEmBus e o HidHide?%n%nResponda Não se outras aplicações os utilizarem."
 }

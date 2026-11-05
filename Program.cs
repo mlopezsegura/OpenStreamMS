@@ -80,7 +80,7 @@ switch (command)
         Environment.Exit(OpenStreamMS.Services.Seats.SeatHost.RunStandalone(args[1], hostSeatId));
         break;
     case "--remove-deps":
-        // Desinstalación con "quitar también las dependencias": RDP Wrapper, ViGEmBus y HidHide.
+        // Desinstalación con "quitar también las dependencias": TermWrap, ViGEmBus y HidHide.
         AttachParentConsole();
         RequireAdmin();
         RemoveDependencies();
@@ -303,7 +303,7 @@ static async Task RunService(string[] args)
     // ── Seats API (puestos locales) ───────────────────────────────────────────
     app.MapSeatApi();
 
-    // ── RDP Wrapper API (varias sesiones RDP simultáneas en Windows cliente) ──
+    // ── Multi-RDP API (TermWrap: varias sesiones RDP simultáneas en Windows cliente) ──
     app.MapRdpWrapperApi();
 
     // ── Drivers (ViGEmBus, HidHide) API ───────────────────────────────────────
@@ -507,14 +507,23 @@ static void Uninstall(bool silent = false)
 
 static void RemoveDependencies()
 {
-    // RDP Wrapper: su instalador restaura la termsrv.dll original con -u.
-    var rdpDir  = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "RDP Wrapper");
-    var rdpInst = Path.Combine(rdpDir, "RDPWInst.exe");
-    if (File.Exists(rdpInst))
+    // Multi-RDP (TermWrap, o asmtron de una instalación antigua): ServiceDll vuelve al termsrv.dll
+    // de Windows antes de borrar la carpeta, para que TermService nunca apunte a una DLL que no existe.
+    // Se aplica al reiniciar el equipo.
+    var rdpDir = OpenStreamMS.Services.Session.TermWrapInstaller.InstallDir;
+    if (Directory.Exists(rdpDir))
     {
-        RunProcess(rdpInst, "-u");
-        try { Directory.Delete(rdpDir, recursive: true); } catch { /* algún fichero bloqueado */ }
-        Console.WriteLine("[Uninstall] RDP Wrapper desinstalado.");
+        using (var svc = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Services\TermService\Parameters"))
+        {
+            var dll = svc?.GetValue("ServiceDll", null, RegistryValueOptions.DoNotExpandEnvironmentNames) as string;
+            var full = dll is null ? null : Environment.ExpandEnvironmentVariables(dll);
+            if (full is not null && full.StartsWith(rdpDir, StringComparison.OrdinalIgnoreCase))
+                OpenStreamMS.Services.Session.TermWrapInstaller.RestoreWindowsServiceDll(Console.WriteLine);
+        }
+        var rdpInst = Path.Combine(rdpDir, "RDPWInst.exe");
+        if (File.Exists(rdpInst)) RunProcess(rdpInst, "-u"); // asmtron antiguo: quita su servicio y tareas
+        try { Directory.Delete(rdpDir, recursive: true); } catch { /* DLL cargada en TermService hasta reiniciar */ }
+        Console.WriteLine("[Uninstall] Multi-RDP (TermWrap) desinstalado.");
     }
 
     foreach (NefariusDriverManager driver in new NefariusDriverManager[] { new ViGEmBusManager(), new HidHideManager() })
@@ -605,7 +614,7 @@ static void PrintHelp()
           OpenStreamMS.exe --run               Ejecutar el servicio con web y API REST
           OpenStreamMS.exe --install           Instalar y registrar el servicio de Windows
           OpenStreamMS.exe --uninstall         Detener y eliminar el servicio de Windows
-          OpenStreamMS.exe --remove-deps       Desinstalar RDP Wrapper, ViGEmBus y HidHide
+          OpenStreamMS.exe --remove-deps       Desinstalar TermWrap, ViGEmBus y HidHide
           OpenStreamMS.exe --purge-data        Borrar los datos fuera de la carpeta del programa
                                                (ProgramData, usuarios osms-, perfiles de stream, temporales)
           OpenStreamMS.exe --tray              Mostrar icono en la bandeja del sistema

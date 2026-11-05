@@ -9,5 +9,5 @@
   "StatusInstallRemoteIdd": "Đang cài đặt trình điều khiển hiển thị máy trạm (RemoteIdd)...",
   "StatusStartService": "Bắt đầu dịch vụ...",
   "AskPurgeData": "Đồng thời xóa tất cả dữ liệu OpenStreamMS?%n%nPhiên, máy trạm cục bộ và cài đặt; người dùng osms- của các phiên bị cô lập và hồ sơ của họ (bao gồm các trò chơi và cài đặt được lưu trong đó); cấu hình luồng, ProgramData\\OpenStreamMS và các tệp tạm thời.%n%nNếu bạn trả lời Không, các phiên và cài đặt sẽ được giữ lại để cài đặt lại.",
-  "AskRemoveDeps": "Đồng thời gỡ cài đặt RDP Wrapper, ViGEmBus và HidHide?%n%nanswer Không nếu các ứng dụng khác sử dụng chúng."
+  "AskRemoveDeps": "Đồng thời gỡ cài đặt TermWrap, ViGEmBus và HidHide?%n%nanswer Không nếu các ứng dụng khác sử dụng chúng."
 }

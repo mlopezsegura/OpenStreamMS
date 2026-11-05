@@ -4,7 +4,7 @@ using System.Security.Cryptography;
 namespace OpenStreamMS.Services.Session;
 
 /// <summary>
-/// TermWrap (llccd) como multi-RDP, sin el RDP Wrapper de asmtron. Misma versión, URL y hashes
+/// TermWrap (llccd), el multi-RDP de OpenStreamMS (sustituye al RDP Wrapper de asmtron). Misma versión, URL y hashes
 /// fijos que Native/RemoteIdd/Provider/install.ps1: la DLL corre dentro de TermService, así que
 /// no se acepta otra. Además de la multisesión parchea IsAllowNonRDPStack (lo que necesita el
 /// proveedor de RemoteIdd) y funciona en Windows Home.
@@ -87,7 +87,7 @@ internal static class TermWrapInstaller
 
     /// <summary>
     /// Las tareas de autoupdate de asmtron reponen rdpwrap.dll como ServiceDll al arrancar y
-    /// deshacen TermWrap. En esta compilación no se usa asmtron: se desactivan.
+    /// deshacen TermWrap. OpenStreamMS ya no usa asmtron: se desactivan.
     /// </summary>
     public static void DisableAsmtronAutoupdate(Action<string> log)
     {

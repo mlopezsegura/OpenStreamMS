@@ -1252,7 +1252,7 @@ public class StreamSessionService
     /// Captura RemoteIdd: el proveedor de RDP-Tcp da a la sesión del puesto el driver propio
     /// de pantalla y Sunshine lee sus frames con capture = remoteidd. Es la captura de los
     /// puestos RDP en auto-detección y con remoteidd elegido. Si el proveedor no está en
-    /// RDP-Tcp (no instalado, o se volvió a asmtron porque TermWrap falló), el puesto usa la
+    /// RDP-Tcp (no instalado, o se quitó al arrancar porque TermWrap falló), el puesto usa la
     /// captura por defecto.
     /// </summary>
     private static bool UsesRemoteIdd(StreamSession session) =>

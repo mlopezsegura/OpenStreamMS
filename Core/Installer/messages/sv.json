@@ -9,5 +9,5 @@
   "StatusInstallRemoteIdd": "Installera arbetsstationens bildskärmsdrivrutin (RemoteIdd)...",
   "StatusStartService": "Startar tjänsten...",
   "AskPurgeData": "Radera också alla OpenStreamMS-data?%n%nSessioner, lokala arbetsstationer och inställningar; osms--användarna av isolerade sessioner och deras profiler (inklusive spel och inställningar som sparats i dem); stream-profiler, ProgramData\\OpenStreamMS och temporära filer.%n%nOm du svarar Nej, sparas sessioner och inställningar för en ominstallation.",
-  "AskRemoveDeps": "Avinstallera även RDP Wrapper, ViGEmBus och HidHide?%n%nAsvara Nej om andra program använder dem."
+  "AskRemoveDeps": "Avinstallera även TermWrap, ViGEmBus och HidHide?%n%nAsvara Nej om andra program använder dem."
 }

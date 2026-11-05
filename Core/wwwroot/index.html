@@ -689,9 +689,9 @@
             <span class="about-credit-name">ViGEmBus</span>
             <span class="about-credit-desc" data-i18n="about.credit.vigem">Driver de gamepad virtual para el mando remoto</span>
           </a>
-          <a href="https://github.com/asmtron/rdpwrap" target="_blank" rel="noopener" class="about-credit">
-            <span class="about-credit-name">RDPWrap (asmtron)</span>
-            <span class="about-credit-desc" data-i18n="about.credit.rdpwrap">Habilita múltiples sesiones RDP simultáneas en Windows cliente. Requiere actualizar rdpwrap.ini tras cada Windows Update.</span>
+          <a href="https://github.com/llccd/TermWrap" target="_blank" rel="noopener" class="about-credit">
+            <span class="about-credit-name">TermWrap (llccd)</span>
+            <span class="about-credit-desc" data-i18n="about.credit.termwrap">Habilita varias sesiones RDP simultáneas en Windows cliente, Home incluido, y permite conectar RemoteIdd a RDP.</span>
           </a>
         </div>
       </div>
@@ -768,7 +768,7 @@
 <div class="modal-backdrop hidden" id="rdp-modal" onclick="handleBackdropClick(event,'rdp-modal')">
   <div class="modal modal-lg" onclick="event.stopPropagation()">
     <div class="modal-header">
-      <h3 data-i18n="rdp.title">RDP multi-sesión (RDP Wrapper)</h3>
+      <h3 data-i18n="rdp.title">RDP multi-sesión (TermWrap)</h3>
       <button class="modal-close" type="button" data-i18n-aria="btn.close" aria-label="Cerrar" onclick="closeRdpModal()">×</button>
     </div>
     <div class="modal-body">
@@ -780,7 +780,7 @@
           <td><span id="rdp-status-badge" class="badge badge-created"><span class="badge-dot"></span>—</span></td>
         </tr>
         <tr><td data-i18n="rdp.row.installDir">Directorio</td><td id="rdp-install-dir">—</td></tr>
-        <tr><td data-i18n="rdp.row.bundle">Bundle</td>      <td id="rdp-bundle">—</td></tr>
+        <tr><td data-i18n="rdp.row.bundle">Versión</td>      <td id="rdp-bundle">—</td></tr>
         <tr><td data-i18n="rdp.row.termsrv">termsrv.dll</td><td id="rdp-termsrv">—</td></tr>
         <tr><td data-i18n="rdp.row.serviceDll">ServiceDll</td><td id="rdp-service-dll">—</td></tr>
       </table>
@@ -788,9 +788,7 @@
       <div id="rdp-pending-note" class="info-note hidden" role="status"></div>
 
       <div class="dep-actions">
-        <button class="btn btn-primary btn-sm" id="rdp-btn-install" onclick="rdpInstall()" data-i18n="rdp.btn.install">Instalar</button>
-        <button class="btn btn-ghost btn-sm" id="rdp-btn-update"  onclick="rdpUpdate()"  data-i18n="rdp.btn.update">Actualizar</button>
-        <button class="btn btn-danger btn-sm" id="rdp-btn-uninstall" onclick="rdpUninstall()" data-i18n="rdp.btn.uninstall">Desinstalar</button>
+        <button class="btn btn-primary btn-sm" id="rdp-btn-install" onclick="rdpInstall()" data-i18n="rdp.btn.install">Instalar / reparar</button>
         <button class="btn btn-ghost btn-sm" onclick="rdpRefresh()" data-i18n="rdp.btn.refresh">↻ Refrescar</button>
       </div>
 

@@ -1382,7 +1382,7 @@ $dmVerify.dmSize = [System.Runtime.InteropServices.Marshal]::SizeOf($dmVerify)
         /// <summary>
         /// Pone fSingleSessionPerUser = 0. Windows lo trae a 1 en todas las ediciones: con 1,
         /// si el usuario del puesto ya tiene una sesión (por ejemplo, la de consola), termsrv
-        /// le devuelve esa en vez de crear otra, aunque TermWrap/RDPWrap permitan sesiones
+        /// le devuelve esa en vez de crear otra, aunque TermWrap permita sesiones
         /// simultáneas (el parche quita el límite de sesiones, no esta opción). Es lo mismo
         /// que la casilla "Single session per user" de RDPConf.
         /// <para>
