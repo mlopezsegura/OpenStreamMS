@@ -762,6 +762,7 @@ function closeModal(id) {
     'power-modal':    closePowerModal,
     'confirm-modal':  () => resolveConfirm(false),
     'seat-modal':     () => typeof closeSeatModal === 'function' && closeSeatModal(),
+    'guide-modal':    () => typeof closeGuide === 'function' && closeGuide(),
   }[id];
   if (close) close(); else hide(id);
 }
@@ -1787,6 +1788,7 @@ function onboardingHtml() {
       <div class="onb-head">
         <div class="empty-icon">${uiIcon('screen')}</div>
         <div><h2>${esc(t('ux.onb.title'))}</h2><p class="hint">${esc(t('ux.onb.subtitle'))}</p></div>
+        <button type="button" class="btn btn-ghost btn-sm onb-guide" onclick="openGuide()">${uiIcon('link')}<span>${esc(t('guide.open'))}</span></button>
       </div>
       <ol class="onb-steps">
         ${step(1, depsOk, t('ux.onb.step1'), `<p class="hint">${esc(t('ux.onb.step1Hint'))}</p><ul class="dep-lines">${deps.map(depRow).join('')}</ul>`)}
