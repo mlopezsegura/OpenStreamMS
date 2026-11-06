@@ -1,5 +1,5 @@
 ﻿; OpenStreamMS — Inno Setup Script
-; Requiere Inno Setup 6.3+ https://jrsoftware.org/isinfo.php
+; Requiere Inno Setup 6.7+ https://jrsoftware.org/isinfo.php (fondos y tema claro/oscuro: theme.iss)
 ;
 ; Antes de compilar ejecuta: build-installer.bat
 ; El instalador resultante se genera en ..\dist\
@@ -36,7 +36,6 @@ Compression=lzma2/max
 SolidCompression=no
 ; Log de la instalación en %TEMP%\Setup Log *.txt (para ver el error exacto si falla)
 SetupLogging=yes
-WizardStyle=modern
 PrivilegesRequired=admin
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -51,6 +50,17 @@ MinVersion=10.0.17763
 
 [CustomMessages]
 #include "messages.generated.iss"
+
+; Tema claro/oscuro y fondos animados: necesitan Inno Setup 6.7. Con uno anterior (p. ej. el de la
+; imagen de la CI) sale el instalador de siempre.
+#if Ver >= EncodeVer(6, 7, 0)
+  #include "theme.iss"
+#else
+  #pragma warning "Inno Setup anterior a 6.7: instalador sin tema claro/oscuro ni fondos animados."
+[Setup]
+WizardStyle=modern
+SetupIconFile=..\..\app.ico
+#endif
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
