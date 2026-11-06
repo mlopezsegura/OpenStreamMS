@@ -1045,7 +1045,8 @@ public class StreamSessionService
                 profileOverrides,
                 GetSunshineStatePersistPath(session.Id),
                 GetSunshineStateAliasPath(session),
-                runAsSystem: UsesRemoteIdd(session));
+                runAsSystem: UsesRemoteIdd(session),
+                uniqueIdTaken: id => UniqueIdTakenByOther(session.Id, id));
         });
 
     /// <summary>
@@ -1302,6 +1303,7 @@ public class StreamSessionService
 
             Logger.Log($"[{session.Name}] Copiando Sunshine a instancia propia: {instanceDir}", session.Id);
             CopyDirectory(templateDir, instanceDir);
+            RemoveTemplateIdentity(instanceDir, session);
         }
         else if (TemplateChanged(session.SunshineExePath, instanceExe))
         {
@@ -1327,6 +1329,41 @@ public class StreamSessionService
         // ya existía (p.ej. sesiones creadas antes de que se añadiera este código).
         AddFirewallRule(session);
     }
+
+    /// <summary>
+    /// Quita de una instancia recién copiada lo que identifica a la plantilla: si alguien la
+    /// arrancó, su config\ trae el uniqueid, el certificado, los pareos y los logs de ese
+    /// Sunshine. Todas las sesiones lo heredaban y Moonlight las veía como un solo equipo.
+    /// Sunshine lo genera de nuevo al arrancar.
+    /// </summary>
+    private static void RemoveTemplateIdentity(string instanceDir, StreamSession session)
+    {
+        var configDir = Path.Combine(instanceDir, "config");
+        if (!Directory.Exists(configDir)) return;
+        try
+        {
+            foreach (var name in new[] { "sunshine_state.json", "webrtc_tv_clients.json" })
+                File.Delete(Path.Combine(configDir, name));
+            foreach (var log in Directory.GetFiles(configDir, "sunshine.log*"))
+                File.Delete(log);
+            var credentials = Path.Combine(configDir, "credentials");
+            if (Directory.Exists(credentials)) Directory.Delete(credentials, recursive: true);
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"[{session.Name}] No se pudo limpiar el estado copiado de la plantilla de Sunshine: {ex.Message}", session.Id);
+        }
+    }
+
+    /// <summary>
+    /// true si otra sesión ya usa ese uniqueid de Sunshine (mira el sunshine_state.json de
+    /// su instancia).
+    /// </summary>
+    private bool UniqueIdTakenByOther(Guid sessionId, string uniqueId) =>
+        _sessions.Keys.Any(other => other != sessionId &&
+            string.Equals(SunshineManager.ReadUniqueId(
+                              Path.Combine(GetSunshineInstanceDir(other), "config", "sunshine_state.json")),
+                          uniqueId, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>true si el sunshine.exe de la plantilla no es el mismo que el de la instancia.</summary>
     private static bool TemplateChanged(string templateExe, string instanceExe)
