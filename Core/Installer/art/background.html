@@ -1,0 +1,65 @@
+<!doctype html>
+<!-- Fondo del instalador. generate-art.ps1 lo captura con Chrome sin ventana:
+     #<tema>,<fase>,<ancho>,<alto>[,nogrid]  tema = light|dark, fase = 0..1 (posición de los brillos en su órbita). -->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  body { position: relative; }
+  .glow { position: absolute; border-radius: 50%; filter: blur(var(--blur)); }
+  .grid {
+    position: absolute; inset: 0;
+    background-image: radial-gradient(var(--dot) 1px, transparent 1.2px);
+    background-size: 22px 22px;
+    -webkit-mask-image: radial-gradient(ellipse 70% 80% at 100% 0%, #000 0%, transparent 70%);
+            mask-image: radial-gradient(ellipse 70% 80% at 100% 0%, #000 0%, transparent 70%);
+  }
+  .sweep {
+    position: absolute; inset: 0;
+    background: linear-gradient(115deg, transparent 40%, var(--sweep) 50%, transparent 60%);
+  }
+</style>
+</head>
+<body>
+<div id="g1" class="glow"></div>
+<div id="g2" class="glow"></div>
+<div id="g3" class="glow"></div>
+<div class="grid"></div>
+<div class="sweep" id="sweep"></div>
+<script>
+  // #tema,fase,ancho,alto[,nogrid]: Chrome sin ventana no baja de ~500 px, el tamaño real llega aquí.
+  const [theme, phaseRaw, wRaw, hRaw, opt] = (location.hash.slice(1) || 'dark,0,596,432').split(',');
+  const phase = Number(phaseRaw) || 0;
+  const dark = theme !== 'light';
+  const W = Number(wRaw) || innerWidth, H = Number(hRaw) || innerHeight, k = W / 596;
+  Object.assign(document.body.style, { width: `${W}px`, height: `${H}px`, position: 'absolute', left: 0, top: 0, overflow: 'hidden' });
+  // Los fotogramas de la animación van a media resolución: sin la rejilla de puntos, que se emborronaría.
+  if (opt === 'nogrid') document.querySelector('.grid').remove();
+  const root = document.documentElement.style;
+  // Colores de la marca (los del panel: --accent #7c3aed, índigo #6366f1).
+  document.body.style.background = dark
+    ? 'linear-gradient(160deg, #15132a 0%, #0f0f1a 55%, #0b0b14 100%)'
+    : 'linear-gradient(160deg, #ffffff 0%, #f7f5ff 55%, #f1effb 100%)';
+  root.setProperty('--blur', `${60 * k}px`);
+  root.setProperty('--dot', dark ? 'rgba(167,139,250,.16)' : 'rgba(124,58,237,.10)');
+  root.setProperty('--sweep', dark ? 'rgba(167,139,250,.05)' : 'rgba(124,58,237,.035)');
+  const glows = [
+    { id: 'g1', x: .88, y: .10, r: .34, rx: .05, ry: .06, off: 0,    c: dark ? 'rgba(124,58,237,.58)' : 'rgba(167,139,250,.48)' },
+    { id: 'g2', x: .06, y: .96, r: .30, rx: .06, ry: .04, off: .33,  c: dark ? 'rgba(99,102,241,.46)' : 'rgba(129,140,248,.34)' },
+    { id: 'g3', x: .55, y: .55, r: .16, rx: .10, ry: .07, off: .66,  c: dark ? 'rgba(236,72,153,.22)' : 'rgba(236,72,153,.14)' },
+  ];
+  for (const g of glows) {
+    const a = 2 * Math.PI * (phase + g.off);
+    const size = g.r * W * 2;
+    const el = document.getElementById(g.id);
+    el.style.width = el.style.height = `${size}px`;
+    el.style.left = `${(g.x + g.rx * Math.cos(a)) * W - size / 2}px`;
+    el.style.top  = `${(g.y + g.ry * Math.sin(a)) * H - size / 2}px`;
+    el.style.background = g.c;
+  }
+  // Un barrido de luz muy suave que cruza una vez por vuelta.
+  document.getElementById('sweep').style.transform = `translateX(${(phase * 2.4 - 1.2) * W}px)`;
+</script>
+</body>
+</html>
