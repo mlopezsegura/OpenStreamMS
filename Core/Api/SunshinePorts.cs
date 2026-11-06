@@ -124,22 +124,29 @@ public static class SunshinePorts
             if (FindConflict(probe, existing) is null) break;
         }
 
+        // Cada puerto WebRTC se busca mirando solo lo suyo. Antes el puerto de señalización se
+        // probaba con el rango de media por defecto (40000-40019) y viceversa: con una sesión
+        // que ya usara 8000 y 40000, ningún candidato quedaba libre y el bucle acababa en el
+        // último (8999). La 2.ª sesión se quedaba con 8999 y la 3.ª chocaba con ella.
+        var moonlightPanel = new PortClaim("TCP", new(probe.SunshineStreamPort + 1, probe.SunshineStreamPort + 1), "");
+        var taken = existing.SelectMany(Claims).Append(moonlightPanel).ToList();
+        bool Free(string transport, PortRange range) =>
+            !taken.Any(t => Collide(new PortClaim(transport, range, ""), t));
+
         probe.StreamProtocol = StreamProtocol.WebRtc;
+        probe.WebRtcPort = DefaultWebRtcPort;
+        for (int port = DefaultWebRtcPort; port <= 65535; port++)
+            if (Free("TCP", new(port, port))) { probe.WebRtcPort = port; break; }
+
         probe.WebRtcMediaPortMin = DefaultWebRtcMediaPortMin;
         probe.WebRtcMediaPortMax = DefaultWebRtcMediaPortMin + WebRtcMediaPortCount - 1;
-        for (int k = 0; k < 1000; k++)
-        {
-            probe.WebRtcPort = DefaultWebRtcPort + k;
-            if (Validate(probe) is null && FindConflict(probe, existing) is null) break;
-        }
-
-        for (int k = 0; k < 1000; k++)
-        {
-            probe.WebRtcMediaPortMin = DefaultWebRtcMediaPortMin + k * WebRtcMediaPortCount;
-            probe.WebRtcMediaPortMax = probe.WebRtcMediaPortMin + WebRtcMediaPortCount - 1;
-            if (probe.WebRtcMediaPortMax > 65535) break;
-            if (Validate(probe) is null && FindConflict(probe, existing) is null) break;
-        }
+        for (int min = DefaultWebRtcMediaPortMin; min + WebRtcMediaPortCount - 1 <= 65535; min += WebRtcMediaPortCount)
+            if (Free("UDP", new(min, min + WebRtcMediaPortCount - 1)))
+            {
+                probe.WebRtcMediaPortMin = min;
+                probe.WebRtcMediaPortMax = min + WebRtcMediaPortCount - 1;
+                break;
+            }
 
         return new SuggestedPortsResponse(probe.SunshineStreamPort, probe.WebRtcPort,
                                           probe.WebRtcMediaPortMin, probe.WebRtcMediaPortMax);
