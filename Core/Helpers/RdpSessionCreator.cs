@@ -1,4 +1,5 @@
 using Microsoft.Win32;
+using OpenStreamMS.Core.Api;
 using OpenStreamMS.Services;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -125,9 +126,11 @@ namespace OpenStreamMS.Core.Helpers
                                               int rdpFrameRate, int rdpColorDepth,
                                               out int freeRdpPid,
                                               bool preferMstsc = true,
-                                              bool remoteIdd = false)
+                                              bool remoteIdd = false,
+                                              RdpDisplayOptions? display = null)
         {
             freeRdpPid = 0;
+            display ??= RdpDisplayOptions.Default;
             string address = RdpAddress(remoteIdd);
 
             // Escritorio Remoto habilitado de forma NATIVA (sin RDPWrapper ni
@@ -141,40 +144,49 @@ namespace OpenStreamMS.Core.Helpers
                     $"[RDP] Aviso: '{FormatPrincipal(user)}' ya tiene sesion de consola " +
                     $"(SessionId={conflict.SessionId}). El aislamiento de audio puede ser parcial.");
 
-            int existing = FindSessionByUsername(user.Username);
-            if (existing >= 0)
+            // Lo que se escribe en el registro para esta conexion es global (termsrv y RemoteIdd lo
+            // leen al aceptarla): dos conexiones a la vez se pisarian los valores.
+            lock (ConnectLock)
             {
-                Logger.Log($"[RDP] Sesion existente para '{user.Username}': {existing}");
-                return (uint)existing;
-            }
-
-            // mstsc preferido: trae decoder AVC (H.264) por hardware (DXVA). El wfreerdp
-            // bundled se compilo SIN H264 (ver /buildconfig), asi que con el termsrv
-            // cae a RemoteFX progressive por CPU: a 4K la composicion se desploma a
-            // 8-15 fps con la imagen en movimiento (diente de sierra 60→8).
-            Exception? mstscError = null;
-            if (preferMstsc)
-            {
-                try
+                int existing = FindSessionByUsername(user.Username);
+                if (existing >= 0)
                 {
-                    Logger.Log($"[RDP] Sin sesion para '{user.Username}', creando via mstsc (AVC444 hw)...");
-                    return CreateSessionWithMstsc(user, address, rdpWidth, rdpHeight,
-                                                  rdpFrameRate, rdpColorDepth, out freeRdpPid);
+                    Logger.Log($"[RDP] Sesion existente para '{user.Username}': {existing}");
+                    return (uint)existing;
                 }
-                catch (Exception ex)
-                {
-                    Logger.Warning($"[RDP] mstsc fallo ({ex.Message}); reintentando con FreeRDP...");
-                    mstscError = ex;
-                }
-            }
 
-            Logger.Log($"[RDP] Sin sesion para '{user.Username}', creando via FreeRDP...");
-            int pid = 0;
-            uint id = WithMstscError(mstscError, () => CreateSessionWithFreeRdp(user, address, rdpWidth, rdpHeight,
-                                                                            rdpFrameRate, rdpColorDepth, out pid));
-            freeRdpPid = pid;
-            return id;
+                if (remoteIdd) ApplyRemoteIddMode(rdpWidth, rdpHeight, rdpFrameRate, display.Scale);
+
+                // mstsc preferido: trae decoder AVC (H.264) por hardware (DXVA). El wfreerdp
+                // bundled se compilo SIN H264 (ver /buildconfig), asi que con el termsrv
+                // cae a RemoteFX progressive por CPU: a 4K la composicion se desploma a
+                // 8-15 fps con la imagen en movimiento (diente de sierra 60→8).
+                Exception? mstscError = null;
+                if (preferMstsc)
+                {
+                    try
+                    {
+                        Logger.Log($"[RDP] Sin sesion para '{user.Username}', creando via mstsc (AVC444 hw)...");
+                        return CreateSessionWithMstsc(user, address, rdpWidth, rdpHeight,
+                                                      rdpFrameRate, rdpColorDepth, display, out freeRdpPid);
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Warning($"[RDP] mstsc fallo ({ex.Message}); reintentando con FreeRDP...");
+                        mstscError = ex;
+                    }
+                }
+
+                Logger.Log($"[RDP] Sin sesion para '{user.Username}', creando via FreeRDP...");
+                int pid = 0;
+                uint id = WithMstscError(mstscError, () => CreateSessionWithFreeRdp(user, address, rdpWidth, rdpHeight,
+                                                                                rdpFrameRate, rdpColorDepth, display, out pid));
+                freeRdpPid = pid;
+                return id;
+            }
         }
+
+        static readonly object ConnectLock = new();
 
         /// <summary>
         /// Ejecuta el respaldo con FreeRDP y, si también falla, añade al error por qué falló antes
@@ -206,9 +218,11 @@ namespace OpenStreamMS.Core.Helpers
                                      out int clientPid,
                                      bool preferMstsc = true,
                                      bool remoteIdd = false,
-                                     string? microphone = null)
+                                     string? microphone = null,
+                                     RdpDisplayOptions? display = null)
         {
             clientPid = 0;
+            display ??= RdpDisplayOptions.Default;
             // mstsc no deja elegir el micrófono: con uno asignado, FreeRDP.
             if (microphone is not null && preferMstsc)
             {
@@ -218,37 +232,42 @@ namespace OpenStreamMS.Core.Helpers
             string address = RdpAddress(remoteIdd);
             Logger.Log($"[RDP] Reconectando la sesión {sessionId} a {rdpWidth}x{rdpHeight} @ {rdpFrameRate} fps...");
 
-            if (!WTSDisconnectSession(IntPtr.Zero, (int)sessionId, true))
-                Logger.Warning($"[RDP] WTSDisconnectSession({sessionId}) falló: {Marshal.GetLastWin32Error()}");
-
-            var sw = Stopwatch.StartNew();
-            while (sw.Elapsed.TotalSeconds < 10 &&
-                   EnumerateSessions(logSessions: false).FirstOrDefault(s => s.SessionId == sessionId) is { State: not WtsDisconnected })
-                Thread.Sleep(50);
-
-            uint id;
-            if (preferMstsc)
+            lock (ConnectLock)
             {
-                try { id = CreateSessionWithMstsc(user, address, rdpWidth, rdpHeight, rdpFrameRate, rdpColorDepth, out clientPid); }
-                catch (Exception ex)
+                if (remoteIdd) ApplyRemoteIddMode(rdpWidth, rdpHeight, rdpFrameRate, display.Scale);
+
+                if (!WTSDisconnectSession(IntPtr.Zero, (int)sessionId, true))
+                    Logger.Warning($"[RDP] WTSDisconnectSession({sessionId}) falló: {Marshal.GetLastWin32Error()}");
+
+                var sw = Stopwatch.StartNew();
+                while (sw.Elapsed.TotalSeconds < 10 &&
+                       EnumerateSessions(logSessions: false).FirstOrDefault(s => s.SessionId == sessionId) is { State: not WtsDisconnected })
+                    Thread.Sleep(50);
+
+                uint id;
+                if (preferMstsc)
                 {
-                    Logger.Warning($"[RDP] mstsc falló al reconectar ({ex.Message}); reintentando con FreeRDP...");
-                    int pid = 0;
-                    id = WithMstscError(ex, () => CreateSessionWithFreeRdp(user, address, rdpWidth, rdpHeight,
-                                                                           rdpFrameRate, rdpColorDepth, out pid));
-                    clientPid = pid;
+                    try { id = CreateSessionWithMstsc(user, address, rdpWidth, rdpHeight, rdpFrameRate, rdpColorDepth, display, out clientPid); }
+                    catch (Exception ex)
+                    {
+                        Logger.Warning($"[RDP] mstsc falló al reconectar ({ex.Message}); reintentando con FreeRDP...");
+                        int pid = 0;
+                        id = WithMstscError(ex, () => CreateSessionWithFreeRdp(user, address, rdpWidth, rdpHeight,
+                                                                               rdpFrameRate, rdpColorDepth, display, out pid));
+                        clientPid = pid;
+                    }
                 }
-            }
-            else
-            {
-                id = CreateSessionWithFreeRdp(user, address, rdpWidth, rdpHeight, rdpFrameRate, rdpColorDepth, out clientPid,
-                                              microphone);
-            }
+                else
+                {
+                    id = CreateSessionWithFreeRdp(user, address, rdpWidth, rdpHeight, rdpFrameRate, rdpColorDepth, display,
+                                                  out clientPid, microphone);
+                }
 
-            if (id != sessionId)
-                Logger.Warning($"[RDP] La reconexión cayó en la sesión {id} en lugar de la {sessionId}.");
-            Logger.Log($"[RDP] Sesión {id} reconectada en {sw.ElapsedMilliseconds} ms.");
-            return id;
+                if (id != sessionId)
+                    Logger.Warning($"[RDP] La reconexión cayó en la sesión {id} en lugar de la {sessionId}.");
+                Logger.Log($"[RDP] Sesión {id} reconectada en {sw.ElapsedMilliseconds} ms.");
+                return id;
+            }
         }
 
         /// <summary>
@@ -258,7 +277,7 @@ namespace OpenStreamMS.Core.Helpers
         public static void SetFrameRate(int frameRate)
         {
             frameRate = NormalizeFrameRate(frameRate);
-            ApplyFrameRatePolicy(frameRate);
+            ApplyFrameRatePolicy(frameRate, RdpCompositionMode.Smooth);
             ApplyDisplayRefreshRateRegistry(frameRate);
         }
 
@@ -419,8 +438,8 @@ namespace OpenStreamMS.Core.Helpers
         /// wfreerdp parcheado (FreeRDP/patches); el original ignora dev: y usa el predeterminado.
         /// </param>
         static uint CreateSessionWithFreeRdp(StreamUserConfig user, string address, int rdpWidth, int rdpHeight,
-                                             int rdpFrameRate, int rdpColorDepth, out int freeRdpPid,
-                                             string? microphone = null)
+                                             int rdpFrameRate, int rdpColorDepth, RdpDisplayOptions display,
+                                             out int freeRdpPid, string? microphone = null)
         {
             freeRdpPid = 0;
 
@@ -431,7 +450,7 @@ namespace OpenStreamMS.Core.Helpers
             rdpColorDepth = NormalizeColorDepth(rdpColorDepth);
 
             // Aplicar politicas ANTES de lanzar FreeRDP — termsrv las lee al aceptar la conexion.
-            ApplyFrameRatePolicy(rdpFrameRate);
+            ApplyFrameRatePolicy(rdpFrameRate, display.Composition);
             ApplyGpuCapturePolicy();
             ApplyBetterRdpPolicy();
             ApplyDisplayRefreshRateRegistry(rdpFrameRate);
@@ -460,6 +479,10 @@ namespace OpenStreamMS.Core.Helpers
             psi.ArgumentList.Add($"/w:{rdpWidth}");
             psi.ArgumentList.Add($"/h:{rdpHeight}");
             psi.ArgumentList.Add($"/bpp:{rdpColorDepth}");
+            // Escala del escritorio (DesktopScaleFactor de RDP): Windows la aplica a la sesion
+            // como la de Configuracion > Pantalla. Con RemoteIdd la fija el driver (OsmsScalePercent).
+            if (display.Scale != 100)
+                psi.ArgumentList.Add($"/scale-desktop:{display.Scale}");
 
             // ── Codec ─────────────────────────────────────────────────────────────
             // NO usar /gfx ni /rfx. El cliente wfreerdp corre OCULTO en Session 0:
@@ -487,7 +510,7 @@ namespace OpenStreamMS.Core.Helpers
             psi.ArgumentList.Add("/log-level:ERROR");
 
             Logger.Log($"[RDP] Iniciando FreeRDP " +
-                       $"({rdpWidth}x{rdpHeight}, {rdpFrameRate} fps, {rdpColorDepth} bpp, sin gfx)...");
+                       $"({rdpWidth}x{rdpHeight}, {rdpFrameRate} fps, {rdpColorDepth} bpp, escala {display.Scale} %, sin gfx)...");
 
             var proc = Process.Start(psi)
                 ?? throw new InvalidOperationException("[RDP] No se pudo iniciar wfreerdp.exe");
@@ -560,7 +583,8 @@ namespace OpenStreamMS.Core.Helpers
         /// </para>
         /// </summary>
         static uint CreateSessionWithMstsc(StreamUserConfig user, string address, int rdpWidth, int rdpHeight,
-                                           int rdpFrameRate, int rdpColorDepth, out int clientPid)
+                                           int rdpFrameRate, int rdpColorDepth, RdpDisplayOptions display,
+                                           out int clientPid)
         {
             clientPid = 0;
 
@@ -568,7 +592,7 @@ namespace OpenStreamMS.Core.Helpers
             rdpColorDepth = NormalizeColorDepth(rdpColorDepth);
 
             // Politicas ANTES de conectar — termsrv las lee al aceptar la conexion.
-            ApplyFrameRatePolicy(rdpFrameRate);
+            ApplyFrameRatePolicy(rdpFrameRate, display.Composition);
             ApplyGpuCapturePolicy();
             ApplyBetterRdpPolicy();
             ApplyAvcPolicy();
@@ -595,6 +619,9 @@ namespace OpenStreamMS.Core.Helpers
                 $"desktopwidth:i:{rdpWidth}",
                 $"desktopheight:i:{rdpHeight}",
                 $"session bpp:i:{rdpColorDepth}",
+                // Escala del escritorio (DesktopScaleFactor de RDP), como la de Configuracion > Pantalla.
+                $"desktopscalefactor:i:{display.Scale}",
+                "devicescalefactor:i:100",
                 "screen mode id:i:1",
                 "use multimon:i:0",
                 "authentication level:i:0",
@@ -624,7 +651,7 @@ namespace OpenStreamMS.Core.Helpers
                 psi.ArgumentList.Add(rdpFile);
 
                 Logger.Log($"[RDP] Iniciando mstsc ({rdpWidth}x{rdpHeight}, {rdpFrameRate} fps, " +
-                           $"{rdpColorDepth} bpp, AVC444 hw)...");
+                           $"{rdpColorDepth} bpp, escala {display.Scale} %, AVC444 hw)...");
 
                 var proc = Process.Start(psi)
                     ?? throw new InvalidOperationException("[RDP] No se pudo iniciar mstsc.exe");
@@ -732,9 +759,9 @@ namespace OpenStreamMS.Core.Helpers
         /// ~1 de cada 10 frames y los tirones eran peores. Ver CompositionIntervalMs.
         /// </para>
         /// </summary>
-        static void ApplyFrameRatePolicy(int frameRate)
+        static void ApplyFrameRatePolicy(int frameRate, RdpCompositionMode mode)
         {
-            var frameIntervalMs = CompositionIntervalMs(frameRate);
+            var frameIntervalMs = CompositionIntervalMs(frameRate, mode);
             var compositionHz   = 1000 / frameIntervalMs;
 
             var entries = new (string Path, string Name, int Value, RegistryValueKind Kind)[]
@@ -760,7 +787,7 @@ namespace OpenStreamMS.Core.Helpers
             foreach (var (path, name, value, kind) in entries)
                 WriteRegistry(path, name, value, kind);
 
-            Logger.Log($"[RDP] FrameRate={frameRate} fps | interval={frameIntervalMs} ms (composicion {compositionHz} Hz)");
+            Logger.Log($"[RDP] FrameRate={frameRate} fps | interval={frameIntervalMs} ms (composicion {compositionHz} Hz, {mode})");
         }
 
         /// <summary>
@@ -775,13 +802,41 @@ namespace OpenStreamMS.Core.Helpers
         /// baja de 4 ms (500 Hz con 120 fps): el coste de componer y de RDP crece con el ritmo.
         /// Windows ignora intervalos por debajo de 2 ms.
         /// </para>
+        /// <para>
+        /// <see cref="RdpCompositionMode.Efficient"/> compone a los fps, redondeando al ms mas
+        /// cercano (60 -> 17 ms, 58,8 Hz; 120 -> 8 ms, 125 Hz). Un usuario midio con un juego la
+        /// CPU a la mitad y la GPU un tercio menos, a cambio de algun fotograma repetido (a 60 fps,
+        /// ~1 por segundo).
+        /// </para>
         /// </summary>
-        internal static int CompositionIntervalMs(int frameRate)
+        internal static int CompositionIntervalMs(int frameRate, RdpCompositionMode mode = RdpCompositionMode.Smooth)
         {
             frameRate = NormalizeFrameRate(frameRate);
             if (1000 % frameRate == 0)
                 return Math.Max(2, 1000 / frameRate);
+            if (mode == RdpCompositionMode.Efficient)
+                return Math.Max(2, (int)Math.Round(1000.0 / frameRate, MidpointRounding.AwayFromZero));
             return Math.Max(4, 1000 / (4 * frameRate));
+        }
+
+        const string RdpTcpKey = @"SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp";
+
+        /// <summary>
+        /// Modo de la pantalla RemoteIdd para la proxima conexion: resolucion, Hz y escala. El driver
+        /// los lee al crear el dispositivo de la sesion, antes de anunciar el monitor, y los mete en
+        /// su lista de modos: asi admite cualquier resolucion, no solo las de su lista fija (un modo
+        /// que el monitor no anuncia hace que Windows corte la conexion, motivo 17). RDP no
+        /// transmite los Hz del cliente: los Hz de la pantalla son los fps de la sesion.
+        /// </summary>
+        static void ApplyRemoteIddMode(int width, int height, int frameRate, int scale)
+        {
+            int hz = NormalizeFrameRate(frameRate);
+            scale = RdpDisplayScales.Normalize(scale);
+            WriteRegistry(RdpTcpKey, "OsmsSeatWidth",    width,  RegistryValueKind.DWord);
+            WriteRegistry(RdpTcpKey, "OsmsSeatHeight",   height, RegistryValueKind.DWord);
+            WriteRegistry(RdpTcpKey, "OsmsRefreshHz",    hz,     RegistryValueKind.DWord);
+            WriteRegistry(RdpTcpKey, "OsmsScalePercent", scale,  RegistryValueKind.DWord);
+            Logger.Log($"[RDP] RemoteIdd: {width}x{height} @ {hz} Hz, escala {scale} %.");
         }
 
         /// <summary>

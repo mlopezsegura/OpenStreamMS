@@ -1,8 +1,6 @@
 {
   "GroupService": "Serviço:",
   "TaskStartService": "Iniciar o serviço logo após a instalação",
-  "GroupSeats": "Postos locais:",
-  "TaskRemoteIdd": "Instalar o controlador de ecrã dos postos (RemoteIdd, experimental: certificado de teste; reinicia o Ambiente de Trabalho Remoto)",
   "IconComment": "Painel de controlo do OpenStreamMS",
   "StatusInstallService": "A registar o serviço do Windows e a instalar controladores (ViGEmBus, HidHide)...",
   "StatusRemoveRemoteIdd": "A remover o controlador de ecrã anterior (RemoteIdd)...",

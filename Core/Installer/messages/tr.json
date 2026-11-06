@@ -1,8 +1,6 @@
 {
   "GroupService": "Hizmeti:",
   "TaskStartService": "Hizmeti kurulumdan hemen sonra başlatın",
-  "GroupSeats": "Yerel iş istasyonları:",
-  "TaskRemoteIdd": "İş istasyonu görüntü sürücüsünü yükler (RemoteIdd, deneysel: test sertifikası; Uzak Masaüstü'nü yeniden başlatır)",
   "IconComment": "OpenStreamMS kontrol paneli",
   "StatusInstallService": "Windows hizmetini kaydetme ve sürücüleri yükleme (ViGEmBus, HidHide)...",
   "StatusRemoveRemoteIdd": "Önceki ekran sürücüsü kaldırılıyor (RemoteIdd)...",

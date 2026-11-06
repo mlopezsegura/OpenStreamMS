@@ -1,8 +1,6 @@
 {
   "GroupService": "Servizio:",
   "TaskStartService": "Avvia il servizio subito dopo l'installazione",
-  "GroupSeats": "Postazioni locali:",
-  "TaskRemoteIdd": "Installare il driver del display della workstation (RemoteIdd, sperimentale: certificato di test; riavvia Desktop remoto)",
   "IconComment": "OpenStreamMS pannello di controllo",
   "StatusInstallService": "Registrazione del servizio Windows e installazione dei driver (ViGEmBus, HidHide)...",
   "StatusRemoveRemoteIdd": "Rimozione del driver video precedente (RemoteIdd)...",

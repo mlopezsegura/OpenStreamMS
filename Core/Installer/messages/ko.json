@@ -1,8 +1,6 @@
 {
   "GroupService": "서비스:",
   "TaskStartService": "설치 후 바로 서비스 시작",
-  "GroupSeats": "로컬 워크스테이션:",
-  "TaskRemoteIdd": "워크스테이션 디스플레이 드라이버 설치(RemoteIdd, 실험적: 테스트 인증서, 원격 데스크톱 다시 시작)",
   "IconComment": "OpenStreamMS 제어판",
   "StatusInstallService": "Windows 서비스 등록 및 드라이버(ViGEmBus, HidHide) 설치 중...",
   "StatusRemoveRemoteIdd": "이전 디스플레이 드라이버(RemoteIdd) 제거 중...",

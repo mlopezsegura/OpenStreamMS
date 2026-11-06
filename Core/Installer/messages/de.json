@@ -1,8 +1,6 @@
 {
   "GroupService": "Service:",
   "TaskStartService": "Starten Sie den Dienst direkt nach der Installation",
-  "GroupSeats": "Lokale Arbeitsplätze:",
-  "TaskRemoteIdd": "Installieren Sie den Workstation-Anzeigetreiber (RemoteIdd, experimentell: Testzertifikat; startet Remote Desktop neu)",
   "IconComment": "OpenStreamMS Bedienfeld",
   "StatusInstallService": "Registrieren des Windows-Dienstes und Installieren von Treibern (ViGEmBus, HidHide)...",
   "StatusRemoveRemoteIdd": "Entfernen des vorherigen Bildschirmtreibers (RemoteIdd)...",

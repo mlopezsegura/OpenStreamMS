@@ -1,7 +1,6 @@
 ﻿# Genera las imágenes del instalador a partir de background.html y hero.html con Chrome (o Edge)
 # sin ventana. Los PNG resultantes se suben al repositorio: la CI no necesita ejecutar esto.
 #   powershell -ExecutionPolicy Bypass -File Core\Installer\art\generate-art.ps1
-param([int]$Frames = 24)
 $ErrorActionPreference = 'Stop'
 $here = $PSScriptRoot
 $browser = @(
@@ -26,12 +25,6 @@ function Shot([string]$page, [string]$hash, [int]$w, [int]$h, [string]$out, [swi
 foreach ($theme in 'light', 'dark') {
     foreach ($s in @(@(596, 432), @(994, 720), @(1272, 922))) {
         Shot 'background.html' "$theme,0,$($s[0]),$($s[1])" $s[0] $s[1] (Join-Path $here "back-$theme-$($s[0]).png")
-    }
-    # Fotogramas de la animación (bienvenida, instalación y final), a media resolución y sin la
-    # rejilla: el fondo es difuso y estirado no se nota, y así el instalador pesa poco.
-    for ($i = 0; $i -lt $Frames; $i++) {
-        $phase = [string]::Format([Globalization.CultureInfo]::InvariantCulture, '{0:0.####}', $i / $Frames)
-        Shot 'background.html' "$theme,$phase,298,216,nogrid" 298 216 (Join-Path $here ("anim-$theme-{0:00}.png" -f $i))
     }
 }
 # Imagen grande (bienvenida y final) y logo pequeño, transparentes: sirven para los dos temas.

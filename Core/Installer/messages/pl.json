@@ -1,8 +1,6 @@
 {
   "GroupService": "Serwis:",
   "TaskStartService": "Uruchom usługę zaraz po instalacji",
-  "GroupSeats": "Lokalne stanowiska:",
-  "TaskRemoteIdd": "Zainstaluj sterownik ekranu stacji roboczej (RemoteIdd, eksperymentalny: certyfikat testowy; uruchamia ponownie Pulpit zdalny)\nPanel sterowania",
   "IconComment": "OpenStreamMS",
   "StatusInstallService": "Rejestracja usługi Windows i instalacja sterowników (ViGEmBus, HidHide)...",
   "StatusRemoveRemoteIdd": "Usuwanie poprzedniego sterownika ekranu (RemoteIdd)...",

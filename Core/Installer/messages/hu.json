@@ -1,8 +1,6 @@
 {
   "GroupService": "Szolgáltatás:",
   "TaskStartService": "Indítsa el a szolgáltatást közvetlenül a telepítés után",
-  "GroupSeats": "Helyi munkaállomások:",
-  "TaskRemoteIdd": "Telepítse a munkaállomás kijelző-illesztőprogramját (RemoteIdd, kísérleti: teszttanúsítvány; újraindítja a Remote Desktopot)",
   "IconComment": "OpenStreamMS kezelőpanel",
   "StatusInstallService": "A Windows szolgáltatás regisztrálása és illesztőprogramok telepítése (ViGEmBus, HidHide)...",
   "StatusRemoveRemoteIdd": "Az előző kijelző-illesztőprogram eltávolítása (RemoteIdd)...",

@@ -38,13 +38,16 @@ namespace osms::rds
 
     // Ajustes del listener, valores DWORD opcionales en WinStations\<listener>:
     //   OsmsRefreshHz: Hz de la pantalla RemoteIdd (RDP no transmite la frecuencia del
-    //                  cliente); 0 = la del driver (60).
+    //                  cliente); 0 = la del driver (60). OpenStreamMS lo cambia antes de cada
+    //                  conexión (los fps de la sesión): se vuelve a leer al conectar.
     //   OsmsRemoteIddAllConnections: 1 = todas las conexiones RDP reciben RemoteIdd, no solo
     //                  las del propio equipo (puestos).
     struct ListenerSettings
     {
         ULONG RefreshHz = 0;
         bool  AllConnections = false;
+        // Listener del que salen (para releer OsmsRefreshHz al conectar). Vacío = ajustes fijos.
+        wchar_t Listener[64] = {};
     };
     ListenerSettings ReadListenerSettings(LPCWSTR listenerName);
     SessionSink& DefaultSessionSink();
