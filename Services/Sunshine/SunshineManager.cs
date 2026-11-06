@@ -53,9 +53,11 @@ namespace OpenStreamMS.Services.Sunshine
                                Dictionary<string, string>? envOverrides = null,
                                string? statePersistPath = null,
                                string? stateAliasPath = null,
-                               bool runAsSystem = false)
+                               bool runAsSystem = false,
+                               Func<string, bool>? uniqueIdTaken = null)
         {
             _runAsSystem           = runAsSystem;
+            _uniqueIdTaken         = uniqueIdTaken;
             _sunshineExe           = sunshineExePath;
             _vddEnabled            = vddEnabled;
             _cfg                   = cfg;
@@ -64,6 +66,12 @@ namespace OpenStreamMS.Services.Sunshine
             _statePersistPath      = statePersistPath;
             _stateAliasPath        = stateAliasPath;
         }
+
+        /// <summary>
+        /// Dice si otra sesión ya usa ese <c>uniqueid</c> de Sunshine. Moonlight identifica el
+        /// equipo por él: dos instancias con el mismo se confunden en un solo host.
+        /// </summary>
+        private readonly Func<string, bool>? _uniqueIdTaken;
 
         private string ActiveStatePath =>
             Path.Combine(Path.GetDirectoryName(_sunshineExe)!, "config", "sunshine_state.json");
@@ -133,6 +141,8 @@ namespace OpenStreamMS.Services.Sunshine
                         Logger.Warning($"[Sunshine] No se pudo provisionar credenciales: {ex.Message}");
                     }
                 }
+
+                EnsureOwnUniqueId();
 
                 if (_vddEnabled)
                 {
@@ -663,6 +673,54 @@ namespace OpenStreamMS.Services.Sunshine
         }
 
         /// <summary>
+        /// Si otra sesión ya usa el <c>uniqueid</c> de esta (heredado de la plantilla o del
+        /// backup de otra sesión en versiones anteriores), le pone uno nuevo antes de arrancar
+        /// Sunshine y lo copia a los backups. Los pareos se conservan, pero Moonlight verá un
+        /// equipo nuevo para esta sesión.
+        /// </summary>
+        private void EnsureOwnUniqueId()
+        {
+            if (_uniqueIdTaken is null) return;
+            try
+            {
+                var path = ActiveStatePath;
+                if (!File.Exists(path)) return;
+                if (JsonNode.Parse(File.ReadAllText(path)) is not JsonObject state ||
+                    state["root"] is not JsonObject root ||
+                    root["uniqueid"]?.GetValue<string>() is not { Length: > 0 } current ||
+                    !_uniqueIdTaken(current))
+                    return;
+
+                var fresh = Guid.NewGuid().ToString().ToUpperInvariant();
+                root["uniqueid"] = fresh;
+                File.WriteAllText(path, state.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+                Logger.Warning($"[Sunshine] Otra sesión usaba el mismo uniqueid ({current}); esta pasa a {fresh}. " +
+                               "En Moonlight aparecerá como un equipo nuevo.");
+                MirrorStateToBackup(force: true);
+            }
+            catch (Exception ex)
+            {
+                Logger.Warning($"[Sunshine] No se pudo comprobar el uniqueid: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Lee el <c>uniqueid</c> del <c>sunshine_state.json</c> indicado. Null si no lo tiene.
+        /// </summary>
+        public static string? ReadUniqueId(string stateFile)
+        {
+            try
+            {
+                if (!File.Exists(stateFile)) return null;
+                return (JsonNode.Parse(File.ReadAllText(stateFile)) as JsonObject)?["root"]?["uniqueid"]?.GetValue<string>();
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>
         /// Si existe un <c>sunshine_state.json</c> en la ubicación persistente fuera del
         /// instance dir, lo copia a la carpeta config de Sunshine antes de arrancar. Así
         /// los pareos Moonlight (<c>named_devices</c>) y demás estado sobreviven a:
@@ -703,21 +761,14 @@ namespace OpenStreamMS.Services.Sunshine
 
         private StateSnapshot? GetBestRestoreCandidate()
         {
-            var explicitCandidates = GetStatePathCandidates().ToList();
-
-            var candidates = explicitCandidates
+            // Solo los backups de esta sesión (por Guid y por identidad). Antes, sin ninguno, se
+            // tomaba el único que hubiera en %ProgramData%\OpenStreamMS\state aunque fuera de
+            // otra sesión: la nueva heredaba su uniqueid y sus pareos, y Moonlight veía las dos
+            // como el mismo equipo.
+            var candidates = GetStatePathCandidates()
                 .Select(ReadStateSnapshot)
                 .Where(IsUsableStateBackup)
                 .ToList();
-
-            if (candidates.Count == 0)
-            {
-                // Compatibility path for sessions created before the stable alias
-                // existed: recover only when there is a single unambiguous old backup.
-                var legacy = GetLegacySingleStateBackup(explicitCandidates);
-                if (legacy is not null && IsUsableStateBackup(legacy))
-                    candidates.Add(legacy);
-            }
 
             return candidates
                 .OrderByDescending(c => c.HasNamedDevicesKey)
@@ -738,28 +789,6 @@ namespace OpenStreamMS.Services.Sunshine
                 if (seen.Add(path))
                     yield return path;
             }
-        }
-
-        private StateSnapshot? GetLegacySingleStateBackup(IReadOnlyCollection<string> explicitCandidates)
-        {
-            var root = GetLegacyStateRoot();
-            if (root is null || !Directory.Exists(root)) return null;
-
-            var explicitSet = new HashSet<string>(explicitCandidates, StringComparer.OrdinalIgnoreCase);
-            var legacy = Directory.EnumerateFiles(root, "sunshine_state.json", SearchOption.AllDirectories)
-                .Where(path => !explicitSet.Contains(path))
-                .Select(ReadStateSnapshot)
-                .Where(IsUsableStateBackup)
-                .ToList();
-
-            return legacy.Count == 1 ? legacy[0] : null;
-        }
-
-        private string? GetLegacyStateRoot()
-        {
-            if (string.IsNullOrWhiteSpace(_statePersistPath)) return null;
-            var sessionDir = Path.GetDirectoryName(_statePersistPath);
-            return string.IsNullOrWhiteSpace(sessionDir) ? null : Path.GetDirectoryName(sessionDir);
         }
 
         private bool IsPrimaryStatePath(string path) =>
