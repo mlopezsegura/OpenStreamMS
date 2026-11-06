@@ -216,11 +216,15 @@ public class StreamSessionService
                                       StreamProtocol? streamProtocol = null,
                                       int webRtcPort = 0, int webRtcMediaPortMin = 0, int webRtcMediaPortMax = 0,
                                       int rdpDisplayScale = 100,
-                                      RdpCompositionMode rdpComposition = RdpCompositionMode.Smooth)
+                                      RdpCompositionMode rdpComposition = RdpCompositionMode.Smooth,
+                                      bool restartIfActive = false)
     {
         var session = RequireSession(id);
 
-        if (session.State is SessionState.Starting or SessionState.Running or SessionState.Stopping)
+        bool active = session.State is SessionState.Starting or SessionState.Running;
+        if (session.State == SessionState.Stopping)
+            throw new InvalidOperationException("La sesión se está deteniendo: espera a que termine para cambiar su configuración.");
+        if (active && !restartIfActive)
             throw new InvalidOperationException("Detén la sesión antes de modificar su configuración.");
 
         // La sesión local corre con el usuario del escritorio: ni perfil de stream ni usuario dedicado.
@@ -243,6 +247,15 @@ public class StreamSessionService
             WebRtcMediaPortMax = webRtcMediaPortMax > 0 ? webRtcMediaPortMax : session.WebRtcMediaPortMax,
         };
         EnsurePortsAvailable(candidate, _sessions.Values);
+
+        // Con la sesión iniciada (y confirmado en el panel): se detiene antes de tocar nada, porque
+        // los cambios de Sunshine, del usuario aislado o de la pantalla RDP no se aplican en
+        // caliente. La validación va antes: un error no deja la sesión detenida.
+        if (active)
+        {
+            Logger.Log($"[{session.Name}] Deteniendo la sesión para aplicar la nueva configuración...", session.Id);
+            Stop(id);
+        }
 
         var oldExe   = session.SunshineExePath;
         var oldPorts = PortSignature(session);
@@ -312,6 +325,19 @@ public class StreamSessionService
 
         Logger.Log($"[{session.Name}] Configuración actualizada.");
         SaveSessions();
+
+        if (active)
+        {
+            // Pausa breve para que Windows libere el sessionId y los locks del usuario (como Restart).
+            Thread.Sleep(1500);
+            try { Start(id); }
+            catch (InvalidOperationException ex)
+            {
+                // La configuración ya está guardada: la sesión se queda detenida con el motivo.
+                session.ErrorMessage = ex.Message;
+                Logger.Warning($"[{session.Name}] No se pudo volver a iniciar tras cambiar la configuración: {ex.Message}", session.Id);
+            }
+        }
         return session;
     }
 

@@ -302,6 +302,8 @@
   "toast.saved": "設定已儲存。重新啟動會話以套用變更。",
   "toast.connectionError": "無法連線到伺服器。",
   "confirm.restart": "重新啟動會話「{name}」？\nWindows 會話將關閉（登出）並重新啟動。",
+  "confirm.stopToApply": "確定要停止目前的工作階段嗎？目前工作階段的進度可能會遺失。",
+  "btn.stopAndApply": "停止並套用",
   "confirm.delete": "刪除會話「{name}」？",
   "login.welcome": "歡迎您",
   "login.subtitle": "輸入您的憑證以存取控制面板。",

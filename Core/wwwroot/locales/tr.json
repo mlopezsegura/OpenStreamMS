@@ -302,6 +302,8 @@
   "toast.saved": "Ayarlar kaydedildi. Değişiklikleri uygulamak için oturumu yeniden başlatın.",
   "toast.connectionError": "Sunucuya bağlanılamadı.",
   "confirm.restart": "\"{name}\" oturumu yeniden başlatılsın mı?\nWindows oturumu kapatılacak (oturum kapatılacak) ve yeniden başlatılacak.",
+  "confirm.stopToApply": "Geçerli oturumu durdurmak istediğinizden emin misiniz? Geçerli oturumdaki ilerleme kaybolabilir.",
+  "btn.stopAndApply": "Durdur ve uygula",
   "confirm.delete": "\"{name}\" oturumu silinsin mi?",
   "login.welcome": "Hoş Geldiniz",
   "login.subtitle": "Kontrol paneline erişmek için kimlik bilgilerinizi girin.",

@@ -302,6 +302,8 @@
   "toast.saved": "Settings saved. Restart the session to apply changes.",
   "toast.connectionError": "Could not connect to the server.",
   "confirm.restart": "Restart session \"{name}\"?\nThe Windows session will be closed (logoff) and restarted.",
+  "confirm.stopToApply": "Are you sure you want to stop the current session? Progress in the current session may be lost.",
+  "btn.stopAndApply": "Stop and apply",
   "confirm.delete": "Delete session \"{name}\"?",
   "login.welcome": "Welcome",
   "login.subtitle": "Enter your credentials to access the control panel.",

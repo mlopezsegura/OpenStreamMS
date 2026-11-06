@@ -302,6 +302,8 @@
   "toast.saved": "Einstellungen gespeichert. Starten Sie die Sitzung neu, um die Änderungen zu übernehmen.",
   "toast.connectionError": "Verbindung zum Server konnte nicht hergestellt werden.",
   "confirm.restart": "Sitzung „{name}“ neu starten?\nDie Windows-Sitzung wird geschlossen (abmelden) und neu gestartet.",
+  "confirm.stopToApply": "Möchten Sie die aktuelle Sitzung wirklich beenden? Der Fortschritt der aktuellen Sitzung kann verloren gehen.",
+  "btn.stopAndApply": "Beenden und übernehmen",
   "confirm.delete": "Sitzung „{name}“ löschen?",
   "login.welcome": "Willkommen",
   "login.subtitle": "Geben Sie Ihre Anmeldedaten ein, um auf das Bedienfeld zuzugreifen.",

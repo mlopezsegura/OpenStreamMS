@@ -302,6 +302,8 @@
   "toast.saved": "salvas. Reinicie a sessão para aplicar as alterações.",
   "toast.connectionError": "Não foi possível conectar-se ao servidor.",
   "confirm.restart": "Reiniciar sessão \"{name}\"?\nA sessão Windows será encerrada (logoff) e reiniciada.",
+  "confirm.stopToApply": "Tem certeza de que deseja parar a sessão atual? O progresso da sessão atual pode ser perdido.",
+  "btn.stopAndApply": "Parar e aplicar",
   "confirm.delete": "Excluir sessão \"{name}\"?",
   "login.welcome": "Bem-vindo",
   "login.subtitle": "Insira suas credenciais para acessar o painel de controle.",

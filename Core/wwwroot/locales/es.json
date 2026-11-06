@@ -302,6 +302,8 @@
   "toast.saved": "Configuración guardada. Reinicia la sesión para aplicar los cambios.",
   "toast.connectionError": "Error de conexión con el servidor.",
   "confirm.restart": "¿Reiniciar la sesión \"{name}\"?\nSe cerrará la sesión Windows (logoff) y se volverá a iniciar.",
+  "confirm.stopToApply": "¿Está seguro de que desea detener la sesión actual? Puede que se pierda el progreso de la sesión actual.",
+  "btn.stopAndApply": "Detener y aplicar",
   "confirm.delete": "¿Eliminar la sesión \"{name}\"?",
   "login.welcome": "Bienvenido",
   "login.subtitle": "Introduce tus credenciales para acceder al panel de control.",

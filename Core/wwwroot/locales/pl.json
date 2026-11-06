@@ -302,6 +302,8 @@
   "toast.saved": "Ustawienia zostały zapisane. Uruchom ponownie sesję, aby zastosować zmiany.",
   "toast.connectionError": "Nie można połączyć się z serwerem.",
   "confirm.restart": "Uruchom ponownie sesję „{name}”?\nSesja Windows zostanie zamknięta (wylogowanie) i uruchomiona ponownie.",
+  "confirm.stopToApply": "Czy na pewno chcesz zatrzymać bieżącą sesję? Postęp bieżącej sesji może zostać utracony.",
+  "btn.stopAndApply": "Zatrzymaj i zastosuj",
   "confirm.delete": "Usunąć sesję „{name}”?",
   "login.welcome": "Witamy",
   "login.subtitle": "Wprowadź swoje dane uwierzytelniające, aby uzyskać dostęp do panelu sterowania.",

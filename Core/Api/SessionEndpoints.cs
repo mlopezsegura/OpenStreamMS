@@ -157,7 +157,12 @@ public record UpdateSessionConfigRequest(
     /// <summary>Escala de la pantalla de la sesión RDP en % (100-300).</summary>
     int RdpDisplayScale = 100,
     /// <summary>Ritmo de composición de la sesión RDP: Smooth o Efficient.</summary>
-    RdpCompositionMode RdpComposition = RdpCompositionMode.Smooth
+    RdpCompositionMode RdpComposition = RdpCompositionMode.Smooth,
+    /// <summary>
+    /// Con la sesión iniciada: true = detenerla, aplicar los cambios y volver a iniciarla (el panel
+    /// lo pide antes de confirmarlo el usuario). false = error si la sesión está iniciada.
+    /// </summary>
+    bool RestartIfActive = false
 );
 
 /// <summary>Cuerpo para cambiar los protocolos de streaming de una sesión.</summary>
@@ -455,7 +460,9 @@ public static class SessionEndpoints
              .WithSummary("Editar la configuración de una sesión")
              .WithDescription("""
                 Actualiza la configuración de la sesión (nombre, resolución, puerto de Sunshine, etc.).
-                La sesión debe estar detenida. Los cambios se aplican en el próximo inicio.
+                Con la sesión detenida, los cambios se aplican en el próximo inicio. Con la sesión
+                iniciada hace falta RestartIfActive=true: la detiene (se cierra la sesión Windows),
+                aplica los cambios y la vuelve a iniciar.
                 """);
 
         // PUT /api/sessions/{id}/protocol
@@ -696,7 +703,8 @@ public static class SessionEndpoints
                                            webRtcMediaPortMin: req.WebRtcMediaPortMin,
                                            webRtcMediaPortMax: req.WebRtcMediaPortMax,
                                            rdpDisplayScale: req.RdpDisplayScale,
-                                           rdpComposition: req.RdpComposition);
+                                           rdpComposition: req.RdpComposition,
+                                           restartIfActive: req.RestartIfActive);
             return TypedResults.Ok(ToResponse(session));
         }
         catch (KeyNotFoundException)

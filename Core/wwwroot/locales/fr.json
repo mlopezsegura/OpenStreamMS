@@ -296,6 +296,8 @@
   "toast.saved": "Paramètres enregistrés. Redémarrez la session pour appliquer les changements.",
   "toast.connectionError": "Impossible de se connecter au serveur.",
   "confirm.restart": "Redémarrer la session « {name} » ?\nLa session Windows sera fermée (logoff) et redémarrée.",
+  "confirm.stopToApply": "Voulez-vous vraiment arrêter la session en cours ? La progression de la session en cours risque d'être perdue.",
+  "btn.stopAndApply": "Arrêter et appliquer",
   "confirm.delete": "Supprimer la session « {name} » ?",
   "login.welcome": "Bienvenue",
   "login.subtitle": "Saisissez vos identifiants pour accéder au panneau de contrôle.",

@@ -302,6 +302,8 @@
   "toast.saved": "设置已保存。重新启动会话以应用更改。",
   "toast.connectionError": "无法连接到服务器。",
   "confirm.restart": "重新启动会话“{name}”？\nWindows 会话将关闭（注销）并重新启动。",
+  "confirm.stopToApply": "确定要停止当前会话吗？当前会话的进度可能会丢失。",
+  "btn.stopAndApply": "停止并应用",
   "confirm.delete": "删除会话“{name}”？",
   "login.welcome": "欢迎您",
   "login.subtitle": "输入您的凭据以访问控制面板。",

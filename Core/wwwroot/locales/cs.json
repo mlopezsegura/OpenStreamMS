@@ -302,6 +302,8 @@
   "toast.saved": "Nastavení uloženo. Chcete-li použít změny, restartujte relaci.",
   "toast.connectionError": "Nelze se připojit k serveru.",
   "confirm.restart": "Restartovat relaci „{name}“?\nRelace Windows bude uzavřena (odhlášení) a restartována.",
+  "confirm.stopToApply": "Opravdu chcete zastavit aktuální relaci? Postup v aktuální relaci může být ztracen.",
+  "btn.stopAndApply": "Zastavit a použít",
   "confirm.delete": "Smazat relaci „{name}“?",
   "login.welcome": "Vítejte",
   "login.subtitle": "Zadejte své přihlašovací údaje pro přístup k ovládacímu panelu.",

@@ -302,6 +302,8 @@
   "toast.saved": "Inställningar sparade. Starta om sessionen för att tillämpa ändringar.",
   "toast.connectionError": "Kunde inte ansluta till servern.",
   "confirm.restart": "Starta om sessionen \"{name}\"?\nWindows-sessionen kommer att stängas (logga ut) och startas om.",
+  "confirm.stopToApply": "Är du säker på att du vill stoppa den aktuella sessionen? Framsteg i den aktuella sessionen kan gå förlorade.",
+  "btn.stopAndApply": "Stoppa och tillämpa",
   "confirm.delete": "Ta bort session \"{name}\"?",
   "login.welcome": "Välkommen",
   "login.subtitle": "Ange dina autentiseringsuppgifter för att komma åt kontrollpanelen.",

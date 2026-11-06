@@ -302,6 +302,8 @@
   "toast.saved": "Beállítások elmentve. A módosítások alkalmazásához indítsa újra a munkamenetet.",
   "toast.connectionError": "Nem sikerült csatlakozni a szerverhez.",
   "confirm.restart": "A \"{name}\" munkamenet újraindítása?\nA Windows munkamenet bezárul (kijelentkezés) és újraindul.",
+  "confirm.stopToApply": "Biztosan leállítja az aktuális munkamenetet? Az aktuális munkamenet előrehaladása elveszhet.",
+  "btn.stopAndApply": "Leállítás és alkalmazás",
   "confirm.delete": "Törli a \"{name}\" munkamenetet?",
   "login.welcome": "Üdvözlünk",
   "login.subtitle": "A vezérlőpult eléréséhez adja meg hitelesítő adatait.",

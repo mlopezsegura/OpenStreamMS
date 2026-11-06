@@ -302,6 +302,8 @@
   "toast.saved": "Đã lưu cài đặt. Khởi động lại phiên để áp dụng các thay đổi.",
   "toast.connectionError": "Không thể kết nối với máy chủ.",
   "confirm.restart": "Khởi động lại phiên \"{name}\"?\nPhiên Windows sẽ được đóng (đăng xuất) và khởi động lại.",
+  "confirm.stopToApply": "Bạn có chắc chắn muốn dừng phiên hiện tại không? Tiến trình của phiên hiện tại có thể bị mất.",
+  "btn.stopAndApply": "Dừng và áp dụng",
   "confirm.delete": "Xóa phiên \"{name}\"?",
   "login.welcome": "Chào mừng",
   "login.subtitle": "Nhập thông tin xác thực của bạn để truy cập bảng điều khiển.",

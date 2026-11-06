@@ -302,6 +302,8 @@
   "toast.saved": "設定が保存されました。セッションを再起動して変更を適用します。",
   "toast.connectionError": "サーバーに接続できませんでした。",
   "confirm.restart": "セッション「{name}」を再起動しますか?\nWindows セッションは閉じられ (ログオフ)、再起動されます。",
+  "confirm.stopToApply": "現在のセッションを停止してもよろしいですか？現在のセッションの進行状況が失われる可能性があります。",
+  "btn.stopAndApply": "停止して適用",
   "confirm.delete": "セッション「{name}」を削除しますか?",
   "login.welcome": "ようこそ",
   "login.subtitle": "資格情報を入力してコントロール パネルにアクセスします。",

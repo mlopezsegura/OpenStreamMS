@@ -554,6 +554,19 @@ async function submitSession(e) {
     return;
   }
 
+  // Con la sesión iniciada, los cambios se aplican deteniéndola y volviéndola a iniciar: se
+  // pregunta antes. El estado se consulta al servidor: la lista no se refresca con el modal abierto.
+  let restartIfActive = false;
+  if (editing) {
+    let state = (sessions.find(x => x.id === editing) || {}).state;
+    const r = await api('GET', `/api/sessions/${editing}`);
+    if (r && r.ok) state = (await r.json()).state;
+    if (state === 'Running' || state === 'Starting') {
+      if (!await ask(t('confirm.stopToApply'), { danger: true, ok: t('btn.stopAndApply') })) return;
+      restartIfActive = true;
+    }
+  }
+
   setSessBusy(true);
   try {
     // "Crear" prueba las credenciales si no se ha hecho: no hace falta pulsar antes "Probar".
@@ -594,6 +607,7 @@ async function submitSession(e) {
       isolatedEphemeral:  isolated && byId('sess-ephemeral').checked,
       ...readProtocolFields(),
     };
+    if (editing) body.restartIfActive = restartIfActive;
 
     let res;
     if (editing) {
@@ -623,7 +637,7 @@ async function submitSession(e) {
       await api('PATCH', `/api/sessions/${editing}/enabled`, { enabled: byId('sess-enabled').checked });
 
     closeSessionModal();
-    toast(t(editing ? 'toast.saved' : 'toast.created'));
+    toast(t(restartIfActive ? 'toast.restarting' : editing ? 'toast.saved' : 'toast.created'));
     loadSessions();
     if (body.reuseIsolatedUser) loadOrphans();
   } finally {

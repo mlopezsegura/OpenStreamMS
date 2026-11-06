@@ -302,6 +302,8 @@
   "toast.saved": "Impostazioni salvate. Riavviare la sessione per applicare le modifiche.",
   "toast.connectionError": "Impossibile connettersi al server.",
   "confirm.restart": "Riavviare la sessione \"{name}\"?\nLa sessione Windows verrà chiusa (disconnessione) e riavviata.",
+  "confirm.stopToApply": "Sei sicuro di voler arrestare la sessione corrente? I progressi della sessione corrente potrebbero andare persi.",
+  "btn.stopAndApply": "Arresta e applica",
   "confirm.delete": "Cancellare la sessione \"{name}\"?",
   "login.welcome": "Benvenuti",
   "login.subtitle": "Inserisci le tue credenziali per accedere al pannello di controllo.",
