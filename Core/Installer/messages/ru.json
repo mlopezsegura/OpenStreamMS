@@ -1,8 +1,6 @@
 {
   "GroupService": "Служба:",
   "TaskStartService": "Запустить службу сразу после установки",
-  "GroupSeats": "Локальные рабочие места:",
-  "TaskRemoteIdd": "Установить драйвер дисплея рабочих мест (RemoteIdd, экспериментальный: тестовый сертификат; перезапуск удалённого рабочего стола)",
   "IconComment": "Панель управления OpenStreamMS",
   "StatusInstallService": "Регистрация службы Windows и установка драйверов (ViGEmBus, HidHide)...",
   "StatusRemoveRemoteIdd": "Удаление предыдущего драйвера дисплея (RemoteIdd)...",

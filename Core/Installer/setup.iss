@@ -51,12 +51,12 @@ MinVersion=10.0.17763
 [CustomMessages]
 #include "messages.generated.iss"
 
-; Tema claro/oscuro y fondos animados: necesitan Inno Setup 6.7. Con uno anterior (p. ej. el de la
+; Tema claro/oscuro y fondo propio: necesitan Inno Setup 6.7. Con uno anterior (p. ej. el de la
 ; imagen de la CI) sale el instalador de siempre.
 #if Ver >= EncodeVer(6, 7, 0)
   #include "theme.iss"
 #else
-  #pragma warning "Inno Setup anterior a 6.7: instalador sin tema claro/oscuro ni fondos animados."
+  #pragma warning "Inno Setup anterior a 6.7: instalador sin tema claro/oscuro ni fondo propio."
 [Setup]
 WizardStyle=modern
 SetupIconFile=..\..\app.ico
@@ -65,9 +65,7 @@ SetupIconFile=..\..\app.ico
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
 Name: "startservice"; Description: "{cm:TaskStartService}"; GroupDescription: "{cm:GroupService}"
-; RemoteIdd (pantalla de los puestos). Firma de prueba: mete su certificado en los de confianza,
-; cambia la DLL de TermService (TermWrap) y reinicia Escritorio remoto. Ver package-remoteidd.ps1.
-Name: "remoteidd"; Description: "{cm:TaskRemoteIdd}"; GroupDescription: "{cm:GroupSeats}"
+; RemoteIdd (pantalla de los puestos) no es una tarea: se instala siempre (ver [Run], 1b).
 
 [Files]
 ; Toda la salida de dotnet publish (runtime incluido)
@@ -88,17 +86,20 @@ Filename: "{app}\{#AppExeName}"; Parameters: "--install --silent"; \
   Flags: runhidden waituntilterminated; \
   StatusMsg: "{cm:StatusInstallService}"
 
-; 1b. Driver de pantalla de los puestos: quita la instalación anterior (si la hay) y pone la
-;     del paquete firmado. NO reinicia TermService (se quedaba colgado al pararse y dejaba el
-;     sistema a medias): todo entra al reiniciar el equipo, que el instalador pide al final
+; 1b. Driver de pantalla de los puestos, obligatorio (como el de DuoStream): no es una tarea que
+;     se pueda desmarcar. Firma de prueba: mete su certificado en los de confianza y cambia la
+;     DLL de TermService (TermWrap); ver package-remoteidd.ps1. Los Hz son solo los de partida:
+;     OpenStreamMS los pone en cada conexión a los fps de la sesión.
+;     Quita la instalación anterior (si la hay) y pone la del paquete firmado. NO reinicia
+;     TermService (se quedaba colgado al pararse y dejaba el sistema a medias): todo entra al reiniciar el equipo, que el instalador pide al final
 ;     (NeedRestart). Log en %ProgramData%\OpenStreamMS\remoteidd-setup.log.
 Filename: "powershell.exe"; \
   Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\remoteidd-pkg\uninstall.ps1"""; \
-  Flags: runhidden waituntilterminated; Tasks: remoteidd; \
+  Flags: runhidden waituntilterminated; \
   StatusMsg: "{cm:StatusRemoveRemoteIdd}"
 Filename: "powershell.exe"; \
-  Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\remoteidd-pkg\install.ps1"" -Package ""{app}\remoteidd-pkg"" -RefreshHz 120 -SkipTestSigningCheck"; \
-  Flags: runhidden waituntilterminated; Tasks: remoteidd; \
+  Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\remoteidd-pkg\install.ps1"" -Package ""{app}\remoteidd-pkg"" -RefreshHz 60 -SkipTestSigningCheck"; \
+  Flags: runhidden waituntilterminated; \
   StatusMsg: "{cm:StatusInstallRemoteIdd}"
 
 ; 2. Iniciar el servicio (solo si el usuario marcó la tarea)
@@ -167,10 +168,11 @@ begin
   Result := '';
 end;
 
-// El driver de pantalla (RemoteIdd) cambia TermService: entra en vigor al reiniciar el equipo.
+// El driver de pantalla (RemoteIdd), que se instala siempre, cambia TermService: entra en
+// vigor al reiniciar el equipo.
 function NeedRestart(): Boolean;
 begin
-  Result := WizardIsTaskSelected('remoteidd');
+  Result := True;
 end;
 
 var

@@ -1,8 +1,6 @@
 {
   "GroupService": "サービス:",
   "TaskStartService": "インストール直後にサービスを開始する",
-  "GroupSeats": "ローカルワークステーション:",
-  "TaskRemoteIdd": "ワークステーション ディスプレイ ドライバーをインストールします (RemoteIdd、実験的: テスト証明書、リモート デスクトップを再起動します)",
   "IconComment": "OpenStreamMS コントロールパネル",
   "StatusInstallService": "Windows サービスを登録し、ドライバー (ViGEmBus、HidHide) をインストールしています...",
   "StatusRemoveRemoteIdd": "以前のディスプレイ ドライバー (RemoteIdd) を削除しています...",

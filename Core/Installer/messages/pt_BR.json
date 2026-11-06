@@ -1,8 +1,6 @@
 {
   "GroupService": ":",
   "TaskStartService": "Inicie o serviço logo após a instalação\nEstações de trabalho locais",
-  "GroupSeats": "Estações de trabalho locais:",
-  "TaskRemoteIdd": "Instale o driver de vídeo da estação de trabalho (RemoteIdd, experimental: certificado de teste; reinicia a Área de Trabalho Remota)\nPainel de controle",
   "IconComment": "OpenStreamMS",
   "StatusInstallService": "Registrando o serviço Windows e instalando drivers (ViGEmBus, HidHide)...",
   "StatusRemoveRemoteIdd": "Removendo o driver de vídeo anterior (RemoteIdd)...",
