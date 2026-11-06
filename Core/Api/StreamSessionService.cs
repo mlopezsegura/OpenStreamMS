@@ -55,7 +55,9 @@ public class StreamSessionService
                                 bool isolated = false, bool isolatedEphemeral = false,
                                 StreamProtocol streamProtocol = StreamProtocol.Both,
                                 int webRtcPort = 0, int webRtcMediaPortMin = 0, int webRtcMediaPortMax = 0,
-                                bool local = false, string? reuseIsolatedUser = null)
+                                bool local = false, string? reuseIsolatedUser = null,
+                                int rdpDisplayScale = 100,
+                                RdpCompositionMode rdpComposition = RdpCompositionMode.Smooth)
     {
         // Solo hay un escritorio físico: dos sesiones locales lo capturarían a la vez.
         if (local && _sessions.Values.Any(s => s.Local))
@@ -92,6 +94,8 @@ public class StreamSessionService
             RdpHeight          = rdpHeight > 0 ? rdpHeight : 1080,
             RdpFrameRate       = NormalizeRdpFrameRate(rdpFrameRate),
             RdpColorDepth      = NormalizeRdpColorDepth(rdpColorDepth),
+            RdpDisplayScale    = RdpDisplayScales.Normalize(rdpDisplayScale),
+            RdpComposition     = rdpComposition,
             Enabled            = enabled,
             UseStreamProfile   = useStreamProfile && !local,
             SunshineStreamPort = sunshineStreamPort > 0 ? sunshineStreamPort : 47989,
@@ -210,7 +214,9 @@ public class StreamSessionService
                                       bool rotateSunshineCredentials,
                                       bool isolated = false, bool isolatedEphemeral = false,
                                       StreamProtocol? streamProtocol = null,
-                                      int webRtcPort = 0, int webRtcMediaPortMin = 0, int webRtcMediaPortMax = 0)
+                                      int webRtcPort = 0, int webRtcMediaPortMin = 0, int webRtcMediaPortMax = 0,
+                                      int rdpDisplayScale = 100,
+                                      RdpCompositionMode rdpComposition = RdpCompositionMode.Smooth)
     {
         var session = RequireSession(id);
 
@@ -249,6 +255,8 @@ public class StreamSessionService
         session.RdpHeight          = rdpHeight > 0 ? rdpHeight : 1080;
         session.RdpFrameRate       = NormalizeRdpFrameRate(rdpFrameRate);
         session.RdpColorDepth      = NormalizeRdpColorDepth(rdpColorDepth);
+        session.RdpDisplayScale    = RdpDisplayScales.Normalize(rdpDisplayScale);
+        session.RdpComposition     = rdpComposition;
         session.SunshineStreamPort = sunshineStreamPort > 0 ? sunshineStreamPort : 47989;
         session.UseStreamProfile   = useStreamProfile;
         session.SunshineName       = NullIfBlank(sunshineName);
@@ -446,7 +454,8 @@ public class StreamSessionService
                                                 frameRate, session.RdpColorDepth, out int clientPid,
                                                 preferMstsc: !string.Equals(_defaultConfig.RdpClient, "freerdp", StringComparison.OrdinalIgnoreCase),
                                                 remoteIdd: UsesRemoteIdd(session),
-                                                microphone: microphone);
+                                                microphone: microphone,
+                                                display: DisplayOptions(session));
         session.RdpSessionId = rdpId;
         session.FreeRdpPid   = clientPid;
         // El audio sale por el cliente RDP del host: el nuevo cliente también se silencia.
@@ -738,7 +747,9 @@ public class StreamSessionService
                 WebRtcMediaPortMin: s.WebRtcMediaPortMin,
                 WebRtcMediaPortMax: s.WebRtcMediaPortMax,
                 Local: s.Local,
-                IsolatedUsername: s.IsolatedUsername));
+                IsolatedUsername: s.IsolatedUsername,
+                RdpDisplayScale: s.RdpDisplayScale,
+                RdpComposition: s.RdpComposition));
             File.WriteAllText(SessionsFile, JsonSerializer.Serialize(data, JsonOpts));
             SecureFile.RestrictToAdmins(SessionsFile);
         }
@@ -779,6 +790,8 @@ public class StreamSessionService
                     RdpHeight          = d.RdpHeight > 0 ? d.RdpHeight : 1080,
                     RdpFrameRate       = NormalizeRdpFrameRate(d.RdpFrameRate),
                     RdpColorDepth      = NormalizeRdpColorDepth(d.RdpColorDepth),
+                    RdpDisplayScale    = RdpDisplayScales.Normalize(d.RdpDisplayScale),
+                    RdpComposition     = d.RdpComposition ?? RdpCompositionMode.Smooth,
                     Enabled            = d.Enabled,
                     CreatedAt          = d.CreatedAt,
                     UseStreamProfile   = d.UseStreamProfile,
@@ -886,7 +899,8 @@ public class StreamSessionService
                                                               preferMstsc: !string.Equals(
                                                                   _defaultConfig.RdpClient, "freerdp",
                                                                   StringComparison.OrdinalIgnoreCase),
-                                                              remoteIdd: UsesRemoteIdd(session));
+                                                              remoteIdd: UsesRemoteIdd(session),
+                                                              display: DisplayOptions(session));
 
             // Stop() pudo haber sido llamado mientras esperábamos la sesión RDP
             if (session.State != SessionState.Starting)
@@ -1273,6 +1287,9 @@ public class StreamSessionService
         Logger.Warning($"[{session.Name}] Captura remoteidd sin RemoteIdd activo en RDP-Tcp: se usa la captura por defecto.", session.Id);
         return null;
     }
+
+    private static RdpDisplayOptions DisplayOptions(StreamSession session) =>
+        new(session.RdpDisplayScale, session.RdpComposition);
 
     private static int NormalizeRdpFrameRate(int frameRate) =>
         Math.Clamp(frameRate > 0 ? frameRate : 60, 1, 240);
@@ -1663,5 +1680,9 @@ public class StreamSessionService
         /// <summary>Sesión local: Sunshine en el escritorio físico, sin RDP.</summary>
         bool     Local = false,
         /// <summary>Usuario dedicado reutilizado de otra sesión. Null = el que sale del Id.</summary>
-        string?  IsolatedUsername = null);
+        string?  IsolatedUsername = null,
+        /// <summary>Escala de la pantalla en %. 0 en sesiones anteriores = 100.</summary>
+        int      RdpDisplayScale = 100,
+        /// <summary>Ritmo de composición. Null en sesiones anteriores = Smooth.</summary>
+        RdpCompositionMode? RdpComposition = null);
 }

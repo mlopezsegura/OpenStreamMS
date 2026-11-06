@@ -94,7 +94,11 @@ public record CreateSessionRequest(
     /// (login de Steam, partidas, ajustes). Debe salir de GET /api/sessions/isolated-users.
     /// Null = crear un usuario nuevo.
     /// </summary>
-    string? ReuseIsolatedUser = null
+    string? ReuseIsolatedUser = null,
+    /// <summary>Escala de la pantalla de la sesión RDP en % (100-300). Por defecto 100.</summary>
+    int RdpDisplayScale = 100,
+    /// <summary>Ritmo de composición de la sesión RDP: Smooth (más fluido) o Efficient (menos CPU/GPU).</summary>
+    RdpCompositionMode RdpComposition = RdpCompositionMode.Smooth
 );
 
 /// <summary>Datos editables de una sesión ya creada (requiere sesión detenida).</summary>
@@ -149,7 +153,11 @@ public record UpdateSessionConfigRequest(
     /// <summary>Primer puerto UDP de media WebRTC. 0 = mantener el actual.</summary>
     int WebRtcMediaPortMin = 0,
     /// <summary>Último puerto UDP de media WebRTC. 0 = mantener el actual.</summary>
-    int WebRtcMediaPortMax = 0
+    int WebRtcMediaPortMax = 0,
+    /// <summary>Escala de la pantalla de la sesión RDP en % (100-300).</summary>
+    int RdpDisplayScale = 100,
+    /// <summary>Ritmo de composición de la sesión RDP: Smooth o Efficient.</summary>
+    RdpCompositionMode RdpComposition = RdpCompositionMode.Smooth
 );
 
 /// <summary>Cuerpo para cambiar los protocolos de streaming de una sesión.</summary>
@@ -236,7 +244,11 @@ public record SessionResponse(
     /// Login de Steam del usuario de Windows de la sesión: "saved" (Recordarme guardado),
     /// "missing" (Steam pedirá iniciar sesión y Big Picture no se abrirá) o null (no aplica).
     /// </summary>
-    string?      SteamLogin
+    string?      SteamLogin,
+    /// <summary>Escala de la pantalla de la sesión RDP en %.</summary>
+    int          RdpDisplayScale = 100,
+    /// <summary>Ritmo de composición de la sesión RDP.</summary>
+    RdpCompositionMode RdpComposition = RdpCompositionMode.Smooth
 );
 
 /// <summary>Usuario dedicado o perfil osms-* que ya no usa ninguna sesión.</summary>
@@ -561,7 +573,9 @@ public static class SessionEndpoints
                                  webRtcMediaPortMin: req.WebRtcMediaPortMin,
                                  webRtcMediaPortMax: req.WebRtcMediaPortMax,
                                  local: req.Local,
-                                 reuseIsolatedUser: req.ReuseIsolatedUser);
+                                 reuseIsolatedUser: req.ReuseIsolatedUser,
+                                 rdpDisplayScale: req.RdpDisplayScale,
+                                 rdpComposition: req.RdpComposition);
         }
         catch (InvalidOperationException ex)
         {
@@ -680,7 +694,9 @@ public static class SessionEndpoints
                                            streamProtocol: req.StreamProtocol,
                                            webRtcPort: req.WebRtcPort,
                                            webRtcMediaPortMin: req.WebRtcMediaPortMin,
-                                           webRtcMediaPortMax: req.WebRtcMediaPortMax);
+                                           webRtcMediaPortMax: req.WebRtcMediaPortMax,
+                                           rdpDisplayScale: req.RdpDisplayScale,
+                                           rdpComposition: req.RdpComposition);
             return TypedResults.Ok(ToResponse(session));
         }
         catch (KeyNotFoundException)
@@ -934,5 +950,6 @@ public static class SessionEndpoints
         s.State == SessionState.Starting ? s.StartPhase : null,
         s.ClientsMoonlight, s.ClientsWebRtc,
         s.Isolated ? s.GetIsolatedUser() : null,
-        StreamSessionService.SteamLoginState(s));
+        StreamSessionService.SteamLoginState(s),
+        s.RdpDisplayScale, s.RdpComposition);
 }

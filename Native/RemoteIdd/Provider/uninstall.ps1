@@ -23,6 +23,10 @@ if ($s.OriginalProtocol) {
     Remove-ItemProperty $rdpTcp OsmsInnerProtocol_Object -ErrorAction SilentlyContinue
     Remove-ItemProperty $rdpTcp OsmsRefreshHz -ErrorAction SilentlyContinue
     Remove-ItemProperty $rdpTcp OsmsRemoteIddAllConnections -ErrorAction SilentlyContinue
+    # Modo de la última conexión (RdpSessionCreator.ApplyRemoteIddMode).
+    foreach ($v in 'OsmsSeatWidth', 'OsmsSeatHeight', 'OsmsScalePercent') {
+        Remove-ItemProperty $rdpTcp $v -ErrorAction SilentlyContinue
+    }
     Write-Host "RDP-Tcp restaurado a $($s.OriginalProtocol)."
 }
 foreach ($t in @($s.DisabledTasks)) {

@@ -21,6 +21,40 @@ public enum StreamProtocol
     Both       // Ambos
 }
 
+/// <summary>
+/// Ritmo al que Windows compone la pantalla de la sesión RDP (DWMFRAMEINTERVAL, ms enteros).
+/// </summary>
+public enum RdpCompositionMode
+{
+    /// <summary>
+    /// Compone bastante más rápido que los fps (60 fps → 250 Hz) y Sunshine manda cada fotograma
+    /// al llegar: sin fotogramas repetidos, a cambio de más CPU y GPU por sesión.
+    /// </summary>
+    Smooth,
+    /// <summary>
+    /// Compone a los fps (60 fps → 17 ms, 58,8 Hz): bastante menos CPU y GPU por sesión, con algún
+    /// fotograma repetido de vez en cuando. Pensado para escritorio y para muchas sesiones.
+    /// </summary>
+    Efficient,
+}
+
+/// <summary>Ajustes de la pantalla de una sesión RDP que se aplican al conectar.</summary>
+/// <param name="Scale">Escala en % (ver <see cref="RdpDisplayScales"/>).</param>
+public sealed record RdpDisplayOptions(int Scale = 100, RdpCompositionMode Composition = RdpCompositionMode.Smooth)
+{
+    public static readonly RdpDisplayOptions Default = new();
+}
+
+/// <summary>Escalas de pantalla que ofrece Windows (las de Configuración → Pantalla).</summary>
+public static class RdpDisplayScales
+{
+    public static readonly int[] Values = [100, 125, 150, 175, 200, 225, 250, 300];
+
+    /// <summary>La escala admitida más cercana; 0 o negativa = 100 %.</summary>
+    public static int Normalize(int scale) =>
+        scale <= 0 ? 100 : Values.MinBy(v => Math.Abs(v - scale));
+}
+
 public static class StreamProtocolExtensions
 {
     /// <summary>Valor de <c>stream_protocol</c> en <c>sunshine.conf</c>.</summary>
@@ -78,6 +112,10 @@ public class StreamSession
     public int          RdpFrameRate    { get; set; } = 60;
     /// <summary>Profundidad de color RDP en bits por pixel. Valores FreeRDP habituales: 16, 24 o 32.</summary>
     public int          RdpColorDepth   { get; set; } = 32;
+    /// <summary>Escala de la pantalla de la sesión RDP en % (100 = sin escalar). Ver RdpDisplayScales.</summary>
+    public int          RdpDisplayScale { get; set; } = 100;
+    /// <summary>Ritmo de composición de la sesión RDP.</summary>
+    public RdpCompositionMode RdpComposition { get; set; } = RdpCompositionMode.Smooth;
     /// <summary>
     /// Si true, la sesión se lanza automáticamente cuando el servicio arranca o reinicia.
     /// </summary>

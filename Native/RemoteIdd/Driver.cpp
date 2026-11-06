@@ -88,8 +88,11 @@ static void KeepSharedObjects(UINT32 session)
 // El monitor se anuncia con esta lista antes de que llegue el modo del cliente (IOCTL), y
 // IddCxMonitorUpdateModes solo cambia los modos de destino: un modo que no esté aquí no
 // llega a los modos del monitor y Windows retira la pantalla (OnDriverUnload, motivo 17).
-// Por eso cada modo base va también partido como los puestos en pantalla dividida: mitades
-// (vertical: ancho/2; horizontal: alto/2) y cuartos (ancho/2 y alto/2). Ver AllModes.
+// Por eso OpenStreamMS deja el modo de la conexión en el registro (OsmsSeatWidth/Height,
+// OsmsRefreshHz) y SeatFromDevice lo lee antes de crear el monitor: BuildModes lo añade y
+// cualquier resolución vale. La lista fija queda para cuando falta ese valor; cada modo base
+// va también partido como los puestos en pantalla dividida: mitades (vertical: ancho/2;
+// horizontal: alto/2) y cuartos (ancho/2 y alto/2). Ver AllModes.
 struct ModeDef { DWORD Width, Height, VSync; };
 static const ModeDef kBaseModes[] = {
     { 3840, 2160,  60 }, { 3840, 2160, 120 },
@@ -99,6 +102,11 @@ static const ModeDef kBaseModes[] = {
     { 1280,  720,  60 }, { 1280,  720, 120 },
     { 1024,  768,  60 },
     {  800,  600,  60 },
+    // Ultrapanorámicos, 16:10 y 5:4 (con mitades y cuartos de tamaño par).
+    { 3440, 1440,  60 }, { 2560, 1080,  60 },
+    { 2560, 1600,  60 }, { 1920, 1200,  60 }, { 1440,  900,  60 },
+    { 1280, 1024,  60 },
+    { 3840, 2160, 144 },
 };
 constexpr UINT kBaseCount = ARRAYSIZE(kBaseModes);
 constexpr UINT kModeCount = kBaseCount * 4;     // entero, mitad vertical, mitad horizontal, cuarto
@@ -142,12 +150,15 @@ constexpr ModeDef kDefaultConfig = { 1920, 1080, 60 };
 // IOCTL llegue con el monitor ya creado. Todo bajo g_modeLock.
 static SRWLOCK g_modeLock = SRWLOCK_INIT;
 static ModeDef g_seatMode = kDefaultConfig;
+// Escala de la pantalla en % (OsmsScalePercent): la que Windows aplica a la sesión.
+static UINT g_seatScale = 100;
 static IDDCX_ADAPTER g_adapter = nullptr;
 static IDDCX_MONITOR g_monitor = nullptr;
 
-// Sesión e Hz sin depender de OnDriverLoad: sesión del id de instancia y Hz de OsmsRefreshHz
-// (lo escribe install.ps1 en RDP-Tcp; RDP no transmite los Hz del cliente). La resolución
-// sigue llegando solo por el IOCTL v2.
+// Sesión y modo sin depender de OnDriverLoad: sesión del id de instancia; Hz, resolución y
+// escala de RDP-Tcp. OpenStreamMS los escribe antes de cada conexión (RdpSessionCreator.
+// ApplyRemoteIddMode) e install.ps1 deja unos Hz por defecto (RDP no transmite los Hz del
+// cliente). La resolución llega también por el IOCTL v2, pero tarde: ver kBaseModes.
 static void SeatFromDevice(WDFDEVICE device)
 {
     // DEVPKEY_Device_InstanceId, definido aquí para no depender de initguid/devpkey.h.
@@ -173,16 +184,30 @@ static void SeatFromDevice(WDFDEVICE device)
     }
     if (memory) WdfObjectDelete(memory);
 
-    DWORD hz = 0, size = sizeof(hz);
-    if (RegGetValueW(HKEY_LOCAL_MACHINE,
-                     L"SYSTEM\\CurrentControlSet\\Control\\Terminal Server\\WinStations\\RDP-Tcp",
-                     L"OsmsRefreshHz", RRF_RT_REG_DWORD, nullptr, &hz, &size) == ERROR_SUCCESS
-        && hz >= 24 && hz <= 500)
-    {
-        AcquireSRWLockExclusive(&g_modeLock);
+    auto read = [](LPCWSTR name) -> DWORD {
+        DWORD value = 0, size = sizeof(value);
+        return RegGetValueW(HKEY_LOCAL_MACHINE,
+                            L"SYSTEM\\CurrentControlSet\\Control\\Terminal Server\\WinStations\\RDP-Tcp",
+                            name, RRF_RT_REG_DWORD, nullptr, &value, &size) == ERROR_SUCCESS ? value : 0;
+    };
+    DWORD hz = read(L"OsmsRefreshHz");
+    DWORD width = read(L"OsmsSeatWidth"), height = read(L"OsmsSeatHeight");
+    DWORD scale = read(L"OsmsScalePercent");
+
+    AcquireSRWLockExclusive(&g_modeLock);
+    if (hz >= 24 && hz <= 500)
         g_seatMode.VSync = hz;
-        ReleaseSRWLockExclusive(&g_modeLock);
+    if (width >= 640 && width <= 7680 && height >= 360 && height <= 4320)
+    {
+        g_seatMode.Width = width;
+        g_seatMode.Height = height;
     }
+    if (scale >= 100 && scale <= 500)
+        g_seatScale = scale;
+    ModeDef seat = g_seatMode;
+    UINT seatScale = g_seatScale;
+    ReleaseSRWLockExclusive(&g_modeLock);
+    Log(L"RemoteIdd: modo inicial %lux%lu@%lu, escala %u %%\n", seat.Width, seat.Height, seat.VSync, seatScale);
 }
 
 // Lista de modos (AllModes + el del puesto si falta). Devuelve cuántos y cuál es el preferido.
@@ -246,6 +271,7 @@ static NTSTATUS ApplySeatMode()
     IDDCX_ADAPTER adapter = g_adapter;
     IDDCX_MONITOR monitor = g_monitor;
     ModeDef seat = g_seatMode;
+    UINT scale = g_seatScale;
     ReleaseSRWLockShared(&g_modeLock);
     if (!adapter || !monitor) return STATUS_SUCCESS;
 
@@ -275,13 +301,13 @@ static NTSTATUS ApplySeatMode()
     path.Rotation = DISPLAYCONFIG_ROTATION_IDENTITY;
     path.RefreshRate = { seat.VSync, 1 };
     path.VSyncFreqDivider = 1;
-    path.MonitorScaleFactor = 100;
+    path.MonitorScaleFactor = scale;
 
     IDARG_IN_ADAPTERDISPLAYCONFIGUPDATE upd = {};
     upd.PathCount = 1;
     upd.pPaths = &path;
     st = IddCxAdapterDisplayConfigUpdate(adapter, &upd);
-    Log(L"RemoteIdd: modo %lux%lu@%lu (0x%08X)\n", seat.Width, seat.Height, seat.VSync, st);
+    Log(L"RemoteIdd: modo %lux%lu@%lu, escala %u %% (0x%08X)\n", seat.Width, seat.Height, seat.VSync, scale, st);
     return st;
 }
 
