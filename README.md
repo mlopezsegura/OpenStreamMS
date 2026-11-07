@@ -227,7 +227,7 @@ The tray icon (`OpenStreamMS.exe --tray`) runs in the user's desktop session and
 - **Right-click** → sessions and local seats with a coloured state dot and an on/off action each, and *Open web interface*
 - **Notifications** → a Windows notification when Moonlight or a WebRTC TV waits for a PIN; clicking it opens that session's pairing dialog
 
-The menu follows the Windows language (English, Spanish, French, Portuguese). The tray icon is registered at Windows startup automatically during installation.
+The menu follows the Windows language (all 22 supported languages: English, Spanish, French, Portuguese, German, Russian, Ukrainian, Bulgarian, Czech, Hungarian, Italian, Japanese, Korean, Polish, Swedish, Turkish, Vietnamese, Chinese Simplified, Chinese Traditional, plus regional variants). The tray icon is registered at Windows startup automatically during installation.
 
 ---
 

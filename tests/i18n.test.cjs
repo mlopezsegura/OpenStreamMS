@@ -193,9 +193,9 @@ test('missing driver log translations fall back to English with intact parameter
   assert.equal(e.I18n.driverLog('[01:02:03] Instalador salió con código 1603.'), '[01:02:03] Installer exited with code 1603.');
 });
 
-test('tray and installer catalogs have matching keys, formatting and no empty translations', () => {
+test('tray, installer and backend catalogs have matching keys, formatting and no empty translations', () => {
   const codes=Object.keys(catalogs);
-  for (const folder of ['Services/TrayApp/Locales','Core/Installer/messages']) {
+  for (const folder of ['Services/TrayApp/Locales','Core/Installer/messages','Services/Localization/Locales']) {
     const english=JSON.parse(fs.readFileSync(path.join(root,folder,'en.json'),'utf8'));
     for (const lang of codes) {
       const table=JSON.parse(fs.readFileSync(path.join(root,folder,lang+'.json'),'utf8'));
