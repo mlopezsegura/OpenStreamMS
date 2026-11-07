@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using OpenStreamMS.Services;
+using OpenStreamMS.Services.Localization;
 
 namespace OpenStreamMS.Services.Session;
 
@@ -217,7 +218,7 @@ public sealed class RdpWrapperManager
         }
         catch (Exception ex)
         {
-            Logger.Error($"[RdpWrap] No se pudo poner TermWrap como multi-RDP: {ex.Message}");
+            Logger.Error(BackendText.Get("rdpwrap.failedToSetTermWrap", ex.Message));
         }
     }
 
@@ -225,9 +226,9 @@ public sealed class RdpWrapperManager
     private string? TermWrapProblem()
     {
         var st = GetStatus();
-        if (st.Wrapper != "TermWrap") return $"ServiceDll = {st.ServiceDllPath}";
-        if (st.Loaded != true)        return "TermWrap.dll no está cargada en TermService";
-        if (!IsRdpTcpListening())     return "RDP-Tcp no escucha";
+        if (st.Wrapper != "TermWrap") return BackendText.Get("rdpwrap.serviceDllMismatch", st.ServiceDllPath);
+        if (st.Loaded != true)        return BackendText.Get("rdpwrap.termwrapNotLoaded");
+        if (!IsRdpTcpListening())     return BackendText.Get("rdpwrap.rdpTcpNotListening");
         return null;
     }
 
@@ -269,7 +270,7 @@ public sealed class RdpWrapperManager
         var live = OpenStreamMS.Core.Helpers.RdpSessionCreator.DescribeNonConsoleUserSessions();
         if (live.Count > 0)
         {
-            AppendLog($"Hay sesiones abiertas ({string.Join(", ", live)}): TermService no se reinicia ahora; el cambio se aplica al reiniciar el equipo.");
+            AppendLog(BackendText.Get("rdpwrap.openSessionsPreventRestart", string.Join(", ", live)));
             return;
         }
         RestartTermService();
@@ -285,7 +286,7 @@ public sealed class RdpWrapperManager
         }
         sc.Start();
         sc.WaitForStatus(System.ServiceProcess.ServiceControllerStatus.Running, TimeSpan.FromSeconds(60));
-        AppendLog("TermService reiniciado.");
+        AppendLog(BackendText.Get("rdpwrap.termServiceRestarted"));
     }
 
     // ── Implementación interna ───────────────────────────────────────────────
@@ -294,12 +295,12 @@ public sealed class RdpWrapperManager
     {
         lock (_sync)
         {
-            if (_busy) throw new InvalidOperationException("Ya hay una operación de multi-RDP en curso.");
+            if (_busy) throw new InvalidOperationException(BackendText.Get("rdpwrap.multiRdpBusy"));
             _busy       = true;
             _lastAction = action;
             _log.Clear();
         }
-        AppendLog($"--- Inicio: {action} ({DateTime.Now:HH:mm:ss}) ---");
+        AppendLog(BackendText.Get("rdpwrap.log.start", action, DateTime.Now.ToString("HH:mm:ss")));
         try
         {
             await work();
@@ -311,7 +312,7 @@ public sealed class RdpWrapperManager
         }
         finally
         {
-            AppendLog($"--- Fin: {action} ({DateTime.Now:HH:mm:ss}) ---");
+            AppendLog(BackendText.Get("rdpwrap.log.end", action, DateTime.Now.ToString("HH:mm:ss")));
             _busy = false;
         }
     }

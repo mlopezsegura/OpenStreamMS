@@ -1,6 +1,8 @@
 using OpenStreamMS.Core.Helpers;
 using OpenStreamMS.Services;
+using OpenStreamMS.Services.Localization;
 using OpenStreamMS.Services.OpenStream;
+using OpenStreamMS.Services.Seats;
 using OpenStreamMS.Services.Session;
 using OpenStreamMS.Services.Sunshine;
 using System.Collections.Concurrent;
@@ -61,20 +63,20 @@ public class StreamSessionService
     {
         // Solo hay un escritorio físico: dos sesiones locales lo capturarían a la vez.
         if (local && _sessions.Values.Any(s => s.Local))
-            throw new InvalidOperationException("Ya existe una sesión local; edita esa en lugar de crear otra.");
+            throw new InvalidOperationException(RequestCulture.T("error.localExists"));
 
         // Reutilizar un usuario dedicado conservado: solo uno osms-* que exista y no use otra sesión.
         reuseIsolatedUser = NullIfBlank(reuseIsolatedUser);
         if (reuseIsolatedUser is not null)
         {
             if (!isolated || local)
-                throw new InvalidOperationException("Solo una sesión aislada puede reutilizar un usuario dedicado.");
+                throw new InvalidOperationException(RequestCulture.T("error.onlyIsolated"));
             if (isolatedEphemeral)
-                throw new InvalidOperationException("Un usuario reutilizado no puede tener perfil efímero: se borraría justo el perfil que se quiere conservar.");
+                throw new InvalidOperationException(RequestCulture.T("error.ephemeralReuse"));
             var free = IsolatedUserManager.ListOrphans(IsolatedUsersInUse(), withSizes: false)
                 .Any(e => e.AccountExists && string.Equals(e.Name, reuseIsolatedUser, StringComparison.OrdinalIgnoreCase));
             if (!free)
-                throw new InvalidOperationException($"El usuario '{reuseIsolatedUser}' no existe o ya lo usa otra sesión.");
+                throw new InvalidOperationException(RequestCulture.T("error.reuseUser"));
         }
 
         // Puertos WebRTC sin indicar (0) = los primeros libres.
@@ -170,7 +172,7 @@ public class StreamSessionService
     {
         if (!_sessions.TryGetValue(id, out var session)) return false;
         if (session.State is SessionState.Starting or SessionState.Running or SessionState.Stopping)
-            throw new InvalidOperationException("Detén la sesión antes de eliminarla.");
+            throw new InvalidOperationException(RequestCulture.T("error.stopSession"));
 
         _sessions.TryRemove(id, out _);
         _sunshine.TryRemove(id, out _);
@@ -221,11 +223,11 @@ public class StreamSessionService
     {
         var session = RequireSession(id);
 
-        bool active = session.State is SessionState.Starting or SessionState.Running;
+bool active = session.State is SessionState.Starting or SessionState.Running;
         if (session.State == SessionState.Stopping)
-            throw new InvalidOperationException("La sesión se está deteniendo: espera a que termine para cambiar su configuración.");
+            throw new InvalidOperationException(RequestCulture.T("session.stoppingWait"));
         if (active && !restartIfActive)
-            throw new InvalidOperationException("Detén la sesión antes de modificar su configuración.");
+            throw new InvalidOperationException(RequestCulture.T("session.stopBeforeConfig"));
 
         // La sesión local corre con el usuario del escritorio: ni perfil de stream ni usuario dedicado.
         if (session.Local)
@@ -473,7 +475,7 @@ public class StreamSessionService
     {
         var session = RequireSession(id);
         if (session.State != SessionState.Running || session.RdpSessionId == 0 || session.Local)
-            throw new InvalidOperationException($"La sesión '{session.Name}' no tiene una sesión RDP activa.");
+            throw new InvalidOperationException(RequestCulture.T("error.request"));
 
         var user = ResolveUser(session);
         var rdpId = RdpSessionCreator.Reconnect(user, session.RdpSessionId, width, height,
@@ -507,7 +509,7 @@ public class StreamSessionService
         var session = RequireSession(id);
 
         if (session.State is not (SessionState.Starting or SessionState.Running))
-            throw new InvalidOperationException($"La sesión no está activa (estado: '{session.State}').");
+            throw new InvalidOperationException(RequestCulture.T("error.request"));
 
         session.State = SessionState.Stopping;
         Logger.Log($"[{session.Name}] Deteniendo...", session.Id);
@@ -667,8 +669,8 @@ public class StreamSessionService
             return;
 
         var message = string.IsNullOrWhiteSpace(reason)
-            ? "Sunshine terminó inesperadamente; reiniciando sesión completa."
-            : $"{reason} Reiniciando sesión completa.";
+            ? BackendText.Get("error.request")
+            : $"{reason} {BackendText.Get("error.request")}";
 
         Logger.Log($"[{session.Name}] {message}", session.Id);
         session.State = SessionState.Stopping;
@@ -724,7 +726,7 @@ public class StreamSessionService
                 if (result.Status == SunshineRunStatus.LaunchFailed)
                 {
                     session.State = SessionState.Error;
-                    session.ErrorMessage = result.Message ?? "No se pudo lanzar Sunshine.";
+                    session.ErrorMessage = result.Message ?? BackendText.Get("error.request");
                     Logger.Error($"[{session.Name}] Sunshine no pudo arrancar: {session.ErrorMessage}", session.Id);
                 }
             }
@@ -1002,7 +1004,7 @@ public class StreamSessionService
             session.SunshinePid = sunshineResult.Pid;
 
             if (sunshineResult.Status == SunshineRunStatus.LaunchFailed)
-                throw new Exception(sunshineResult.Message ?? "No se pudo lanzar Sunshine.");
+                throw new Exception(sunshineResult.Message ?? RequestCulture.T("error.request"));
 
             if (session.State != SessionState.Starting)
             {
@@ -1044,7 +1046,7 @@ public class StreamSessionService
     private void StartLocal(StreamSession session)
     {
         if (!ConsoleSession.TryGetUser(out var consoleId, out var domain, out var username))
-            throw new Exception("No hay ningún usuario con sesión iniciada en este PC.");
+            throw new Exception(RequestCulture.T("error.noConsoleUser"));
 
         Logger.Log($"[{session.Name}] Sesión local: escritorio de '{domain}\\{username}' (sesión de Windows {consoleId}).", session.Id);
         session.RdpSessionId = consoleId;
@@ -1054,7 +1056,7 @@ public class StreamSessionService
         var result = GetOrCreateSunshineManager(session).EnsureRunning(consoleId);
         session.SunshinePid = result.Pid;
         if (result.Status == SunshineRunStatus.LaunchFailed)
-            throw new Exception(result.Message ?? "No se pudo lanzar Sunshine.");
+            throw new Exception(result.Message ?? RequestCulture.T("error.request"));
 
         if (session.State != SessionState.Starting)
         {
@@ -1653,7 +1655,7 @@ public class StreamSessionService
 
     private StreamSession RequireSession(Guid id) =>
         _sessions.TryGetValue(id, out var s) ? s
-        : throw new KeyNotFoundException($"Sesión {id} no encontrada.");
+        : throw new KeyNotFoundException(RequestCulture.T("error.request"));
 
     private string ResolveExePath(string? path)
     {

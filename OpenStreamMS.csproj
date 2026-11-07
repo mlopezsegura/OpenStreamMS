@@ -24,6 +24,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Remove="tests\**" />
+    <EmbeddedResource Remove="tests\**" />
+    <None Remove="tests\**" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Update="service.config.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
@@ -56,6 +62,7 @@
   <ItemGroup>
     <Folder Include="ExternalDeps\" />
     <EmbeddedResource Include="Services\TrayApp\Locales\*.json" LogicalName="OpenStreamMS.TrayLocales.%(Filename).json" />
+    <EmbeddedResource Include="Services\Localization\Locales\*.json" LogicalName="OpenStreamMS.BackendLocales.%(Filename).json" />
   </ItemGroup>
 
   <!-- Genera app.ico antes de compilar si no existe. BeforeBuild y no Build: "Build"

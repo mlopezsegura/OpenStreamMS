@@ -79,6 +79,10 @@ async function api(method, path, body) {
       opts.headers['Content-Type'] = 'application/json';
       opts.body = JSON.stringify(body);
     }
+    // Send current UI language so backend can localize API responses
+    if (window.I18n && I18n.lang) {
+      opts.headers['Accept-Language'] = I18n.lang.replace('_', '-');
+    }
     const res = await fetch(path, opts);
     if (res.status === 401) { window.location.href = '/login.html'; return null; }
     return res;

@@ -329,16 +329,15 @@ namespace OpenStreamMS.Core.Helpers
                 "no del usuario ni del driver de pantalla.",
             // Visto con TermService colgado tras un reinicio fallido.
             ErrConnectFailed =>
-                "No se pudo conectar con Escritorio remoto: no escucha en el puerto RDP. Reinicia el " +
-                "equipo si TermService se quedo a medias (por ejemplo tras instalar el driver de pantalla).",
+                "Could not connect to Remote Desktop: not listening on RDP port. Reboot if TermService is stuck (e.g. after display driver install).",
             ErrTlsConnectFailed =>
-                "Fallo la negociacion TLS con Escritorio remoto (certificado o capa de seguridad RDP).",
+                "TLS negotiation failed with Remote Desktop (certificate or RDP security layer).",
             ErrAuthenticationFailed or ErrLogonFailure or ErrWrongPassword =>
-                "Escritorio remoto rechazo el usuario o la contraseña.",
+                "Remote Desktop rejected the username or password.",
             ErrAccessDenied =>
-                "El usuario no tiene permiso para iniciar sesion por Escritorio remoto.",
+                "The user does not have permission to log on via Remote Desktop.",
             ErrBadArgument =>
-                "Argumento no soportado: wfreerdp imprime la ayuda y sale.",
+                "Unsupported argument: wfreerdp prints help and exits.",
             _ => $"Codigo de FreeRDP 0x{exitCode:X}.",
         };
 
@@ -1377,8 +1376,8 @@ $dmVerify.dmSize = [System.Runtime.InteropServices.Marshal]::SizeOf($dmVerify)
             if (unlocked)
                 Logger.Log($"[RDP] Sesion {sessionId} desbloqueada (flag={flag}) tras {sw.ElapsedMilliseconds} ms.");
             else
-                Logger.Warning($"[RDP] Sesion {sessionId} SIGUE bloqueada tras {timeoutMs} ms: " +
-                               "Sunshine puede caer a encode software (libx264). Revisa lock screen.");
+                Logger.Warning($"[RDP] Session {sessionId} STILL locked after {timeoutMs} ms: " +
+                               "Sunshine may fall back to software encode (libx264). Check lock screen.");
             return unlocked;
         }
 

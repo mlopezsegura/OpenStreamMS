@@ -13,7 +13,7 @@ using System.Security.Principal;
 
 const string ServiceName    = "OpenStreamMS";
 const string ServiceDisplay = "OpenStreamMS - Game Streaming Service";
-const string ServiceDesc    = "Crea una sesión RDP para el usuario de streaming y lanza Sunshine en ella.";
+const string ServiceDesc    = "Creates an RDP session for the streaming user and launches Sunshine in it.";
 
 // Se instala y desinstala con OpenStreamMS-Setup.exe (Inno Setup), que llama a estos comandos.
 var command = args.Length > 0 ? args[0].ToLowerInvariant() : "--help";
@@ -98,8 +98,8 @@ switch (command)
         break;
     default:
         AttachParentConsole();
-        Console.Error.WriteLine($"Comando desconocido: '{args[0]}'");
-        Console.Error.WriteLine("Usa --help para ver los comandos disponibles.");
+        Console.Error.WriteLine($"Unknown command: '{args[0]}'");
+        Console.Error.WriteLine("Use --help to see available commands.");
         Environment.Exit(1);
         break;
 }
@@ -177,6 +177,9 @@ static async Task RunService(string[] args)
         }
         await next();
     });
+
+    // ── Request Culture Middleware (resuelve idioma del request) ──────────────
+    app.UseMiddleware<RequestCultureMiddleware>();
 
     // ── Middleware de autenticación (debe ir antes de static files) ───────────
     app.Use(async (ctx, next) =>
@@ -401,14 +404,14 @@ static void Install(bool silent = false)
     RequireAdmin();
 
     var exePath = Environment.ProcessPath
-        ?? throw new InvalidOperationException("No se pudo obtener la ruta del ejecutable.");
+        ?? throw new InvalidOperationException("Could not get executable path.");
 
     var configPath = Path.Combine(Path.GetDirectoryName(exePath)!, "service.config.json");
 
     if (!silent)
     {
-        Console.WriteLine($"[Install] Ejecutable : {exePath}");
-        Console.WriteLine($"[Install] Configuración: {configPath}");
+        Console.WriteLine($"[Install] Executable : {exePath}");
+        Console.WriteLine($"[Install] Config      : {configPath}");
         Console.WriteLine();
     }
 
@@ -417,7 +420,7 @@ static void Install(bool silent = false)
 
     var apiPort = ServiceConfig.Load().ApiPort;
     AddApiFirewallRule(apiPort);
-    if (!silent) Console.WriteLine($"[Install] Regla de firewall añadida para puerto {apiPort} (TCP).");
+    if (!silent) Console.WriteLine($"[Install] Firewall rule added for port {apiPort} (TCP).");
 
     // Drivers de mando: ViGEmBus (mando virtual) y HidHide (aislamiento por sesión)
     foreach (NefariusDriverManager driver in new NefariusDriverManager[] { new ViGEmBusManager(), new HidHideManager() })
@@ -425,8 +428,8 @@ static void Install(bool silent = false)
         driver.EnsureInstalled();
         var st = driver.GetStatus();
         Console.WriteLine(st.Installed
-            ? $"[Install] {driver.Name} instalado ({st.InstalledVersion ?? "versión desconocida"}){(st.RebootRequired ? "; requiere reiniciar Windows" : "")}."
-            : $"[Install] AVISO: no se pudo instalar {driver.Name}; puede instalarse desde el panel web.");
+            ? $"[Install] {driver.Name} installed ({st.InstalledVersion ?? "unknown version"}){(st.RebootRequired ? "; requires Windows reboot" : "")}."
+            : $"[Install] WARNING: could not install {driver.Name}; can be installed from the web dashboard.");
     }
 
     // El asistente de instalación antiguo dejaba su propia entrada en "Aplicaciones": ahora solo
@@ -439,7 +442,7 @@ static void Install(bool silent = false)
     using (var key = Registry.LocalMachine.OpenSubKey(RunKey, writable: true))
     {
         key?.SetValue("OpenStreamMSTray", $"\"{exePath}\" --tray");
-        Console.WriteLine("[Install] Icono de bandeja registrado para inicio automático.");
+        Console.WriteLine("[Install] Tray icon registered for auto-start.");
     }
     Console.WriteLine();
 
@@ -447,69 +450,68 @@ static void Install(bool silent = false)
     {
         if (!File.Exists(configPath))
         {
-            Console.WriteLine("[Install] AVISO: No se encontró service.config.json.");
-            Console.WriteLine($"[Install]        Se creará uno por defecto en {configPath} al iniciar el servicio.");
+            Console.WriteLine("[Install] WARNING: service.config.json not found.");
+            Console.WriteLine($"[Install]          A default one will be created at {configPath} when the service starts.");
             Console.WriteLine();
         }
         else
         {
-            Console.WriteLine("[Install] service.config.json encontrado.");
+            Console.WriteLine("[Install] service.config.json found.");
         }
 
-        Console.Write("[Install] ¿Iniciar el servicio ahora? (S/n): ");
+        Console.Write("[Install] Start the service now? (Y/n): ");
         var answer = Console.ReadLine()?.Trim().ToUpperInvariant();
-        if (answer is "" or "S" or "Y")
+        if (answer is "" or "Y" or "S")
         {
             RunSc($"start \"{ServiceName}\"");
-            Console.WriteLine("[Install] Servicio iniciado.");
+            Console.WriteLine("[Install] Service started.");
         }
         else
         {
-            Console.WriteLine($"[Install] Puedes iniciarlo más tarde con:  sc start {ServiceName}");
+            Console.WriteLine($"[Install] You can start it later with:  sc start {ServiceName}");
         }
 
-        Console.WriteLine("[Install] Instalación completada.");
+        Console.WriteLine("[Install] Installation complete.");
     }
 }
 
 static void Uninstall(bool silent = false)
 {
     RequireAdmin();
-    if (!silent) Console.WriteLine("[Uninstall] Deteniendo servicio...");
+    if (!silent) Console.WriteLine("[Uninstall] Stopping service...");
     RunSc($"stop \"{ServiceName}\"");
     Thread.Sleep(2000);
-    if (!silent) Console.WriteLine("[Uninstall] Eliminando servicio...");
+    if (!silent) Console.WriteLine("[Uninstall] Deleting service...");
     RunSc($"delete \"{ServiceName}\"");
-    if (!silent) Console.WriteLine("[Uninstall] Servicio eliminado.");
+    if (!silent) Console.WriteLine("[Uninstall] Service deleted.");
 
     RemoveApiFirewallRule();
-    // Las de cada sesión ("OpenStreamMS - Sunshine <nombre> ..."): netsh no admite comodines.
+    // Session rules ("OpenStreamMS - Sunshine <name> ..."): netsh doesn't support wildcards.
     RunProcess("powershell.exe", "-NoProfile -NonInteractive -Command \"Get-NetFirewallRule -DisplayName 'OpenStreamMS - Sunshine *' " +
                                  "-ErrorAction SilentlyContinue | Remove-NetFirewallRule -ErrorAction SilentlyContinue\"");
-    if (!silent) Console.WriteLine("[Uninstall] Reglas de firewall de la API y de las sesiones eliminadas.");
+    if (!silent) Console.WriteLine("[Uninstall] API and session firewall rules removed.");
 
-    // Sin el servicio nadie las mantendría: los mandos quedarían ocultos a otras sesiones
+    // Without the service no one would maintain them: gamepads would stay hidden from other sessions
     OpenStreamMS.Services.Gamepad.GamepadSessionIsolation.ClearJails();
-    if (!silent) Console.WriteLine("[Uninstall] Aislamiento de mandos por sesión retirado de HidHide.");
+    if (!silent) Console.WriteLine("[Uninstall] Per-session gamepad isolation removed from HidHide.");
 
-    // Lo que los puestos cambian en el sistema mientras están encendidos, por si el servicio
-    // se paró sin deshacerlo, y el derecho de apagar que se quitó al grupo Usuarios.
+    // What seats change in the system while on, in case the service stopped without cleanup, and the shutdown right removed from Users group.
     OpenStreamMS.Services.Seats.UsbCapture.RestoreAll();
     OpenStreamMS.Services.Seats.ConsoleLockGuard.Release();
     OpenStreamMS.Core.Helpers.ShutdownRight.Restore();
-    if (!silent) Console.WriteLine("[Uninstall] Ratones/teclados de los puestos, bloqueo de la consola y derecho de apagar restaurados.");
+    if (!silent) Console.WriteLine("[Uninstall] Seat keyboards/mice, console lock guard, and shutdown right restored.");
 
     const string RunKey = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
     using var key = Registry.LocalMachine.OpenSubKey(RunKey, writable: true);
     key?.DeleteValue("OpenStreamMSTray", throwOnMissingValue: false);
-    if (!silent) Console.WriteLine("[Uninstall] Icono de bandeja eliminado del inicio automático.");
+    if (!silent) Console.WriteLine("[Uninstall] Tray icon removed from auto-start.");
 }
 
 static void RemoveDependencies()
 {
-    // Multi-RDP (TermWrap, o asmtron de una instalación antigua): ServiceDll vuelve al termsrv.dll
-    // de Windows antes de borrar la carpeta, para que TermService nunca apunte a una DLL que no existe.
-    // Se aplica al reiniciar el equipo.
+    // Multi-RDP (TermWrap, or asmtron from an old install): ServiceDll reverts to Windows termsrv.dll
+    // before deleting the folder, so TermService never points to a missing DLL.
+    // Takes effect on reboot.
     var rdpDir = OpenStreamMS.Services.Session.TermWrapInstaller.InstallDir;
     if (Directory.Exists(rdpDir))
     {
@@ -521,9 +523,9 @@ static void RemoveDependencies()
                 OpenStreamMS.Services.Session.TermWrapInstaller.RestoreWindowsServiceDll(Console.WriteLine);
         }
         var rdpInst = Path.Combine(rdpDir, "RDPWInst.exe");
-        if (File.Exists(rdpInst)) RunProcess(rdpInst, "-u"); // asmtron antiguo: quita su servicio y tareas
-        try { Directory.Delete(rdpDir, recursive: true); } catch { /* DLL cargada en TermService hasta reiniciar */ }
-        Console.WriteLine("[Uninstall] Multi-RDP (TermWrap) desinstalado.");
+        if (File.Exists(rdpInst)) RunProcess(rdpInst, "-u"); // old asmtron: removes its service and tasks
+        try { Directory.Delete(rdpDir, recursive: true); } catch { /* DLL loaded in TermService until reboot */ }
+        Console.WriteLine("[Uninstall] Multi-RDP (TermWrap) uninstalled.");
     }
 
     foreach (NefariusDriverManager driver in new NefariusDriverManager[] { new ViGEmBusManager(), new HidHideManager() })
@@ -531,7 +533,7 @@ static void RemoveDependencies()
         try
         {
             driver.UninstallAsync().GetAwaiter().GetResult();
-            Console.WriteLine($"[Uninstall] {driver.Name} desinstalado.");
+            Console.WriteLine($"[Uninstall] {driver.Name} uninstalled.");
         }
         catch (Exception ex) { Console.WriteLine($"[Uninstall] {driver.Name}: {ex.Message}"); }
     }

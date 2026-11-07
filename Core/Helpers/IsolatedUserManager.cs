@@ -5,6 +5,7 @@ using System.Security.AccessControl;
 using System.Security.Cryptography;
 using System.Security.Principal;
 using System.Text;
+using OpenStreamMS.Services.Localization;
 
 namespace OpenStreamMS.Core.Helpers;
 
@@ -130,7 +131,7 @@ internal static class IsolatedUserManager
     internal static IsolatedCredentials EnsureUser(string username, string sessionName)
     {
         if (!IsManagedName(username))
-            throw new InvalidOperationException($"[IsolatedUser] '{username}' no es un usuario gestionado por OpenStreamMS.");
+            throw new InvalidOperationException(BackendText.Get("isolatedUser.notManaged", username));
         var password = GeneratePassword();
 
         var info = new USER_INFO_1
@@ -147,7 +148,7 @@ internal static class IsolatedUserManager
         switch (rc)
         {
             case NERR_Success:
-                Logger.Log($"[IsolatedUser] Usuario local '{username}' creado para sesión '{sessionName}'.");
+                Logger.Log(BackendText.Get("isolatedUser.userCreated", username, sessionName));
                 break;
 
             case NERR_UserExists:
@@ -155,15 +156,13 @@ internal static class IsolatedUserManager
                 int rcSet = NetUserSetInfo(null, username, 1003, ref reset, out _);
                 if (rcSet != NERR_Success)
                     throw new InvalidOperationException(
-                        $"[IsolatedUser] No se pudo rotar la contraseña de '{username}' (NetUserSetInfo={rcSet}).");
-                Logger.Log($"[IsolatedUser] Usuario '{username}' ya existía; contraseña rotada.");
+                        BackendText.Get("isolatedUser.passwordRotationFailed", username, rcSet));
+                Logger.Log(BackendText.Get("isolatedUser.passwordRotated", username));
                 break;
 
             default:
                 throw new InvalidOperationException(
-                    $"[IsolatedUser] NetUserAdd falló para '{username}': error {rc}. " +
-                    "Posibles causas: política de complejidad de contraseñas no estándar o " +
-                    "límite de cuentas locales.");
+                    BackendText.Get("isolatedUser.netUserAddFailed", username, rc));
         }
 
         // NetUserAdd NO añade a ningún grupo: sin Users no hay logon interactivo,
@@ -224,15 +223,14 @@ internal static class IsolatedUserManager
 
             if (TryDeleteProfile(username, out var error))
             {
-                Logger.Log($"[IsolatedUser] Perfil efímero de '{username}' eliminado ('{sessionName}').");
+                Logger.Log(BackendText.Get("isolatedUser.profileDeleted", username, sessionName));
                 return;
             }
 
-            Logger.Log($"[IsolatedUser] Perfil de '{username}' aún no liberado ({error}); reintento {attempt}/6...");
+            Logger.Log(BackendText.Get("isolatedUser.profileNotReleased", username, error, attempt));
         }
 
-        Logger.Warning($"[IsolatedUser] No se pudo eliminar el perfil efímero de '{username}'. " +
-                       "Se reintentará en el próximo arranque de la sesión.");
+        Logger.Warning(BackendText.Get("isolatedUser.profileDeleteFailed", username));
     }
 
     /// <summary>
@@ -242,14 +240,14 @@ internal static class IsolatedUserManager
     internal static void RemoveUser(string username)
     {
         if (!IsManagedName(username))
-            throw new InvalidOperationException($"[IsolatedUser] '{username}' no es un usuario gestionado por OpenStreamMS.");
+            throw new InvalidOperationException(BackendText.Get("isolatedUser.notManaged", username));
 
         // Nunca borrar la cuenta con su sesión de Windows viva: la sesión queda huérfana y a
         // medio cerrar, y Terminal Services (y el apagado del equipo) se bloquean esperándola.
         foreach (var live in RdpSessionCreator.FindUserSessions(username))
         {
             if (RdpSessionCreator.LogoffAndWait(live, TimeSpan.FromSeconds(30))) continue;
-            Logger.Warning($"[IsolatedUser] '{username}' sigue con la sesión {live} abierta: no se elimina la cuenta.");
+            Logger.Warning(BackendText.Get("isolatedUser.sessionOpen", username, live));
             return;
         }
 
@@ -268,14 +266,14 @@ internal static class IsolatedUserManager
                 using (var policy = LsaPolicy.Open()) policy.RemoveAll(sidObj);
                 SetWinStationAccess(sidObj, grant: false);
             }
-            catch (Exception ex) { Logger.Warning($"[IsolatedUser] No se pudieron quitar los derechos de '{username}': {ex.Message}"); }
+            catch (Exception ex) { Logger.Warning(BackendText.Get("isolatedUser.errorRemovingRights", username, ex.Message)); }
         }
 
         int rc = NetUserDel(null, username);
         if (rc == NERR_Success)
-            Logger.Log($"[IsolatedUser] Usuario local '{username}' eliminado.");
+            Logger.Log(BackendText.Get("isolatedUser.userDeleted", username));
         else if (rc != NERR_UserNotFound)
-            Logger.Warning($"[IsolatedUser] NetUserDel falló para '{username}': error {rc}.");
+            Logger.Warning(BackendText.Get("isolatedUser.netUserDelFailed", username, rc));
 
         UnhideFromLoginScreen(username);
 
@@ -284,7 +282,7 @@ internal static class IsolatedUserManager
         // que sigue valiendo aunque la cuenta ya no exista.
         if (!profileGone && sid is not null)
         {
-            Logger.Log($"[IsolatedUser] Perfil de '{username}' aún cargado ({error}); se reintenta en segundo plano.");
+            Logger.Log(BackendText.Get("isolatedUser.profileStillLoaded", username, error));
             _ = DeleteProfileBySidWithRetryAsync(sid, username);
         }
     }
@@ -297,12 +295,11 @@ internal static class IsolatedUserManager
             await Task.Delay(TimeSpan.FromSeconds(attempt * 2));
             if (TryDeleteProfileBySid(sid, out error))
             {
-                Logger.Log($"[IsolatedUser] Perfil de '{username}' eliminado.");
+                Logger.Log(BackendText.Get("isolatedUser.profileDeleted", username));
                 return;
             }
         }
-        Logger.Warning($"[IsolatedUser] No se pudo eliminar el perfil de '{username}' ({error}). " +
-                       "Aparecerá en Sistema → Usuarios dedicados sin sesión para borrarlo a mano.");
+        Logger.Warning(BackendText.Get("isolatedUser.profileDeleteRetryFailed", username, error ?? "unknown"));
     }
 
     // ── Usuarios y perfiles sin sesión ────────────────────────────────────────
@@ -398,9 +395,9 @@ internal static class IsolatedUserManager
     internal static void DeleteOrphan(string key, IEnumerable<string> inUse)
     {
         var entry = ListOrphans(inUse, withSizes: false).FirstOrDefault(e => e.Key == key)
-            ?? throw new InvalidOperationException("Ese usuario o perfil ya no existe o lo usa una sesión.");
+            ?? throw new InvalidOperationException(BackendText.Get("isolatedUser.cannotDelete"));
         if (entry.SignedIn)
-            throw new InvalidOperationException($"'{entry.Name}' tiene una sesión de Windows abierta; ciérrala antes.");
+            throw new InvalidOperationException(BackendText.Get("isolatedUser.signedIn", entry.Name));
 
         if (key.StartsWith("user:", StringComparison.Ordinal))
         {
@@ -409,15 +406,15 @@ internal static class IsolatedUserManager
         else if (key.StartsWith("sid:", StringComparison.Ordinal))
         {
             if (!TryDeleteProfileBySid(key[4..], out var error))
-                throw new InvalidOperationException($"No se pudo borrar el perfil '{entry.Name}': {error}.");
-            Logger.Log($"[IsolatedUser] Perfil huérfano '{entry.ProfilePath}' eliminado.");
+                throw new InvalidOperationException(BackendText.Get("isolatedUser.profileDeleteError", entry.Name, error));
+            Logger.Log(BackendText.Get("isolatedUser.profileDeleted", entry.ProfilePath));
         }
         else
         {
             // Carpeta sin perfil registrado: ruta reconstruida desde el directorio de perfiles.
             var dir = Path.Combine(ProfilesDirectory()!, entry.Name);
             Directory.Delete(dir, recursive: true);
-            Logger.Log($"[IsolatedUser] Carpeta huérfana '{dir}' eliminada.");
+            Logger.Log(BackendText.Get("isolatedUser.orphanFolderDeleted", dir));
         }
     }
 
@@ -501,10 +498,9 @@ internal static class IsolatedUserManager
             // Hay Windows "aligerados" (Tiny11, Atlas, ReviOS…) que borran grupos integrados.
             // Antes esto subía tal cual ("Some or all identity references could not be
             // translated") y la sesión no arrancaba sin decir qué faltaba.
-            var msg = $"[IsolatedUser] Este Windows no tiene el grupo integrado {GroupLabel(groupSid)} ({sid.Value}); " +
-                      $"no se puede añadir '{username}'.";
+            var msg = BackendText.Get("isolatedUser.missingGroup", GroupLabel(groupSid), sid.Value, username);
             if (required) throw new InvalidOperationException(msg);
-            Logger.Log(msg + " Se le da el derecho de inicio de sesión remoto directamente.");
+            Logger.Log(msg + " " + BackendText.Get("isolatedUser.grantingRemoteLogon"));
             return false;
         }
 
@@ -515,7 +511,7 @@ internal static class IsolatedUserManager
 
         int rc = NetLocalGroupAddMembers(null, group, 3, ref member, 1);
         if (rc is not (NERR_Success or ERROR_MEMBER_IN_ALIAS))
-            Logger.Warning($"[IsolatedUser] No se pudo añadir '{username}' al grupo '{group}': error {rc}.");
+            Logger.Warning(BackendText.Get("isolatedUser.errorAddingToGroup", username, group, rc));
         return true;
     }
 
@@ -535,14 +531,13 @@ internal static class IsolatedUserManager
             using var policy = LsaPolicy.Open();
             if (!policy.Has(sid, right)) policy.Add(sid, right);
             if (policy.Has(sid, "SeDenyRemoteInteractiveLogonRight"))
-                Logger.Warning($"[IsolatedUser] '{username}' tiene denegado el inicio de sesión remoto por directiva; la sesión no podrá arrancar.");
+                Logger.Warning(BackendText.Get("isolatedUser.cannotGrantRemoteLogon", username, "policy"));
             SetWinStationAccess(sid, grant: true);
-            Logger.Log($"[IsolatedUser] '{username}' puede iniciar sesión por escritorio remoto ({right} y acceso a RDP-Tcp).");
+            Logger.Log(BackendText.Get("isolatedUser.remoteLogonGranted", username, right));
         }
         catch (Exception ex)
         {
-            Logger.Error($"[IsolatedUser] No se pudo dar a '{username}' el derecho de inicio de sesión remoto: {ex.Message}. " +
-                         "Windows rechazará su conexión de escritorio remoto.");
+            Logger.Error(BackendText.Get("isolatedUser.cannotGrantRemoteLogon", username, ex.Message));
         }
     }
 

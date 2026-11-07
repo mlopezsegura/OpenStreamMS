@@ -3,6 +3,7 @@ using OpenStreamMS.Services;
 using OpenStreamMS.Services.Drivers;
 using OpenStreamMS.Services.Seats;
 using OpenStreamMS.Services.Session;
+using OpenStreamMS.Services.Localization;
 
 namespace OpenStreamMS.Core.Api;
 
@@ -23,7 +24,7 @@ public static class DiagnosticsEndpoints
             {
                 // Leer los eventos y comprimir lleva unos segundos: uno cada vez.
                 if (Interlocked.Exchange(ref _busy, 1) == 1)
-                    return Results.Conflict("Ya se está generando un paquete de diagnóstico.");
+                    return Results.Conflict(RequestCulture.T("diagnostics.busy"));
                 var path = Path.Combine(Path.GetTempPath(), $"osms-diag-{Guid.NewGuid():N}.zip");
                 // DeleteOnClose: el fichero desaparece cuando ASP.NET termina de enviarlo y cierra el stream.
                 var fs = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 81920, FileOptions.DeleteOnClose);
@@ -73,7 +74,7 @@ public static class DiagnosticsEndpoints
                                      $"openstreamms-diag-{DateTime.Now:yyyyMMdd-HHmmss}.zip");
         try
         {
-            Console.WriteLine($"Generando paquete de diagnóstico (eventos de {days} día(s))…");
+            Console.WriteLine(BackendText.Get("diagnostics.generating", days));
             string? admin = null;
             try { admin = ServiceConfig.Load().AdminUsername; } catch { }
             using (var fs = new FileStream(output, FileMode.Create, FileAccess.Write))
@@ -81,13 +82,13 @@ public static class DiagnosticsEndpoints
                     RdpWrapper: new RdpWrapperManager(),
                     Drivers:    [new ViGEmBusManager(), new HidHideManager()],
                     ExtraUsers: admin is null ? null : [admin]), days);
-            Console.WriteLine($"Listo: {output}");
-            Console.WriteLine("Revísalo antes de enviarlo.");
+            Console.WriteLine(BackendText.Get("diagnostics.done", output));
+            Console.WriteLine(BackendText.Get("diagnostics.review"));
             return 0;
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"ERROR: {ex.Message}");
+            Console.Error.WriteLine(BackendText.Get("diagnostics.error", ex.Message));
             return 1;
         }
     }

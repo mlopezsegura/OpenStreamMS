@@ -2,6 +2,7 @@ using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using OpenStreamMS.Core.Helpers;
 using OpenStreamMS.Services;
+using OpenStreamMS.Services.Localization;
 
 namespace OpenStreamMS.Core.Api;
 
@@ -28,7 +29,7 @@ public static class SettingsEndpoints
         group.MapPut("/logging", (SetLogLevelRequest req, ServiceConfig cfg) =>
              {
                  if (Logger.ParseThreshold(req.LogLevel) is not { } level)
-                     return Results.BadRequest("Nivel de log no válido: usa Info, Warning, Error u Off.");
+                     return Results.BadRequest(RequestCulture.T("settings.invalidLogLevel"));
 
                  // Se avisa antes de cambiarlo: con "Off" o "Error" ya no quedaría constancia.
                  Logger.Warning($"[Settings] Nivel de log: {cfg.LogThreshold} → {level}.");

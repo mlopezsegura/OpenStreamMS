@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Hosting;
 using OpenStreamMS.Core.Api;
 using OpenStreamMS.Core.Helpers;
+using OpenStreamMS.Services.Localization;
+using OpenStreamMS.Services.Session;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 
@@ -143,7 +145,7 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
 
     public Seat Create(Seat seat)
     {
-        if (string.IsNullOrWhiteSpace(seat.Name)) throw new ArgumentException("El puesto necesita un nombre.");
+        if (string.IsNullOrWhiteSpace(seat.Name)) throw new ArgumentException(BackendText.Get("error.seatName"));
         seat.Id = seat.Id == Guid.Empty ? Guid.NewGuid() : seat.Id;
         Validate(seat, seat.Id);
         _seats[seat.Id] = seat;
@@ -155,12 +157,12 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
     public Seat Update(Guid id, Seat changes)
     {
         var seat = Require(id);
-        if (string.IsNullOrWhiteSpace(changes.Name)) throw new ArgumentException("El puesto necesita un nombre.");
+        if (string.IsNullOrWhiteSpace(changes.Name)) throw new ArgumentException(BackendText.Get("error.seatName"));
         if (seat.State is SeatState.Running or SeatState.Starting)
         {
             // Encendido solo se cambia lo que no toca el hardware ni la sesión: nombre y autoarranque.
             if (!SameHardware(seat, changes))
-                throw new InvalidOperationException("Detén el puesto antes de cambiar su pantalla, audio, dispositivos o sesión.");
+                throw new InvalidOperationException(BackendText.Get("error.stopSeat"));
             if (changes.AutoStart && UsesConsoleUser(seat.SessionId)) throw new ArgumentException(ConsoleUserAutoStartError);
             seat.Name      = changes.Name;
             seat.AutoStart = changes.AutoStart;
@@ -218,7 +220,7 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
             throw new ArgumentException(ConsoleUserAutoStartError);
         if (candidate.Monitor is { Area: SeatScreenArea.Full } full &&
             ConsoleDisplay.List().Any(d => d.DevicePath == full.DevicePath && IsConsoleMonitor(d)))
-            throw new ArgumentException("El monitor principal es de la consola: un puesto solo puede ocupar una mitad.");
+            throw new ArgumentException(BackendText.Get("error.primaryMonitor"));
         foreach (var other in _seats.Values.Where(s => s.Id != selfId))
         {
             if (candidate.Monitor is { } m && other.Monitor is { } om && m.Overlaps(om))
@@ -226,13 +228,13 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
                     ? $"El monitor ya está asignado al puesto '{other.Name}'."
                     : $"Esa parte del monitor se solapa con la del puesto '{other.Name}'.");
             if (candidate.SessionId is { } sid && other.SessionId == sid)
-                throw new ArgumentException($"La sesión ya está asignada al puesto '{other.Name}'.");
+                throw new ArgumentException(BackendText.Get("error.assigned"));
             if (candidate.AudioInId is { } mic && string.Equals(other.AudioInId, mic, StringComparison.OrdinalIgnoreCase))
                 throw new ArgumentException($"El micrófono ya está asignado al puesto '{other.Name}'.");
             var shared = candidate.Devices.FirstOrDefault(d =>
                 other.Devices.Any(o => o.UsbPort.Equals(d.UsbPort, StringComparison.OrdinalIgnoreCase)));
             if (shared is not null)
-                throw new ArgumentException($"El dispositivo '{shared.Label}' ya está asignado al puesto '{other.Name}'.");
+                throw new ArgumentException(BackendText.Get("error.assigned"));
         }
     }
 
@@ -251,8 +253,8 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
     {
         var seat = Require(id);
         if (seat.State == SeatState.Running) return;
-        if (seat.SessionId is not { } sessionId) throw new InvalidOperationException("El puesto no tiene sesión asignada.");
-        var session = sessions.Get(sessionId) ?? throw new InvalidOperationException("La sesión asignada no existe.");
+        if (seat.SessionId is not { } sessionId) throw new InvalidOperationException(BackendText.Get("error.assigned"));
+        var session = sessions.Get(sessionId) ?? throw new InvalidOperationException(BackendText.Get("error.assigned"));
 
         seat.State = SeatState.Starting;
         seat.ErrorMessage = null;
@@ -673,7 +675,7 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
     // ── Usuario del puesto: contraseña y autoarranque ──────────────────────────
 
     private const string ConsoleUserAutoStartError =
-        "Este puesto usa el mismo usuario que la consola: no puede arrancar solo. Enciéndelo desde OpenStreamMS o asígnale otra sesión.";
+        "This seat uses the same user as the console: it cannot start on its own. Start it from OpenStreamMS or assign it another session.";
 
     /// <summary>Usuario de la consola: el que tiene sesión ahora o, si aún no, el del inicio automático.</summary>
     private static string? ConsoleUserName()

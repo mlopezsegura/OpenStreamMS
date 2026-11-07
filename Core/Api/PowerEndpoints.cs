@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Http.HttpResults;
 using OpenStreamMS.Services;
+using OpenStreamMS.Services.Localization;
 
 namespace OpenStreamMS.Core.Api;
 
@@ -56,7 +57,7 @@ public static class PowerEndpoints
     {
         var delay = ClampDelay(req?.DelaySeconds ?? DefaultDelaySeconds);
         var message = string.IsNullOrWhiteSpace(req?.Message)
-            ? (isRestart ? "OpenStreamMS: reinicio remoto" : "OpenStreamMS: apagado remoto")
+            ? (isRestart ? RequestCulture.T("power.restartMessage") : RequestCulture.T("power.shutdownMessage"))
             : req!.Message!.Trim();
 
         var args = new List<string>
@@ -72,12 +73,12 @@ public static class PowerEndpoints
         {
             Logger.Warning($"[Power] shutdown.exe fallo: {output.Trim()}");
             return Results.Problem(
-                title:  "No se pudo iniciar el apagado.",
+                title:  RequestCulture.T("power.failedToStart"),
                 detail: output.Trim(),
                 statusCode: 500);
         }
 
-        Logger.Log($"[Power] {(isRestart ? "Reinicio" : "Apagado")} programado en {delay}s.");
+        Logger.Log($"[Power] {(isRestart ? RequestCulture.T("power.restartMessage") : RequestCulture.T("power.shutdownMessage"))} programado en {delay}s.");
         return Results.Ok(new PowerResponse(
             isRestart ? "restart" : "shutdown", delay, message));
     }
@@ -96,14 +97,14 @@ public static class PowerEndpoints
         try
         {
             using var p = Process.Start(psi);
-            if (p is null) return (false, "No se pudo lanzar shutdown.exe");
+            if (p is null) return (false, RequestCulture.T("power.failedToLaunch"));
 
             var stdout = p.StandardOutput.ReadToEnd();
             var stderr = p.StandardError.ReadToEnd();
             if (!p.WaitForExit(10_000))
             {
                 try { p.Kill(entireProcessTree: true); } catch { }
-                return (false, "shutdown.exe no termino en 10 s");
+                return (false, RequestCulture.T("power.shutdownTimeout"));
             }
 
             var combined = string.Join(

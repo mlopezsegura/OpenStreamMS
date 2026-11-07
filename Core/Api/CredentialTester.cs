@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using OpenStreamMS.Services.Localization;
 
 namespace OpenStreamMS.Core.Api;
 
@@ -32,7 +33,7 @@ public static class CredentialTester
     public static Result Test(string username, string domain, string password)
     {
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
-            return new(false, "El usuario y la contraseña son obligatorios.");
+            return new(false, RequestCulture.T("credentials.required"));
 
         var effectiveDomain = string.IsNullOrWhiteSpace(domain) ? "." : domain;
 
@@ -42,21 +43,21 @@ public static class CredentialTester
         if (ok)
         {
             CloseHandle(token);
-            return new(true, $"Credenciales válidas para {username}@{effectiveDomain}.");
+            return new(true, RequestCulture.T("credentials.valid", username, effectiveDomain));
         }
 
         int err = Marshal.GetLastWin32Error();
         string msg = err switch
         {
-            1326 => "Usuario o contraseña incorrectos.",
-            1327 => "La cuenta no tiene permisos de inicio de sesión en red.",
-            1328 => "La restricción de tiempo no permite el acceso ahora.",
-            1329 => "Esta estación de trabajo no está autorizada.",
-            1330 => "La contraseña ha expirado. Cámbiala antes de continuar.",
-            1331 => "La cuenta está deshabilitada.",
-            1332 => "No se encontró ninguna cuenta con ese nombre.",
-            1314 => "El proceso no tiene privilegios suficientes (requiere ejecutarse como SYSTEM).",
-            _    => $"Error de Windows #{err}."
+            1326 => RequestCulture.T("credentials.invalid"),
+            1327 => RequestCulture.T("credentials.noNetworkLogon"),
+            1328 => RequestCulture.T("credentials.timeRestriction"),
+            1329 => RequestCulture.T("credentials.workstationNotAuthorized"),
+            1330 => RequestCulture.T("credentials.passwordExpired"),
+            1331 => RequestCulture.T("credentials.accountDisabled"),
+            1332 => RequestCulture.T("credentials.accountNotFound"),
+            1314 => RequestCulture.T("credentials.insufficientPrivileges"),
+            _    => RequestCulture.T("credentials.windowsError", err)
         };
 
         return new(false, msg);
