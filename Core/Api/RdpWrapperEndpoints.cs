@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http.HttpResults;
+using OpenStreamMS.Services.Localization;
 using OpenStreamMS.Services.Session;
 
 namespace OpenStreamMS.Core.Api;
@@ -42,7 +43,7 @@ public static class RdpWrapperEndpoints
     {
         if (mgr.IsBusy)
             return Task.FromResult<Results<Accepted, BadRequest<string>>>(
-                TypedResults.BadRequest("Ya hay una operación de multi-RDP en curso."));
+                TypedResults.BadRequest(RequestCulture.T("rdpwrap.multiRdpBusy")));
 
         // Lanzado en background: la UI hace polling a /log y /status para el progreso.
         _ = Task.Run(() => op(CancellationToken.None));

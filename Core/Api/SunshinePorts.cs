@@ -1,3 +1,5 @@
+using OpenStreamMS.Services.Localization;
+
 namespace OpenStreamMS.Core.Api;
 
 /// <summary>Rango de puertos inclusivo.</summary>
@@ -75,19 +77,19 @@ public static class SunshinePorts
     public static string? Validate(StreamSession s)
     {
         if (s.SunshineStreamPort - 5 < 1024 || s.SunshineStreamPort + 21 > 65535)
-            return $"El puerto Moonlight {s.SunshineStreamPort} deja su rango ({MoonlightFirewallRange(s.SunshineStreamPort)}) fuera de 1024-65535.";
+            return RequestCulture.T("sunshinePorts.moonlightPortOutOfRange", s.SunshineStreamPort, MoonlightFirewallRange(s.SunshineStreamPort));
         if (s.WebRtcPort is < 1024 or > 65535)
-            return $"El puerto WebRTC {s.WebRtcPort} está fuera de 1024-65535.";
+            return RequestCulture.T("sunshinePorts.webrtcPortOutOfRange", s.WebRtcPort);
         if (s.WebRtcMediaPortMin is < 1024 or > 65535 || s.WebRtcMediaPortMax is < 1024 or > 65535)
-            return $"El rango de media WebRTC {s.WebRtcMediaPortMin}-{s.WebRtcMediaPortMax} está fuera de 1024-65535.";
+            return RequestCulture.T("sunshinePorts.webrtcMediaRangeOutOfRange", s.WebRtcMediaPortMin, s.WebRtcMediaPortMax);
         if (s.WebRtcMediaPortMin > s.WebRtcMediaPortMax)
-            return $"El rango de media WebRTC {s.WebRtcMediaPortMin}-{s.WebRtcMediaPortMax} está vacío.";
+            return RequestCulture.T("sunshinePorts.webrtcMediaRangeEmpty", s.WebRtcMediaPortMin, s.WebRtcMediaPortMax);
 
         var claims = Claims(s);
         for (int i = 0; i < claims.Count; i++)
             for (int j = i + 1; j < claims.Count; j++)
                 if (Collide(claims[i], claims[j]))
-                    return $"{Describe(claims[i])} se solapa con {Describe(claims[j])} en la misma sesión.";
+                    return RequestCulture.T("sunshinePorts.internalOverlap", Describe(claims[i]), Describe(claims[j]));
 
         return null;
     }
@@ -105,7 +107,7 @@ public static class SunshinePorts
             foreach (var theirs in Claims(other))
                 foreach (var claim in mine)
                     if (Collide(claim, theirs))
-                        return $"{Describe(claim)} choca con la sesión '{other.Name}' ({Describe(theirs)}).";
+                        return RequestCulture.T("sunshinePorts.conflictWithSession", Describe(claim), other.Name, Describe(theirs));
         }
         return null;
     }

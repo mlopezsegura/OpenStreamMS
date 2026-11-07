@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using OpenStreamMS.Services.Drivers;
+using OpenStreamMS.Services.Localization;
 
 namespace OpenStreamMS.Core.Api;
 
@@ -53,7 +54,7 @@ public static class DriverEndpoints
         NefariusDriverManager mgr, string route, Func<CancellationToken, Task> op)
     {
         if (mgr.IsBusy)
-            return TypedResults.BadRequest($"Ya hay una operación de {mgr.Name} en curso.");
+            return TypedResults.BadRequest(RequestCulture.T("driver.operationInProgress", mgr.Name));
 
         _ = Task.Run(() => op(CancellationToken.None));
         return TypedResults.Accepted($"/api/{route}/status");

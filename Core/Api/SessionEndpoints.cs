@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using OpenStreamMS.Core.Helpers;
+using OpenStreamMS.Services.Localization;
 
 namespace OpenStreamMS.Core.Api;
 
@@ -553,14 +554,14 @@ public static class SessionEndpoints
         CreateSessionRequest req, StreamSessionService svc)
     {
         if (string.IsNullOrWhiteSpace(req.Name))
-            return TypedResults.BadRequest("El campo 'Name' es obligatorio.");
+            return TypedResults.BadRequest(RequestCulture.T("session.nameRequired"));
         // Con aislamiento nativo el usuario lo crea el servicio y la sesión local usa el del
         // escritorio: en ambos casos no hacen falta credenciales.
         var needsCredentials = !req.Isolated && !req.Local;
         if (needsCredentials && string.IsNullOrWhiteSpace(req.Username))
-            return TypedResults.BadRequest("El campo 'Username' es obligatorio.");
+            return TypedResults.BadRequest(RequestCulture.T("session.usernameRequired"));
         if (needsCredentials && string.IsNullOrWhiteSpace(req.Password))
-            return TypedResults.BadRequest("El campo 'Password' es obligatorio.");
+            return TypedResults.BadRequest(RequestCulture.T("session.passwordRequired"));
 
         StreamSession session;
         try
