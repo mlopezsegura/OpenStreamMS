@@ -10,6 +10,9 @@ body {
 }
 
 :root {
+  /* Controles nativos (listas de los <select>, barras de desplazamiento) en oscuro; el tema
+     claro lo cambia a light. Sin esto, la lista desplegada salía clara en los temas oscuros. */
+  color-scheme: dark;
   --bg:          #0d0d1a;
   --surface:     #13131f;
   --card:        #1a1a2e;
@@ -203,6 +206,10 @@ body {
   cursor: pointer;
 }
 .lang-select:hover { color: var(--text); border-color: var(--border-h); }
+
+/* Opciones de las listas desplegables con los colores del tema (los <select> transparentes,
+   como el de idioma, si no las pintan con el fondo del sistema). */
+select option { background-color: var(--surface); color: var(--text); }
 .auth-lang {
   position: absolute;
   top: 1rem;
