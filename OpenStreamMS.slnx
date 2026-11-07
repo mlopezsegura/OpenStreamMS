@@ -1,3 +1,6 @@
 <Solution>
+  <Folder Name="/tests/">
+    <Project Path="tests/OpenStreamMS.Tests/OpenStreamMS.Tests.csproj" />
+  </Folder>
   <Project Path="OpenStreamMS.csproj" />
 </Solution>

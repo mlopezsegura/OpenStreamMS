@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Http;
 using OpenStreamMS.Core.Helpers;
 using OpenStreamMS.Services.Localization;
 
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("OpenStreamMS.Tests")]
+
 namespace OpenStreamMS.Core.Api;
 
 /// <summary>
@@ -52,8 +54,11 @@ internal sealed class RequestCultureMiddleware
     /// Ignores malformed entries, q=0 entries, and unsupported languages.
     /// Returns null if no supported language found (falls back to system/English).
     /// </summary>
-    private static string? ParseAcceptLanguage(string header)
+    internal static string? ParseAcceptLanguage(string header)
     {
+        if (string.IsNullOrEmpty(header))
+            return null;
+
         var entries = new List<(string lang, double q, int index)>();
         var parts = header.Split(',');
         
@@ -71,6 +76,7 @@ internal sealed class RequestCultureMiddleware
 
             double q = 1.0;
             bool qValid = false;
+            bool hasQValue = false;
             
             // Parse q-value if present
             for (int j = 1; j < segments.Length; j++)
@@ -87,15 +93,14 @@ internal sealed class RequestCultureMiddleware
                             qValid = true;
                         }
                     }
+                    hasQValue = true;
                     break; // Only first q= is considered
                 }
             }
 
-            if (!qValid)
-            {
-                // No valid q-value found (missing or invalid) - entry is unsupported
+            // If q-value was present but invalid, skip this entry
+            if (hasQValue && !qValid)
                 continue;
-            }
             
             if (q <= 0)
                 continue; // Ignore q=0 entries
