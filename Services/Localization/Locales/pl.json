@@ -31,6 +31,8 @@
   "session.nameRequired": "Pole 'Name' jest wymagane.",
   "session.usernameRequired": "Pole 'Username' jest wymagane.",
   "session.passwordRequired": "Pole 'Password' jest wymagane.",
+  "session.stopBeforeConfig": "Zatrzymaj sesję przed modyfikacją jej konfiguracji.",
+  "session.stoppingWait": "Sesja jest zatrzymywana: poczekaj, aż się zakończy, zanim zmienisz jej konfigurację.",
   "rdpwrap.serviceDllMismatch": "ServiceDll = {0}",
   "rdpwrap.termwrapNotLoaded": "TermWrap.dll nie jest załadowany w TermService",
   "rdpwrap.rdpTcpNotListening": "RDP-Tcp nie nasłuchuje",

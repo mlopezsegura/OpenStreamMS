@@ -31,6 +31,8 @@
   "session.nameRequired": "A 'Name' mező kötelező.",
   "session.usernameRequired": "A 'Username' mező kötelező.",
   "session.passwordRequired": "A 'Password' mező kötelező.",
+  "session.stopBeforeConfig": "Állítsa le a munkamenetet a konfiguráció módosítása előtt.",
+  "session.stoppingWait": "A munkamenet leáll: várjon, amíg befejeződik, mielőtt megváltoztatná a konfigurációját.",
   "rdpwrap.serviceDllMismatch": "ServiceDll = {0}",
   "rdpwrap.termwrapNotLoaded": "TermWrap.dll nincs betöltve a TermService-be",
   "rdpwrap.rdpTcpNotListening": "RDP-Tcp nem hallgat",

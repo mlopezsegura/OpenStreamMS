@@ -31,6 +31,8 @@
   "session.nameRequired": "El campo 'Name' es obligatorio.",
   "session.usernameRequired": "El campo 'Username' es obligatorio.",
   "session.passwordRequired": "El campo 'Password' es obligatorio.",
+  "session.stopBeforeConfig": "Detén la sesión antes de modificar su configuración.",
+  "session.stoppingWait": "La sesión se está deteniendo: espera a que termine para cambiar su configuración.",
   "rdpwrap.serviceDllMismatch": "ServiceDll = {0}",
   "rdpwrap.termwrapNotLoaded": "TermWrap.dll no está cargada en TermService",
   "rdpwrap.rdpTcpNotListening": "RDP-Tcp no escucha",

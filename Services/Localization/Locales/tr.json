@@ -31,6 +31,8 @@
   "session.nameRequired": "'Name' alanı zorunludur.",
   "session.usernameRequired": "'Username' alanı zorunludur.",
   "session.passwordRequired": "'Password' alanı zorunludur.",
+  "session.stopBeforeConfig": "Yapılandırmasını değiştirmeden önce oturumu durdurun.",
+  "session.stoppingWait": "Oturum durduruluyor: yapılandırmayı değiştirmeden önce bitmesini bekleyin.",
   "rdpwrap.serviceDllMismatch": "ServiceDll = {0}",
   "rdpwrap.termwrapNotLoaded": "TermWrap.dll TermService'te yüklü değil",
   "rdpwrap.rdpTcpNotListening": "RDP-Tcp dinlemiyor",

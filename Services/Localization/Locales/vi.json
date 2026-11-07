@@ -31,6 +31,8 @@
   "session.nameRequired": "Trường 'Name' là bắt buộc.",
   "session.usernameRequired": "Trường 'Username' là bắt buộc.",
   "session.passwordRequired": "Trường 'Password' là bắt buộc.",
+  "session.stopBeforeConfig": "Dừng phiên trước khi sửa đổi cấu hình của nó.",
+  "session.stoppingWait": "Phiên đang dừng: hãy đợi nó kết thúc trước khi thay đổi cấu hình.",
   "rdpwrap.serviceDllMismatch": "ServiceDll = {0}",
   "rdpwrap.termwrapNotLoaded": "TermWrap.dll không được tải trong TermService",
   "rdpwrap.rdpTcpNotListening": "RDP-Tcp không lắng nghe",

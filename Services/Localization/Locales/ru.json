@@ -31,6 +31,8 @@
   "session.nameRequired": "Поле 'Name' обязательно.",
   "session.usernameRequired": "Поле 'Username' обязательно.",
   "session.passwordRequired": "Поле 'Password' обязательно.",
+  "session.stopBeforeConfig": "Остановите сеанс перед изменением его конфигурации.",
+  "session.stoppingWait": "Сеанс останавливается: дождитесь завершения, прежде чем менять его конфигурацию.",
   "rdpwrap.serviceDllMismatch": "ServiceDll = {0}",
   "rdpwrap.termwrapNotLoaded": "TermWrap.dll не загружена в TermService",
   "rdpwrap.rdpTcpNotListening": "RDP-Tcp не слушает",

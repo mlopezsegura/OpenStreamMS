@@ -31,6 +31,8 @@
   "session.nameRequired": "Pole 'Name' je povinné.",
   "session.usernameRequired": "Pole 'Username' je povinné.",
   "session.passwordRequired": "Pole 'Password' je povinné.",
+  "session.stopBeforeConfig": "Před úpravou konfigurace zastavte relaci.",
+  "session.stoppingWait": "Relace se zastavuje: čekejte, než skončí, než změníte její konfiguraci.",
   "rdpwrap.serviceDllMismatch": "ServiceDll = {0}",
   "rdpwrap.termwrapNotLoaded": "TermWrap.dll není načtena v TermService",
   "rdpwrap.rdpTcpNotListening": "RDP-Tcp neposlouchá",

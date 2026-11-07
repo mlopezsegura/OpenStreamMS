@@ -195,11 +195,11 @@ const backendTextCode = fs.readFileSync(path.join(root, 'Services/Localization/B
 // We need to test the actual compiled code. Let's create a test that runs the actual .NET code.
 // For now, test the catalog integrity.
 
-test('All 22 backend catalogs have exactly 82 keys', () => {
+test('All 22 backend catalogs have exactly 84 keys', () => {
     const codes = Object.keys(backendCatalogs).sort();
     assert.equal(codes.length, 22);
     for (const [lang, table] of Object.entries(backendCatalogs)) {
-        assert.equal(Object.keys(table).length, 82, lang);
+        assert.equal(Object.keys(table).length, 84, lang);
         for (const [key, value] of Object.entries(table)) {
             assert.equal(typeof value, 'string', lang + ':' + key);
             assert.ok(value.length > 0, lang + ':' + key + ' is empty');

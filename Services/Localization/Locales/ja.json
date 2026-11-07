@@ -31,6 +31,8 @@
   "session.nameRequired": "'Name' フィールドは必須です。",
   "session.usernameRequired": "'Username' フィールドは必須です。",
   "session.passwordRequired": "'Password' フィールドは必須です。",
+  "session.stopBeforeConfig": "設定を変更する前にセッションを停止してください。",
+  "session.stoppingWait": "セッションが停止中です：設定を変更する前に終了するまでお待ちください。",
   "rdpwrap.serviceDllMismatch": "ServiceDll = {0}",
   "rdpwrap.termwrapNotLoaded": "TermWrap.dll が TermService に読み込まれていません",
   "rdpwrap.rdpTcpNotListening": "RDP-Tcp がリッスンしていません",

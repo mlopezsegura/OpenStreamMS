@@ -31,6 +31,8 @@
   "session.nameRequired": "'Name' 字段为必填。",
   "session.usernameRequired": "'Username' 字段为必填。",
   "session.passwordRequired": "'Password' 字段为必填。",
+  "session.stopBeforeConfig": "在修改配置前停止会话。",
+  "session.stoppingWait": "会话正在停止：请等待其完成后再更改配置。",
   "rdpwrap.serviceDllMismatch": "ServiceDll = {0}",
   "rdpwrap.termwrapNotLoaded": "TermWrap.dll 未在 TermService 中加载",
   "rdpwrap.rdpTcpNotListening": "RDP-Tcp 未监听",

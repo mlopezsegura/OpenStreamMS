@@ -21,9 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Reference Include="OpenStreamMS">
-      <HintPath>..\..\bin\Debug\net10.0-windows\OpenStreamMS.dll</HintPath>
-    </Reference>
+    <ProjectReference Include="..\..\OpenStreamMS.csproj" />
   </ItemGroup>
 
 </Project>

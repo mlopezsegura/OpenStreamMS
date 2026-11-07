@@ -31,6 +31,8 @@
   "session.nameRequired": "Полето 'Name' е задължително.",
   "session.usernameRequired": "Полето 'Username' е задължително.",
   "session.passwordRequired": "Полето 'Password' е задължително.",
+  "session.stopBeforeConfig": "Спринете сесията преди да модифицирате нейната конфигурация.",
+  "session.stoppingWait": "Сесията се спира: изчакайте да приключи, за да промените нейната конфигурация.",
   "rdpwrap.serviceDllMismatch": "ServiceDll = {0}",
   "rdpwrap.termwrapNotLoaded": "TermWrap.dll не е зареден в TermService",
   "rdpwrap.rdpTcpNotListening": "RDP-Tcp не слуша",

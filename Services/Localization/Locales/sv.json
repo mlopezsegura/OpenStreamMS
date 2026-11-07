@@ -31,6 +31,8 @@
   "session.nameRequired": "Fältet 'Name' är obligatoriskt.",
   "session.usernameRequired": "Fältet 'Username' är obligatoriskt.",
   "session.passwordRequired": "Fältet 'Password' är obligatoriskt.",
+  "session.stopBeforeConfig": "Stoppa sessionen innan du ändrar dess konfiguration.",
+  "session.stoppingWait": "Sessionen stoppas: vänta tills den är klar innan du ändrar dess konfiguration.",
   "rdpwrap.serviceDllMismatch": "ServiceDll = {0}",
   "rdpwrap.termwrapNotLoaded": "TermWrap.dll är inte laddad i TermService",
   "rdpwrap.rdpTcpNotListening": "RDP-Tcp lyssnar inte",
