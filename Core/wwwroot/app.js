@@ -693,7 +693,7 @@ async function fetchLogs() {
 
   status.textContent = t('log.status', {
     count: data.linesReturned,
-    time:  new Date().toLocaleTimeString(I18n.lang),
+    time:  new Date().toLocaleTimeString(I18n.lang.replace('_', '-')),
   });
 
   if (data.lines.length === 0) {
