@@ -1,8 +1,6 @@
 {
   "GroupService": "服務：",
   "TaskStartService": "安裝後立即啟動服務",
-  "GroupSeats": "本機工作站:",
-  "TaskRemoteIdd": "安裝工作站顯示驅動程式（RemoteIdd，實驗性：測試憑證；重新啟動遠端桌面）",
   "IconComment": "OpenStreamMS 控制面板",
   "StatusInstallService": "註冊 Windows 服務並安裝驅動程式（ViGEmBus、HidHide）...",
   "StatusRemoveRemoteIdd": "正在刪除先前的顯示驅動程式 (RemoteIdd)...",

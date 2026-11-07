@@ -1,8 +1,6 @@
 {
   "GroupService": "Servis:",
   "TaskStartService": "Spusťte službu ihned po instalaci",
-  "GroupSeats": "Místní pracovní místa:",
-  "TaskRemoteIdd": "Nainstalujte ovladač zobrazení pracovní stanice (RemoteIdd, experimentální: testovací certifikát; restartuje vzdálenou plochu)",
   "IconComment": "OpenStreamMS ovládací panel",
   "StatusInstallService": "Registrace služby Windows a instalace ovladačů (ViGEmBus, HidHide)...",
   "StatusRemoveRemoteIdd": "Odebrání předchozího ovladače displeje (RemoteIdd)...",

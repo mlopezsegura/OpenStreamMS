@@ -1,8 +1,6 @@
 {
   "GroupService": "Servicio:",
   "TaskStartService": "Iniciar el servicio ahora tras la instalación",
-  "GroupSeats": "Puestos locales:",
-  "TaskRemoteIdd": "Instalar el driver de pantalla de los puestos (RemoteIdd, experimental: certificado de prueba; reinicia Escritorio remoto)",
   "IconComment": "Panel de control de OpenStreamMS",
   "StatusInstallService": "Registrando servicio de Windows e instalando drivers (ViGEmBus, HidHide)...",
   "StatusRemoveRemoteIdd": "Quitando el driver de pantalla anterior (RemoteIdd)...",

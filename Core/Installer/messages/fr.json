@@ -1,8 +1,6 @@
 {
   "GroupService": "Service :",
   "TaskStartService": "Démarrer le service juste après l'installation",
-  "GroupSeats": "Postes locaux :",
-  "TaskRemoteIdd": "Installer le pilote d'affichage des postes (RemoteIdd, expérimental : certificat de test ; redémarre le Bureau à distance)",
   "IconComment": "Panneau de contrôle OpenStreamMS",
   "StatusInstallService": "Enregistrement du service Windows et installation des pilotes (ViGEmBus, HidHide)...",
   "StatusRemoveRemoteIdd": "Suppression de l'ancien pilote d'affichage (RemoteIdd)...",

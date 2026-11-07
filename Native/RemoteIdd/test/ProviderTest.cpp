@@ -341,6 +341,7 @@ int main()
     Check(FAILED(DefaultSessionSink().ToDeviceInstance(seat, L"SWD\\NoExiste\\0")), "sin dispositivo, la ruta por instancia falla limpio");
     ListenerSettings none = ReadListenerSettings(L"NoExisteOsms");
     Check(none.RefreshHz == 0 && !none.AllConnections, "sin ajustes en el registro: Hz del driver y solo conexiones locales");
+    Check(wcscmp(none.Listener, L"NoExisteOsms") == 0, "los ajustes recuerdan su listener para releer los Hz al conectar");
 
     // -AllConnections: también una conexión que llega por la red recibe RemoteIdd.
     {

@@ -1,8 +1,6 @@
 {
   "GroupService": ":",
   "TaskStartService": "Khởi động dịch vụ ngay sau khi cài đặt",
-  "GroupSeats": "Máy trạm cục bộ:",
-  "TaskRemoteIdd": "Cài đặt trình điều khiển hiển thị máy trạm (RemoteIdd, thử nghiệm: chứng chỉ kiểm tra; khởi động lại Remote Desktop)\nBảng điều khiển",
   "IconComment": "OpenStreamMS",
   "StatusInstallService": "Đăng ký dịch vụ Windows và cài đặt trình điều khiển (ViGEmBus, HidHide)...",
   "StatusRemoveRemoteIdd": "Đang xóa trình điều khiển hiển thị trước đó (RemoteIdd)...",

@@ -1,8 +1,6 @@
 {
   "GroupService": "Service:",
   "TaskStartService": "Starta tjänsten direkt efter installationen",
-  "GroupSeats": "Lokala arbetsstationer:",
-  "TaskRemoteIdd": "Installera arbetsstationens bildskärmsdrivrutin (RemoteIdd, experimentell: testcertifikat; startar om Remote Desktop)",
   "IconComment": "OpenStreamMS kontrollpanel",
   "StatusInstallService": "Registrera Windows-tjänsten och installera drivrutiner (ViGEmBus, HidHide)...",
   "StatusRemoveRemoteIdd": "Ta bort föregående bildskärmsdrivrutin (RemoteIdd)...",

@@ -244,7 +244,9 @@ private:
         seat.SessionId = sessionId;
         seat.Width = m_width;
         seat.Height = m_height;
-        seat.RefreshHz = m_settings.RefreshHz;
+        // OsmsRefreshHz cambia con cada conexión (fps de la sesión): se relee aquí.
+        seat.RefreshHz = m_settings.Listener[0] ? ReadListenerSettings(m_settings.Listener).RefreshHz
+                                                : m_settings.RefreshHz;
         return seat;
     }
 
@@ -466,6 +468,7 @@ ListenerSettings ReadListenerSettings(LPCWSTR listenerName)
 {
     ListenerSettings settings;
     if (!listenerName || !*listenerName) return settings;
+    wcsncpy_s(settings.Listener, listenerName, _TRUNCATE);
     wchar_t key[160];
     swprintf_s(key, L"SYSTEM\\CurrentControlSet\\Control\\Terminal Server\\WinStations\\%ls", listenerName);
     DWORD value = 0, size = sizeof(value);

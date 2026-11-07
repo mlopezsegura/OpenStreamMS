@@ -448,6 +448,8 @@ function openNewModal() {
   byId('sess-bg').checked       = true;
   byId('sess-fps').value        = 60;
   byId('sess-bpp').value        = '32';
+  byId('sess-scale').value      = '100';
+  byId('sess-composition').value = 'Smooth';
   byId('sess-port').value       = 47989;
   byId('sess-advanced').open    = false;
   setResPreset(1920, 1080);
@@ -494,6 +496,8 @@ function openEditModal(id) {
   byId('sess-bg').checked         = !!s.rdpBackground;
   byId('sess-fps').value          = s.rdpFrameRate || 60;
   byId('sess-bpp').value          = String(s.rdpColorDepth || 32);
+  byId('sess-scale').value        = String(s.rdpDisplayScale || 100);
+  byId('sess-composition').value  = s.rdpComposition || 'Smooth';
   byId('sess-port').value         = s.sunshineStreamPort;
   byId('sess-exe').value          = s.sunshineExePath || '';
   byId('sess-sunshine-name').value = s.sunshineName || '';
@@ -550,6 +554,19 @@ async function submitSession(e) {
     return;
   }
 
+  // Con la sesión iniciada, los cambios se aplican deteniéndola y volviéndola a iniciar: se
+  // pregunta antes. El estado se consulta al servidor: la lista no se refresca con el modal abierto.
+  let restartIfActive = false;
+  if (editing) {
+    let state = (sessions.find(x => x.id === editing) || {}).state;
+    const r = await api('GET', `/api/sessions/${editing}`);
+    if (r && r.ok) state = (await r.json()).state;
+    if (state === 'Running' || state === 'Starting') {
+      if (!await ask(t('confirm.stopToApply'), { danger: true, ok: t('btn.stopAndApply') })) return;
+      restartIfActive = true;
+    }
+  }
+
   setSessBusy(true);
   try {
     // "Crear" prueba las credenciales si no se ha hecho: no hace falta pulsar antes "Probar".
@@ -574,6 +591,8 @@ async function submitSession(e) {
       rdpHeight:          resolution.h,
       rdpFrameRate:       parseInt(byId('sess-fps').value, 10) || 60,
       rdpColorDepth:      parseInt(byId('sess-bpp').value, 10) || 32,
+      rdpDisplayScale:    parseInt(byId('sess-scale').value, 10) || 100,
+      rdpComposition:     byId('sess-composition').value || 'Smooth',
       sunshineStreamPort: port,
       useStreamProfile:   !local && byId('sess-profile').checked,
       sunshineName:       byId('sess-sunshine-name').value.trim() || null,
@@ -588,6 +607,7 @@ async function submitSession(e) {
       isolatedEphemeral:  isolated && byId('sess-ephemeral').checked,
       ...readProtocolFields(),
     };
+    if (editing) body.restartIfActive = restartIfActive;
 
     let res;
     if (editing) {
@@ -617,7 +637,7 @@ async function submitSession(e) {
       await api('PATCH', `/api/sessions/${editing}/enabled`, { enabled: byId('sess-enabled').checked });
 
     closeSessionModal();
-    toast(t(editing ? 'toast.saved' : 'toast.created'));
+    toast(t(restartIfActive ? 'toast.restarting' : editing ? 'toast.saved' : 'toast.created'));
     loadSessions();
     if (body.reuseIsolatedUser) loadOrphans();
   } finally {

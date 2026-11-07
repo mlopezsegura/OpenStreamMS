@@ -1,8 +1,6 @@
 {
   "GroupService": "Service:",
   "TaskStartService": "Start the service right after installing",
-  "GroupSeats": "Local seats:",
-  "TaskRemoteIdd": "Install the seat display driver (RemoteIdd, experimental: test certificate; restarts Remote Desktop)",
   "IconComment": "OpenStreamMS control panel",
   "StatusInstallService": "Registering the Windows service and installing drivers (ViGEmBus, HidHide)...",
   "StatusRemoveRemoteIdd": "Removing the previous display driver (RemoteIdd)...",
