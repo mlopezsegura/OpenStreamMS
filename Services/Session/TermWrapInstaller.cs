@@ -35,7 +35,7 @@ internal static class TermWrapInstaller
     {
         using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
         http.DefaultRequestHeaders.UserAgent.ParseAdd("OpenStreamMS");
-        if (FilesOk()) { log("TermWrap 0.7 ya está en su carpeta."); return; }
+        if (FilesOk()) { log("TermWrap 0.7 is already in its folder."); return; }
         if (!Environment.Is64BitOperatingSystem) throw new InvalidOperationException("TermWrap: solo x64.");
 
         var tmp = Path.Combine(Path.GetTempPath(), "osms-termwrap");
@@ -44,22 +44,22 @@ internal static class TermWrapInstaller
         try
         {
             var zip = Path.Combine(tmp, "TermWrap-0.7.zip");
-            log($"Descargando {ZipUrl}…");
+            log($"Downloading {ZipUrl}…");
             await using (var src = await http.GetStreamAsync(ZipUrl, ct))
             await using (var dst = File.Create(zip))
                 await src.CopyToAsync(dst, ct);
-            if (Sha256(zip) != ZipHash) throw new InvalidOperationException("TermWrap-0.7.zip no tiene el hash esperado.");
+            if (Sha256(zip) != ZipHash) throw new InvalidOperationException("TermWrap-0.7.zip does not have the expected hash.");
             ZipFile.ExtractToDirectory(zip, tmp);
 
             Directory.CreateDirectory(InstallDir);
             foreach (var (name, hash) in FileHashes)
             {
                 var from = Path.Combine(tmp, "x64", name);
-                if (Sha256(from) != hash) throw new InvalidOperationException($"{name} no tiene el hash esperado.");
+                if (Sha256(from) != hash) throw new InvalidOperationException($"{name} does not have the expected hash.");
                 var to = Path.Combine(InstallDir, name);
                 if (File.Exists(to) && Sha256(to) == hash) continue;
                 CopyInUse(from, to);
-                log($"Copiado {to}.");
+                log($"Copied {to}.");
             }
         }
         finally { try { Directory.Delete(tmp, recursive: true); } catch { } }
@@ -82,7 +82,7 @@ internal static class TermWrapInstaller
     {
         using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(SvcParams, writable: true);
         key?.SetValue("ServiceDll", @"%SystemRoot%\System32\termsrv.dll", Microsoft.Win32.RegistryValueKind.ExpandString);
-        log(@"TermService: ServiceDll -> %SystemRoot%\System32\termsrv.dll.");
+        log("TermService: ServiceDll -> %SystemRoot%\\System32\\termsrv.dll.");
     }
 
     /// <summary>
@@ -104,9 +104,9 @@ internal static class TermWrapInstaller
             using var p = System.Diagnostics.Process.Start(psi)!;
             var output = p.StandardOutput.ReadToEnd().Trim();
             p.WaitForExit(30_000);
-            if (output.Length > 0) log($"Desactivadas las tareas de autoupdate de RDP Wrapper: {output.Replace(Environment.NewLine, ", ")}.");
+            if (output.Length > 0) log($"Disabled RDP Wrapper autoupdate tasks: {output.Replace(Environment.NewLine, ", ")}.");
         }
-        catch (Exception ex) { log($"No se pudieron revisar las tareas de autoupdate de RDP Wrapper: {ex.Message}"); }
+        catch (Exception ex) { log($"Could not check RDP Wrapper autoupdate tasks: {ex.Message}"); }
     }
 
     private static string Sha256(string path)

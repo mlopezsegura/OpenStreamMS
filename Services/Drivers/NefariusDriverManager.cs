@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using OpenStreamMS.Services.Localization;
 
 namespace OpenStreamMS.Services.Drivers;
 
@@ -94,21 +95,21 @@ public abstract class NefariusDriverManager
             if (BundledInstaller() is { } bundled)
             {
                 installer = bundled;
-                AppendLog($"Usando el instalador incluido: {installer}");
+                AppendLog(BackendText.Get("driver.bundledInstaller", installer));
             }
             else
             {
-                AppendLog($"Descargando última release de {GithubRepo}…");
+                AppendLog(BackendText.Get("driver.downloadingLatest", GithubRepo));
                 var (assetUrl, assetName) = await FetchLatestInstallerUrlAsync(ct);
-                AppendLog($"Asset: {assetName}");
+                AppendLog(BackendText.Get("driver.asset", assetName));
 
                 installer = Path.Combine(Path.GetTempPath(), $"OpenStreamMS_{assetName}");
                 await DownloadAsync(assetUrl, installer, ct);
                 downloaded = true;
-                AppendLog($"Descargado en: {installer}");
+                AppendLog(BackendText.Get("driver.downloadedTo", installer));
             }
 
-            AppendLog($"Ejecutando instalador silencioso ({InstallArgs})…");
+            AppendLog(BackendText.Get("driver.runningSilentInstaller", InstallArgs));
             var exit = await RunProcessAsync(installer, InstallArgs, Path.GetDirectoryName(installer)!, ct);
             if (downloaded) try { File.Delete(installer); } catch { }
 
@@ -130,11 +131,11 @@ public abstract class NefariusDriverManager
             var (_, uninstallCmd) = ReadUninstallEntry();
             if (string.IsNullOrWhiteSpace(uninstallCmd))
             {
-                AppendLog($"✗ No se encontró el comando de desinstalación de {Name} en el registro.");
+                AppendLog(BackendText.Get("driver.noUninstallCommand", Name));
                 return;
             }
 
-            AppendLog($"Usando comando de desinstalación registrado: {uninstallCmd}");
+            AppendLog(BackendText.Get("driver.usingUninstallCommand", uninstallCmd));
             var (exe, args) = SplitCommandLine(uninstallCmd);
             args = AppendSilentFlags(exe, args);
             var exit = await RunProcessAsync(exe, args, Path.GetDirectoryName(exe) is { Length: > 0 } d ? d : ".", ct);
@@ -154,45 +155,45 @@ public abstract class NefariusDriverManager
 
     private void InterpretExitCode(int exit, bool installing)
     {
-        AppendLog($"Instalador salió con código {exit}.");
+        AppendLog(BackendText.Get("driver.exitCode", exit));
         switch (exit)
         {
             case 0:
                 _rebootRequired = false;
                 AppendLog(installing
-                    ? $"✓ {Name} instalado correctamente."
-                    : $"✓ {Name} desinstalado correctamente.");
+                    ? BackendText.Get("driver.installed", Name)
+                    : BackendText.Get("driver.uninstalled", Name));
                 break;
             case 3010:
                 _rebootRequired = true;
-                AppendLog("⚠ Se requiere reiniciar Windows para completar la operación.");
+                AppendLog(BackendText.Get("driver.fatalError"));
                 break;
             case 1602:
-                AppendLog("✗ Cancelado por el usuario.");
+                AppendLog(BackendText.Get("driver.cancelled"));
                 break;
             case 1603:
-                AppendLog("✗ Fallo fatal durante la instalación (revisa el log de Windows Installer).");
+                AppendLog(BackendText.Get("driver.fatalError"));
                 break;
             default:
-                AppendLog("✗ Código de salida desconocido.");
+                AppendLog(BackendText.Get("driver.unknownExitCode"));
                 break;
         }
 
         // Ver cómo queda tras la operación
         var st = GetStatus();
-        AppendLog($"Estado actual: Installed={st.Installed}, Version={st.InstalledVersion ?? "—"}, ServiceState={st.ServiceState ?? "—"}");
+        AppendLog(BackendText.Get("driver.currentStatus", st.Installed, st.InstalledVersion ?? "—", st.ServiceState ?? "—"));
     }
 
     private async Task RunExclusiveAsync(string action, Func<Task> work)
     {
         lock (_sync)
         {
-            if (_busy) throw new InvalidOperationException($"Ya hay una operación de {Name} en curso.");
+            if (_busy) throw new InvalidOperationException(BackendText.Get("driver.operationInProgress", Name));
             _busy       = true;
             _lastAction = action;
             _log.Clear();
         }
-        AppendLog($"--- Inicio: {action} ({DateTime.Now:HH:mm:ss}) ---");
+        AppendLog(BackendText.Get("driver.log.start", action, DateTime.Now.ToString("HH:mm:ss")));
         try
         {
             await work();
@@ -204,7 +205,7 @@ public abstract class NefariusDriverManager
         }
         finally
         {
-            AppendLog($"--- Fin: {action} ({DateTime.Now:HH:mm:ss}) ---");
+            AppendLog(BackendText.Get("driver.log.end", action, DateTime.Now.ToString("HH:mm:ss")));
             _busy = false;
         }
     }
@@ -232,7 +233,7 @@ public abstract class NefariusDriverManager
                 name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
                 return (asset.GetProperty("browser_download_url").GetString()!, name);
         }
-        throw new InvalidOperationException($"No se encontró el instalador .exe en la última release de {GithubRepo}.");
+        throw new InvalidOperationException(BackendText.Get("driver.noInstallerFound", GithubRepo));
     }
 
     private static async Task DownloadAsync(string url, string destPath, CancellationToken ct)
@@ -269,8 +270,9 @@ public abstract class NefariusDriverManager
         {
             try { p.Kill(entireProcessTree: true); } catch { }
             throw new TimeoutException(
-                $"El instalador no terminó en {ProcessTimeout.TotalMinutes:0} minutos y se ha cancelado. " +
-                "Si el driver ya aparece como instalado, basta con reiniciar el equipo.");
+                BackendText.Get("driver.errorDetail", 
+                    $"El instalador no terminó en {ProcessTimeout.TotalMinutes:0} minutos y se ha cancelado. " +
+                    "Si el driver ya aparece como instalado, basta con reiniciar el equipo."));
         }
         return p.ExitCode;
     }

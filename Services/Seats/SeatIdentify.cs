@@ -1,6 +1,7 @@
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using OpenStreamMS.Core.Helpers;
+using OpenStreamMS.Services.Localization;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Drawing.Drawing2D;
@@ -76,7 +77,7 @@ public static class SeatIdentify
     private static int Launch(string command, bool wait)
     {
         if (!ConsoleSession.TryGetUser(out var consoleId, out _, out _))
-            throw new InvalidOperationException("No hay nadie con sesión iniciada en la consola.");
+            throw new InvalidOperationException(BackendText.Get("error.noConsoleUser"));
         if (!wait)
             return new ProcessInSession().LaunchInSession(consoleId, Environment.ProcessPath!, $"--identify {command}");
         // La prueba dura unos segundos: que no bloquee la petición del panel.

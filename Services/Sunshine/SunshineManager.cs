@@ -100,7 +100,7 @@ namespace OpenStreamMS.Services.Sunshine
 
                 var crash = SunshineCrashDetector.TryFindRecentFault(_sunshineExe, deadPid, _lastStartLocal);
                 var message = crash ??
-                    $"Sunshine terminó inesperadamente (PID={deadPid}); no se encontró un evento Application Error reciente.";
+                    $"Sunshine exited unexpectedly (PID={deadPid}); no recent Application Error event found.";
 
                 Logger.Log($"[Sunshine] {message}");
                 return new SunshineRunResult(SunshineRunStatus.UnexpectedExit, 0, message);
@@ -108,7 +108,7 @@ namespace OpenStreamMS.Services.Sunshine
 
             if (!File.Exists(_sunshineExe))
             {
-                var message = $"No se encontró sunshine.exe en: {_sunshineExe}";
+                var message = $"sunshine.exe not found at: {_sunshineExe}";
                 Logger.Error($"[Sunshine] {message}");
                 return new SunshineRunResult(SunshineRunStatus.LaunchFailed, 0, message);
             }
@@ -290,13 +290,13 @@ namespace OpenStreamMS.Services.Sunshine
                 }
 
                 if (_sunshinePid > 0)
-                    Logger.Info($"[Sunshine] Iniciado con PID {_sunshinePid}");
+                    Logger.Info($"[Sunshine] Started with PID {_sunshinePid}");
                 else
-                    Logger.Error("[Sunshine] No se pudo lanzar");
+                    Logger.Error("[Sunshine] Could not launch");
 
                 return _sunshinePid > 0
                     ? new SunshineRunResult(SunshineRunStatus.Started, _sunshinePid)
-                    : new SunshineRunResult(SunshineRunStatus.LaunchFailed, 0, "No se pudo lanzar sunshine.exe.");
+                    : new SunshineRunResult(SunshineRunStatus.LaunchFailed, 0, "Could not launch sunshine.exe.");
             }
             catch (Exception ex)
             {
@@ -694,8 +694,8 @@ namespace OpenStreamMS.Services.Sunshine
                 var fresh = Guid.NewGuid().ToString().ToUpperInvariant();
                 root["uniqueid"] = fresh;
                 File.WriteAllText(path, state.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
-                Logger.Warning($"[Sunshine] Otra sesión usaba el mismo uniqueid ({current}); esta pasa a {fresh}. " +
-                               "En Moonlight aparecerá como un equipo nuevo.");
+                Logger.Warning($"[Sunshine] Another session was using the same uniqueid ({current}); this one changes to {fresh}. " +
+                               "In Moonlight it will appear as a new host.");
                 MirrorStateToBackup(force: true);
             }
             catch (Exception ex)
