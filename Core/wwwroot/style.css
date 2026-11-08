@@ -1874,3 +1874,110 @@ section#view-sessions, section#view-seats { animation: viewIn .35s var(--ease); 
   .guide-dep { flex-wrap: wrap; }
 }
 .guide-deps-live .guide-dep { animation: none; }
+
+/* ── Uso en vivo, pasos, errores con pista, logs y vista lista (insights.js) ── */
+
+/* Uso del equipo en la barra de arriba */
+.res-strip { display: flex; align-items: center; gap: .35rem; margin-right: .25rem; }
+.res-strip[hidden] { display: none; }
+.res-item, .metric {
+  display: inline-flex; align-items: center; gap: .3rem; padding: .2rem .5rem; border-radius: 8px;
+  font-size: .74rem; color: var(--muted-h); background: rgba(var(--c-ink),.04); border: 1px solid rgba(var(--c-ink),.07);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.res-item b, .metric b { color: var(--text); font-weight: 600; min-width: 2.4em; text-align: right; }
+.metric-k { font-size: .66rem; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.res-item.warm b { color: var(--orange); }
+.res-item.hot b { color: var(--red); }
+.spark { display: block; overflow: visible; }
+.spark path { fill: none; stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.spark-cpu path { stroke: var(--accent-soft); }
+.spark-gpu path { stroke: var(--cyan-soft); }
+@media (max-width: 1180px) { .res-item .spark, .res-ram { display: none; } }
+@media (max-width: 980px) { .res-strip { display: none; } }
+
+/* Uso de cada sesión en marcha */
+.card-metrics { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin-top: .7rem; }
+.metric-wait { color: var(--muted); font-style: italic; border-style: dashed; }
+.chip-encoder .ui-icon { color: var(--green); }
+.chip-encoder.warn { color: var(--orange); border-color: rgba(var(--c-orange),.45); background: rgba(var(--c-orange),.1); }
+.chip-encoder.warn .ui-icon { color: var(--orange); }
+.metric-warning { flex-basis: 100%; margin-top: .1rem; }
+
+/* Pasos del arranque: cinco tramos */
+.steps { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; list-style: none; margin: 0; padding: 0; }
+.steps li { height: 5px; border-radius: 4px; background: rgba(var(--c-ink),.09); }
+.steps li.done { background: var(--green); }
+.steps li.current { background: var(--orange); animation: stepPulse 1.4s ease-in-out infinite; }
+.steps li.failed { background: var(--red); }
+@keyframes stepPulse { 50% { opacity: .45; } }
+:root[data-effects="reduced"] .steps li.current { animation: none; }
+@media (prefers-reduced-motion: reduce) { .steps li.current { animation: none; } }
+.start-steps.failed { margin-top: 0; }
+.start-steps.failed .start-steps-label { color: var(--red); font-weight: 600; }
+
+/* Error con pista y acciones */
+.card-error-msg { color: var(--red); }
+.card-error-hint {
+  display: flex; gap: .45rem; align-items: flex-start; padding: .45rem .6rem; border-radius: 6px;
+  color: var(--text); background: rgba(var(--c-ink),.05); line-height: 1.45;
+}
+.card-error-hint .ui-icon { width: 15px; height: 15px; margin-top: .1rem; color: var(--accent-soft); }
+.card-error-actions .btn-xs { display: inline-flex; align-items: center; gap: .3rem; }
+.card-error-actions .ui-icon { width: 13px; height: 13px; }
+
+/* Log: color por nivel, búsqueda y pausa */
+.log-toolbar { flex-wrap: wrap; gap: .5rem; }
+.log-controls { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+.log-search {
+  width: 12rem; padding: .32rem .6rem; border-radius: var(--radius); font-size: .8rem;
+  background: var(--bg-deep-3); color: var(--text); border: 1px solid var(--border);
+}
+.log-search:focus-visible, .log-level:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.log-level { cursor: pointer; }
+#log-pause.active { color: var(--orange); border-color: rgba(var(--c-orange),.5); }
+.log-line.lvl-error { color: var(--red); }
+.log-line.lvl-warning { color: var(--orange); }
+.log-line.lvl-info { color: var(--muted-h); }
+.log-line.lvl-debug, .log-line.lvl-none { color: var(--muted); }
+.log-box mark { background: rgba(var(--c-amber),.35); color: inherit; border-radius: 2px; padding: 0 1px; }
+@media (max-width: 640px) { .log-search { width: 100%; flex: 1 1 100%; } }
+
+/* Tarjetas o lista compacta */
+.toolbar-actions { display: flex; align-items: center; gap: .6rem; }
+.view-toggle { display: inline-flex; padding: 2px; border-radius: 9px; border: 1px solid var(--border); background: rgba(var(--c-ink),.03); }
+.view-toggle button {
+  display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 26px; padding: 0;
+  border: 0; border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer;
+}
+.view-toggle button svg { width: 16px; height: 16px; }
+.view-toggle button.active { background: rgba(var(--c-accent),.18); color: var(--text); }
+.view-toggle button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.sessions-grid.compact { grid-template-columns: 1fr; gap: .55rem; }
+.sessions-grid.compact .session-card {
+  flex-direction: row; flex-wrap: wrap; align-items: center; gap: .45rem 1rem; padding: .65rem 1rem;
+}
+.sessions-grid.compact .card-top { flex: 0 1 340px; min-width: 0; gap: .7rem; }
+.sessions-grid.compact .screen-thumb { width: 64px; height: 34px; border-radius: 7px; }
+.sessions-grid.compact .screen-res { font-size: .62rem; }
+.sessions-grid.compact .screen-thumb::after { display: none; }
+.sessions-grid.compact .screen-fps { display: none; }
+.sessions-grid.compact .card-title { flex-direction: row; align-items: center; gap: .6rem; flex-wrap: wrap; }
+.sessions-grid.compact .card-user { display: none; }
+.sessions-grid.compact .card-chips { flex: 2 1 280px; margin: 0; }
+.sessions-grid.compact .card-metrics { flex: 1 1 240px; margin: 0; }
+.sessions-grid.compact .card-footer { flex: 0 0 auto; margin: 0; padding: 0; border: 0; }
+.sessions-grid.compact .card-footer .toggle { display: none; }
+.sessions-grid.compact .start-steps,
+.sessions-grid.compact .card-error,
+.sessions-grid.compact .card-warning { flex: 1 1 100%; margin-top: 0; }
+.sessions-grid.compact .power-btn { order: 3; }
+
+/* Foco visible también en pestañas, píldoras, chips enlazados e interruptores */
+.tab:focus-visible, .status-pill:focus-visible, .toggle input:focus-visible + .toggle-track,
+select:focus-visible, input[type="text"]:focus-visible, input[type="number"]:focus-visible,
+input[type="password"]:focus-visible, input[type="search"]:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+.sessions-grid.compact .metric .spark { display: none; }

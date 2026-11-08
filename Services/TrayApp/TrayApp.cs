@@ -105,6 +105,7 @@ internal sealed class TrayApp : ApplicationContext
             try { seats = await _http.GetFromJsonAsync<TraySeatDto[]>($"{_baseUrl}/api/seats") ?? []; }
             catch (HttpRequestException) { seats = []; }   // servicio sin puestos para la bandeja
             await NotifyPairingsAsync(sessions);
+            SetStatus(sessions, seats);
             var signature = string.Join("|", sessions.Select(s => $"{s.Id}:{s.Name}:{s.State}")) + "#" +
                             string.Join("|", seats.Select(s => $"{s.Id}:{s.Name}:{s.State}:{s.SessionId}"));
             if (signature == _menuSignature) return;
@@ -113,6 +114,7 @@ internal sealed class TrayApp : ApplicationContext
         }
         catch
         {
+            SetStatus(null, null);
             if (_menuSignature == OfflineSignature) return;
             _menuSignature = OfflineSignature;
             var old = _icon.ContextMenuStrip;
@@ -283,6 +285,78 @@ internal sealed class TrayApp : ApplicationContext
     private static Icon CreateIcon() =>
         OpenStreamMS.Core.Helpers.AppIcon.CreateIcon(SystemInformation.SmallIconSize);
 
+    // ── estado en el icono ───────────────────────────────────────────────────────
+    //
+    // Un punto en la esquina: verde si hay algo en marcha, rojo si algo falló, gris sin
+    // servicio. Sin nada en marcha, el icono normal. El texto al pasar el ratón lo resume
+    // con símbolos (no depende del idioma).
+
+    private enum TrayStatus { Idle, Running, Error, Offline }
+    private TrayStatus? _status;
+    private string? _statusText;
+    private IntPtr _statusIconHandle;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool DestroyIcon(IntPtr handle);
+
+    private void SetStatus(TraySessionDto[]? sessions, TraySeatDto[]? seats)
+    {
+        int running = 0, errors = 0;
+        if (sessions is not null)
+        {
+            running = sessions.Count(s => s.State == "Running") + (seats ?? []).Count(s => s.State == "Running");
+            errors  = sessions.Count(s => s.State == "Error") + (seats ?? []).Count(s => s.State == "Error");
+        }
+        var status = sessions is null ? TrayStatus.Offline
+                   : errors > 0 ? TrayStatus.Error
+                   : running > 0 ? TrayStatus.Running : TrayStatus.Idle;
+        var text = "OpenStreamMS" + (sessions is null ? " · —"
+                 : (running > 0 ? $" · ▶ {running}" : "") + (errors > 0 ? $" · ⚠ {errors}" : ""));
+        if (status == _status && text == _statusText) return;
+        _status = status;
+        _statusText = text;
+        _icon.Text = text.Length > 63 ? text[..63] : text;
+
+        var old = _icon.Icon;
+        var oldHandle = _statusIconHandle;
+        if (status == TrayStatus.Idle)
+        {
+            _icon.Icon = CreateIcon();
+            _statusIconHandle = IntPtr.Zero;
+        }
+        else
+        {
+            var dot = status switch
+            {
+                TrayStatus.Running => Color.FromArgb(16, 185, 129),
+                TrayStatus.Error   => Color.FromArgb(239, 68, 68),
+                _                  => Color.FromArgb(148, 163, 184),
+            };
+            (_icon.Icon, _statusIconHandle) = IconWithDot(dot);
+        }
+        old?.Dispose();
+        if (oldHandle != IntPtr.Zero) DestroyIcon(oldHandle);
+    }
+
+    private static (Icon Icon, IntPtr Handle) IconWithDot(Color dot)
+    {
+        var size = SystemInformation.SmallIconSize;
+        using var baseIcon = OpenStreamMS.Core.Helpers.AppIcon.CreateIcon(size);
+        using var bmp = new Bitmap(size.Width, size.Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+        using (var g = Graphics.FromImage(bmp))
+        {
+            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+            g.DrawIcon(baseIcon, new Rectangle(Point.Empty, size));
+            float d = size.Width * 0.5f, x = size.Width - d - 0.5f, y = size.Height - d - 0.5f;
+            using var ring = new SolidBrush(Color.FromArgb(20, 20, 30));
+            using var fill = new SolidBrush(dot);
+            g.FillEllipse(ring, x - 1, y - 1, d + 2, d + 2);   // borde oscuro: se ve sobre barra clara y oscura
+            g.FillEllipse(fill, x, y, d, d);
+        }
+        var handle = bmp.GetHicon();
+        return (Icon.FromHandle(handle), handle);
+    }
+
     // ── cleanup ───────────────────────────────────────────────────────────────────
 
     protected override void Dispose(bool disposing)
@@ -297,6 +371,7 @@ internal sealed class TrayApp : ApplicationContext
             _timer.Dispose();
             _icon.Visible = false;
             _icon.Dispose();
+            if (_statusIconHandle != IntPtr.Zero) DestroyIcon(_statusIconHandle);
             _http.Dispose();
         }
         base.Dispose(disposing);

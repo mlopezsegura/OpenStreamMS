@@ -52,6 +52,7 @@
     <Content Include="Core\wwwroot\guide.js" />
     <Content Include="Core\wwwroot\i18n.js" />
     <Content Include="Core\wwwroot\ui-messages.js" />
+    <Content Include="Core\wwwroot\insights.js" />
     <Content Include="Core\wwwroot\theme.js" />
     <Content Include="Core\wwwroot\index.html" />
     <Content Include="Core\wwwroot\login.html" />

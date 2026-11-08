@@ -171,6 +171,7 @@ function renderCard(s) {
         ${power}
       </div>
       <div class="card-chips">${protos.join('')}${sessionSeatLine(s)}${clientsChip(s)}</div>
+      ${metricsSlot(s)}
       ${startProgress(s)}
       ${rdpWarning(s)}
       ${steamWarning(s)}
@@ -657,6 +658,11 @@ function openLogModal(id, name) {
   document.getElementById('log-title').textContent = t('log.titleFor', { name });
   document.getElementById('log-box').innerHTML = `<span class="log-empty">${esc(t('log.loading'))}</span>`;
   document.getElementById('log-status').textContent = '';
+  logLines = []; logUpdated = null; logPaused = false;
+  byId('log-search').value = '';
+  byId('log-pause').textContent = t('log.pause');
+  byId('log-pause').setAttribute('aria-pressed', 'false');
+  byId('log-pause').classList.remove('active');
   show('log-modal');
   stopRefresh();
   fetchLogs();
@@ -681,34 +687,76 @@ function closeLogModal() {
   clearInterval(logTimer);
   logTimer = null;
   logSessionId = null;
+  logLines = [];   // con el modal cerrado no se guarda nada
   hide('log-modal');
   startRefresh();
 }
 
 async function fetchLogs() {
-  if (!logSessionId) return;
+  if (!logSessionId || logPaused) return;
   const lines = document.getElementById('log-lines').value;
   const res   = await api('GET', `/api/sessions/${logSessionId}/logs?lines=${lines}`);
   if (!res || !res.ok) return;
 
-  const data  = await res.json();
-  const box   = document.getElementById('log-box');
-  const status = document.getElementById('log-status');
+  const data = await res.json();
+  logLines = data.lines;
+  logUpdated = new Date();
+  renderLogs();
+}
 
-  status.textContent = t('log.status', {
-    count: data.linesReturned,
-    time:  new Date().toLocaleTimeString(I18n.lang.replace('_', '-')),
+// Líneas "[hh:mm:ss.fff] [NIVEL] mensaje": color por nivel, filtro y búsqueda (en el navegador).
+let logLines = [], logUpdated = null, logPaused = false;
+const LOG_LEVEL_RX = /^\[[^\]]*\] \[(ERROR|WARNING|INFO|DEBUG)\]/;
+
+function renderLogs() {
+  const box = document.getElementById('log-box');
+  const status = document.getElementById('log-status');
+  const level = byId('log-level').value;
+  const q = byId('log-search').value.trim().toLowerCase();
+  const shown = logLines.filter(line => {
+    const lvl = (LOG_LEVEL_RX.exec(line) || [])[1];
+    if (level === 'error' && lvl !== 'ERROR') return false;
+    if (level === 'warn' && lvl !== 'ERROR' && lvl !== 'WARNING') return false;
+    return !q || line.toLowerCase().includes(q);
   });
 
-  if (data.lines.length === 0) {
-    box.innerHTML = `<span class="log-empty">${esc(t('log.empty'))}</span>`;
+  const time = logUpdated ? logUpdated.toLocaleTimeString(I18n.lang.replace('_', '-')) : '';
+  status.textContent = (level !== 'all' || q)
+    ? t('log.matches', { shown: shown.length, count: logLines.length, time })
+    : t('log.status', { count: logLines.length, time });
+  if (logPaused) status.textContent += ` · ${t('log.paused')}`;
+
+  if (shown.length === 0) {
+    box.innerHTML = `<span class="log-empty">${esc(t(logLines.length ? 'log.noMatches' : 'log.empty'))}</span>`;
     return;
   }
 
+  const mark = text => {
+    if (!q) return esc(text);
+    let out = '', i = 0, k;
+    const lower = text.toLowerCase();
+    while ((k = lower.indexOf(q, i)) >= 0) {
+      out += esc(text.slice(i, k)) + `<mark>${esc(text.slice(k, k + q.length))}</mark>`;
+      i = k + q.length;
+    }
+    return out + esc(text.slice(i));
+  };
   const wasAtBottom = box.scrollHeight - box.scrollTop <= box.clientHeight + 10;
-  box.textContent   = data.lines.join('\n');
-
+  box.innerHTML = shown.map(line => {
+    const lvl = ((LOG_LEVEL_RX.exec(line) || [])[1] || 'none').toLowerCase();
+    return `<span class="log-line lvl-${lvl}">${mark(line)}</span>`;
+  }).join('\n');
   if (autoScroll && wasAtBottom) box.scrollTop = box.scrollHeight;
+}
+
+// Pausa: deja de pedir líneas nuevas para leer con calma (el modal sigue abierto).
+function toggleLogPause() {
+  logPaused = !logPaused;
+  const btn = byId('log-pause');
+  btn.textContent = t(logPaused ? 'log.resume' : 'log.pause');
+  btn.setAttribute('aria-pressed', String(logPaused));
+  btn.classList.toggle('active', logPaused);
+  if (logPaused) renderLogs(); else fetchLogs();
 }
 
 // ── Puerto derivado (stream + 1 = panel HTTPS interno) ────────────────────
@@ -1260,6 +1308,9 @@ async function powerAction(kind) {
 // Iconos de trazo (heredan el color del texto).
 const UI_ICONS = {
   power:    '<path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/>',
+  copy:     '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
+  download: '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>',
+  help:     '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6"/><circle cx="12" cy="17.2" r=".6" fill="currentColor"/>',
   more:     '<circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="19" cy="12" r="1.6" fill="currentColor"/>',
   restart:  '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
   moon:     '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
@@ -1567,26 +1618,30 @@ async function downloadDiagnostics() {
   btn.disabled = true;
   btn.textContent = t('settings.diagWorking');
   try {
-    const days = byId('diag-days').value;
-    const res = await api('GET', `/api/diagnostics/bundle?days=${encodeURIComponent(days)}`);
-    if (!res) return;
-    if (!res.ok) { toast(await I18n.responseError(res) || t('settings.diagFailed'), true); return; }
-    const blob = await res.blob();
-    const disposition = res.headers.get('Content-Disposition') || '';
-    const match = /filename\*=UTF-8''([^;]+)/i.exec(disposition) || /filename="?([^";]+)"?/i.exec(disposition);
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = match ? decodeURIComponent(match[1]) : 'openstreamms-diag.zip';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
-    toast(t('settings.diagDone'));
+    await saveDiagnostics(byId('diag-days').value);
   } finally {
     btn.disabled = false;
     btn.textContent = t('settings.diagDownload');
   }
+}
+
+// Genera el .zip de diagnóstico y lo descarga. También lo usan las tarjetas con error.
+async function saveDiagnostics(days) {
+  const res = await api('GET', `/api/diagnostics/bundle?days=${encodeURIComponent(days)}`);
+  if (!res) return;
+  if (!res.ok) { toast(await I18n.responseError(res) || t('settings.diagFailed'), true); return; }
+  const blob = await res.blob();
+  const disposition = res.headers.get('Content-Disposition') || '';
+  const match = /filename\*=UTF-8''([^;]+)/i.exec(disposition) || /filename="?([^";]+)"?/i.exec(disposition);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = match ? decodeURIComponent(match[1]) : 'openstreamms-diag.zip';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+  toast(t('settings.diagDone'));
 }
 
 // ── Conectar un dispositivo: dirección del PC y puertos de la sesión ──────
@@ -1640,25 +1695,11 @@ function startProgress(s) {
   const phase = s.startPhase || (s.local ? 'sunshine' : 'user');
   const label = esc(t('ux.phase.' + phase));
   if (s.local) return `<div class="start-steps" role="status"><div class="start-steps-label">${label}</div></div>`;
-  const idx = Math.max(0, START_PHASES.indexOf(phase));
-  const pct = Math.round(((idx + 0.5) / START_PHASES.length) * 100);
-  return `
-    <div class="start-steps" role="status">
-      <div class="start-steps-bar"><span style="width:${pct}%"></span></div>
-      <div class="start-steps-label">${label} <span class="start-steps-count">${idx + 1}/${START_PHASES.length}</span></div>
-    </div>`;
+  return stepsHtml(phase, false);
 }
 
-function errorBox(s) {
-  if (!s.errorMessage) return '';
-  // Mientras se reinicia sola (Sunshine caído) el mensaje informa; los botones, solo si se quedó en error.
-  const actions = s.state === 'Error' || s.state === 'Stopped' || s.state === 'Created'
-    ? `<div class="card-error-actions">
-         <button type="button" class="btn btn-ghost btn-xs" onclick="openSessionLog('${s.id}')">${esc(t('ux.viewLog'))}</button>
-         <button type="button" class="btn btn-ghost btn-xs" onclick="retrySession('${s.id}')">${esc(t('ux.retry'))}</button>
-       </div>` : '';
-  return `<div class="card-error" role="alert"><span>${esc(I18n.message(s.errorMessage))}</span>${actions}</div>`;
-}
+// Error con el paso en que falló, una pista si se conoce la causa y sus acciones (insights.js).
+function errorBox(s) { return errorBoxHtml(s); }
 
 // Una sesión RDP necesita el multi-RDP: si falta, se dice en la tarjeta con su botón.
 function rdpWarning(s) {
