@@ -345,10 +345,20 @@ static void RunTray(bool showWindow = false)
         return;
     }
 
-    Application.EnableVisualStyles();
-    Application.SetCompatibleTextRenderingDefault(false);
-    using var tray = new TrayApp($"http://localhost:{ServiceConfig.ReadApiPort()}", showWindow);
-    Application.Run(tray);
+    // WebView2 (la ventana del panel) solo funciona en un hilo STA. Con top-level statements el
+    // hilo principal es MTA y CoreWebView2Environment fallaba con RPC_E_CHANGED_MODE: la ventana
+    // nunca se abría y el panel acababa en el navegador. La bandeja corre en su propio hilo STA;
+    // el mutex se queda en este hilo, que espera a que termine.
+    var ui = new Thread(() =>
+    {
+        Application.EnableVisualStyles();
+        Application.SetCompatibleTextRenderingDefault(false);
+        using var tray = new TrayApp($"http://localhost:{ServiceConfig.ReadApiPort()}", showWindow);
+        Application.Run(tray);
+    }) { Name = "TrayUI" };
+    ui.SetApartmentState(ApartmentState.STA);
+    ui.Start();
+    ui.Join();
 }
 
 // ── Rutas públicas (sin autenticación) ───────────────────────────────────────
