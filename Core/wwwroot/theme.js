@@ -49,6 +49,13 @@
       document.head.appendChild(meta);
     }
     if (meta && document.body) meta.content = getComputedStyle(document.body).backgroundColor;
+    // Ventana propia del programa (WebView2): su barra de título toma el color de la barra del panel.
+    const host = window.chrome && window.chrome.webview;
+    if (host && document.body) {
+      const bar = document.querySelector('.nav');
+      const color = getComputedStyle(bar && bar.offsetParent !== null ? bar : document.body).backgroundColor;
+      try { host.postMessage({ type: 'theme', color, dark: t !== 'light' }); } catch { /* sin ventana */ }
+    }
     Rain.update(t === 'matrix' && fx === 'full');
   }
 
