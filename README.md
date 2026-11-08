@@ -1,37 +1,117 @@
-# OpenStreamMS
-Windows service that automates the setup of a game streaming environment using [Sunshine](https://github.com/ClassicOldSong/Sunshine/) (Moonlight/GameStream host).
-<img width="1100" height="306" alt="image" src="https://github.com/user-attachments/assets/41a93d90-00d3-4eb4-ba67-767be534ae00" />
+<div align="center">
 
-Manages the full lifecycle of isolated RDP streaming sessions — creation, monitoring, auto-restart, and teardown — from a web dashboard or REST API. With extra monitors, keyboards, mice and gamepads, the same sessions become **local seats**: several people using one PC at the same time, each with their own screen, input and sound.
+<img width="1100" alt="OpenStreamMS" src="https://github.com/user-attachments/assets/41a93d90-00d3-4eb4-ba67-767be534ae00" />
 
-## Features
-<img width="1101" height="195" alt="image" src="https://github.com/user-attachments/assets/d749b03f-c2a4-482b-aca6-04525fb0391c" />
-- **Isolated RDP sessions** — each session runs under its own Windows user account with a dedicated Sunshine instance, fully separated from your local desktop
-  <img width="1440" height="830" alt="01-sessions" src="https://github.com/user-attachments/assets/6c246ab5-262f-4558-8bd4-87cfb124b335" />
+### One Windows PC. Many players. Each with their own desktop.
 
-- **Local desktop session** — the PC's own physical desktop can be added as one more session: Sunshine is launched directly in the PC's local session (no RDP), and stopping it never signs anyone out
-- **Independent stream profile** — launches Explorer, Sunshine, and Sunshine apps with a per-session profile sandbox (`USERPROFILE`, `APPDATA`, `LOCALAPPDATA`, temp, and XDG paths) so local and stream sessions do not share common profile lock files
-- **Web dashboard + REST API** — manage sessions from any browser; full OpenAPI docs at `/scalar/v1`
-- **System tray icon** — start/stop sessions and open the web interface from the Windows notification area
-- **Auto-start** — sessions flagged as enabled are relaunched automatically when the service restarts
-- **5-second monitoring** — Sunshine is restarted automatically if it crashes
-- **Virtual display support (VDD)** — patches Sunshine's `apps.json` to keep a virtual display active even when the RDP client disconnects
-- **Local seats** — give a session a physical monitor, keyboard, mouse, gamepad and audio output so someone can use it at the PC itself, alongside the console and other seats (see [Local seats](#local-seats))
-  <img width="1440" height="1000" alt="02-seats" src="https://github.com/user-attachments/assets/054e9138-a14f-4003-b719-3bd862ebf6fa" />
-  <img width="1440" height="1000" alt="03-seat-editor" src="https://github.com/user-attachments/assets/c2000a0b-fc0c-442a-8b14-c922313270d4" />
+Isolated streaming sessions for **Moonlight** and **WebRTC TVs**, and **local seats** that turn one PC into several —
+managed from a web dashboard, a tray icon or a REST API.
 
-- **Isolated users** — a session can run under its own auto-managed local user (`osms-…`, shown on the session card), optionally ephemeral (wiped on stop); isolated sessions get a *Steam (isolated)* shortcut and handle `steam://` links so each one can sign in to its own Steam account
-- **Keep isolated users** — deleting an isolated session asks whether to keep its Windows user, which holds Steam's saved login, saves and game settings; a new session can reuse a kept user. Cards warn when Steam has no saved login, and **System → Dedicated users without a session** lists kept users and leftover `osms-*` profiles with their size, to delete them one by one
-- **Steam next to your own** — Steam can run on the console and in a stream session or seat at the same time, even with the same Windows user (per-session hook and browser cache)
-- **Moonlight, WebRTC or both** — with the [sunshine-webrtc](https://github.com/mlopezsegura/Sunshine-Web-RTC) build, each session serves Moonlight apps, Samsung TVs running Moonlight WebRTC, or both, set in the session's settings or in Sunshine's own panel; OpenStreamMS opens only the ports of the active protocols and refuses sessions whose ports collide
-- **RemoteIdd display (experimental)** — an IddCx display driver of our own for RDP sessions, built on documented Windows APIs only: Sunshine (`capture = remoteidd`) takes each frame from a shared GPU texture instead of capturing the screen. Optional in the installer (test certificate, takes effect after a restart); used automatically when installed. See [Native/RemoteIdd](Native/RemoteIdd/README.md)
-- **A true 60 fps** — RDP sessions whose frame interval isn't a whole number of milliseconds compose faster (60 fps → 4 ms) and Sunshine paces the stream, instead of running at 58.8 Hz
-- **Pairing notifications** — the tray shows a Windows notification when Moonlight or a WebRTC TV waits for a PIN in any session; clicking it opens that session's pairing dialog
-- **Clean shutdown** — seat sessions are signed out with a real logoff, so Windows can always shut down or restart
+[![Latest release](https://img.shields.io/github/v/release/mlopezsegura/OpenStreamMS?style=flat-square&color=7c5cff)](https://github.com/mlopezsegura/OpenStreamMS/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/mlopezsegura/OpenStreamMS/total?style=flat-square&color=2dd4bf)](https://github.com/mlopezsegura/OpenStreamMS/releases)
+[![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078d4?style=flat-square&logo=windows)](#installation)
+[![.NET 10](https://img.shields.io/badge/.NET-10-512bd4?style=flat-square&logo=dotnet)](https://dotnet.microsoft.com/download)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
+
+**[⬇ Download](https://github.com/mlopezsegura/OpenStreamMS/releases/latest)** ·
+[Quick start](#-quick-start) ·
+[Features](#-features) ·
+[Local seats](#local-seats) ·
+[Docs](#-documentation)
+
+</div>
 
 ---
 
-## Installation
+## ✨ Why OpenStreamMS
+
+<table>
+<tr>
+<td width="33%" valign="top">
+
+### 🎮 Streaming sessions
+Every session is its own Windows desktop (RDP) with its own Sunshine. Stream games to several people at once while you keep using the PC.
+
+</td>
+<td width="33%" valign="top">
+
+### 🖥️ Local seats
+Plug in another monitor, keyboard, mouse, gamepad and headphones: a session shows up right there, as if it were a second computer.
+
+</td>
+<td width="33%" valign="top">
+
+### 📺 Moonlight + WebRTC
+Each session serves Moonlight apps, Samsung TVs running Moonlight WebRTC, or both. Ports and firewall are handled for you.
+
+</td>
+</tr>
+</table>
+
+<table>
+<tr>
+<td><img alt="Sessions" src="https://github.com/user-attachments/assets/6c246ab5-262f-4558-8bd4-87cfb124b335" /></td>
+<td><img alt="Local seats" src="https://github.com/user-attachments/assets/054e9138-a14f-4003-b719-3bd862ebf6fa" /></td>
+<td><img alt="Seat editor" src="https://github.com/user-attachments/assets/c2000a0b-fc0c-442a-8b14-c922313270d4" /></td>
+</tr>
+<tr align="center">
+<td><sub>Sessions</sub></td>
+<td><sub>Local seats</sub></td>
+<td><sub>Seat editor</sub></td>
+</tr>
+</table>
+
+---
+
+## 🚀 Quick start
+
+1. **Download** `OpenStreamMS-Setup-x.x.x.exe` from [Releases](https://github.com/mlopezsegura/OpenStreamMS/releases/latest).
+2. **Install** it as Administrator. It sets up the service, the tray icon and everything it needs (TermWrap, ViGEmBus, HidHide).
+3. **Open OpenStreamMS** from the Start menu, create your admin account and follow the built-in guide to your first session.
+
+Then add the PC in Moonlight (or on your TV) — **Connect** in the dashboard shows the name, addresses and ports to use.
+
+---
+
+## 🧩 Features
+
+**Sessions**
+- 🔒 **Isolated RDP sessions** — each one under its own Windows account and Sunshine instance, separate from your desktop
+- 👤 **Isolated users** — auto-managed `osms-…` users, optionally ephemeral (wiped on stop); kept users preserve Steam logins, saves and settings
+- 🖥️ **Local desktop session** — stream the PC's own desktop too (no RDP); stopping it never signs anyone out
+- 🧪 **Independent stream profile** — per-session `USERPROFILE`/`APPDATA`/temp sandbox so local and stream apps don't share lock files
+- ♨️ **Steam next to your own** — Steam on the console and in a session at the same time, even with the same Windows user
+
+**Streaming**
+- 📺 **Moonlight, WebRTC or both** per session, with automatic free ports and collision checks
+- ⚡ **Low latency to TVs** — zero playout delay: 1080p60 from 54 → 38 ms screen to screen
+- 🎞️ **A true 60 fps** in RDP sessions (instead of 58.8 Hz)
+- 🧬 **RemoteIdd display** *(experimental)* — our own IddCx driver hands frames to Sunshine as a GPU texture, no screen capture
+
+**Local seats**
+- 🖱️ Monitor, keyboard, mouse, gamepads, audio and microphone per seat — drag and drop in the dashboard
+- ➗ **Split screen** — up to four seats on one monitor (halves or quarters)
+- 🛡️ Safe by default: lock screen for regular accounts, only the console can shut down the PC
+
+**Management**
+- 🌐 **Web dashboard** (any browser, phones included) + **REST API** with OpenAPI docs at `/scalar/v1`
+- 🔔 **Tray icon** with per-session controls and pairing notifications for Moonlight and TVs
+- ♻️ **Auto-start and self-healing** — sessions come back after a restart; Sunshine is relaunched if it crashes
+- 🎨 Themes (Dark, Light, Synthwave, Retro, Matrix…) and **22 languages**
+- 🧹 **Clean shutdown** — seats sign out with a real logoff, so Windows always shuts down
+
+---
+
+## 📊 How it compares
+
+<img width="1600" alt="OpenStreamMS comparison" src="https://github.com/user-attachments/assets/6bec8234-b742-4b35-b4a9-1769a642041d" />
+
+---
+
+## 📚 Documentation
+
+<details id="installation">
+<summary><b>Installation</b> — installer, uninstall, build from source</summary>
 
 ### Option A — Installer (recommended)
 
@@ -52,9 +132,8 @@ Silent uninstall: `unins000.exe /VERYSILENT [/PURGEDATA] [/REMOVEDEPS]`.
 
 - Windows 10/11 (x64)
 - [.NET 10 SDK](https://dotnet.microsoft.com/download)
-- [Sunshine](https://github.com/ClassicOldSong/Sunshine/) installed
 - Remote Desktop enabled (*System Properties → Remote → Allow remote connections*)
-- *(Optional)* [SudoVDA](https://github.com/itsmikethetech/VirtualDisplay) for virtual display support
+- *(Optional)* [SudoVDA](https://github.com/SudoMaker/SudoVDA) for virtual display support
 
 **Build & install**
 
@@ -70,9 +149,21 @@ OpenStreamMS.exe --install
 OpenStreamMS.exe --uninstall
 ```
 
----
+### Building the installer
 
-## Configuration
+Requires [Inno Setup 6](https://jrsoftware.org/isinfo.php).
+
+```bat
+cd Core\Installer
+build-installer.bat
+```
+
+The resulting `OpenStreamMS-Setup-x.x.x.exe` is placed in `Core\dist\`.
+
+</details>
+
+<details>
+<summary><b>Configuration</b> — <code>service.config.json</code></summary>
 
 Edit `service.config.json` in the install directory (created automatically on first run):
 
@@ -106,9 +197,10 @@ Edit `service.config.json` in the install directory (created automatically on fi
 | `AdminUsername` | — | Web UI admin username (configured on first run) |
 | `LogLevel` | `Error` | Minimum log level for the service, tray icon, seats and Sunshine: `Info`, `Warning`, `Error` or `Off`. Also in the dashboard under **More → Settings** |
 
----
+</details>
 
-## Web Dashboard
+<details>
+<summary><b>Web dashboard</b> — what you can do from it</summary>
 
 Open **OpenStreamMS** from the Start menu or the desktop: the dashboard opens in its own window
 (WebView2; without it, in the default browser). It is also at `http://localhost:5000` in any
@@ -128,9 +220,10 @@ shows what is missing (components, first session, how to connect). After that, t
 - Create **local seats** in the *Seats* tab, test their monitor, audio output and microphone, and see which session each seat uses
 - Access the interactive API docs at `/scalar/v1`
 
----
+</details>
 
-## Streaming protocols and ports
+<details>
+<summary><b>Streaming protocols and ports</b> — Moonlight, WebRTC, firewall</summary>
 
 Sessions run the Sunshine in `Sunshine\` (or the one set in `SunshineExePath`). With the
 [sunshine-webrtc](https://github.com/mlopezsegura/Sunshine-Web-RTC) build, a session can serve:
@@ -164,9 +257,15 @@ The bundled build streams to TVs with zero playout delay: each frame is shown th
 decoded, with no jitter buffer, and the picture no longer waits for the audio. Screen to screen,
 1080p60 went from 54 to 38 ms and 2160p60 from 73 to about 50 ms in Sunshine-Web-RTC's latency test.
 
----
+**RemoteIdd display (experimental).** An IddCx display driver of our own for RDP sessions, built on
+documented Windows APIs only: Sunshine (`capture = remoteidd`) takes each frame from a shared GPU
+texture instead of capturing the screen. Optional in the installer (test certificate, takes effect
+after a restart); used automatically when installed. See [Native/RemoteIdd](Native/RemoteIdd/README.md).
 
-## Local seats
+</details>
+
+<details id="local-seats">
+<summary><b>Local seats</b> — devices, split screen, safety rules, limits</summary>
 
 A **seat** is a set of physical devices — a monitor, an audio output, and USB keyboards, mice and
 gamepads — linked to a session. While the seat is on, the session is shown on that monitor and
@@ -211,21 +310,19 @@ autologon) is recommended.
 
 Design notes and measurements (Spanish): [docs/puestos-locales.md](docs/puestos-locales.md).
 
----
+</details>
 
-## System Tray
+<details>
+<summary><b>Isolated users and Steam</b></summary>
 
-The tray icon (`OpenStreamMS.exe --tray`) runs in the user's desktop session and provides quick access without opening a browser:
+- A session can run under its own auto-managed local user (`osms-…`, shown on the session card), optionally ephemeral (wiped on stop). Isolated sessions get a *Steam (isolated)* shortcut and handle `steam://` links, so each one can sign in to its own Steam account.
+- Deleting an isolated session asks whether to keep its Windows user, which holds Steam's saved login, saves and game settings; a new session can reuse a kept user. Cards warn when Steam has no saved login, and **System → Dedicated users without a session** lists kept users and leftover `osms-*` profiles with their size, to delete them one by one.
+- Steam can run on the console and in a stream session or seat at the same time, even with the same Windows user (per-session hook and browser cache).
 
-- **Double-click** → opens the dashboard
-- **Right-click** → sessions and local seats with a coloured state dot and an on/off action each, and *Open web interface*
-- **Notifications** → a Windows notification when Moonlight or a WebRTC TV waits for a PIN; clicking it opens that session's pairing dialog
+</details>
 
-The menu follows the Windows language (all 22 supported languages: English, Spanish, French, Portuguese, German, Russian, Ukrainian, Bulgarian, Czech, Hungarian, Italian, Japanese, Korean, Polish, Swedish, Turkish, Vietnamese, Chinese Simplified, Chinese Traditional, plus regional variants). The tray icon is registered at Windows startup automatically during installation.
-
----
-
-## Independent Stream Profile
+<details>
+<summary><b>Independent stream profile</b></summary>
 
 When **independent stream profile** is enabled for a session, OpenStreamMS launches Explorer, Sunshine, and Sunshine apps with a separate profile root:
 
@@ -240,9 +337,23 @@ This is native Windows process/profile isolation, not Windows Sandbox. Windows S
 
 Applications that use machine-global mutexes, HKCU registry keys, or their own installation directory for locks may still require a separate Windows user or a separate app installation.
 
----
+</details>
 
-## CLI Reference
+<details>
+<summary><b>System tray</b></summary>
+
+The tray icon (`OpenStreamMS.exe --tray`) runs in the user's desktop session and provides quick access without opening a browser:
+
+- **Double-click** → opens the dashboard
+- **Right-click** → sessions and local seats with a coloured state dot and an on/off action each, and *Open web interface*
+- **Notifications** → a Windows notification when Moonlight or a WebRTC TV waits for a PIN; clicking it opens that session's pairing dialog
+
+The menu follows the Windows language (all 22 supported languages: English, Spanish, French, Portuguese, German, Russian, Ukrainian, Bulgarian, Czech, Hungarian, Italian, Japanese, Korean, Polish, Swedish, Turkish, Vietnamese, Chinese Simplified, Chinese Traditional, plus regional variants). The tray icon is registered at Windows startup automatically during installation.
+
+</details>
+
+<details>
+<summary><b>CLI reference</b></summary>
 
 ```
 OpenStreamMS.exe --run               Run the service (called by Windows SCM)
@@ -260,22 +371,10 @@ OpenStreamMS.exe --identify <cmd>    Test a monitor, an audio output or input de
 OpenStreamMS.exe --help              Show help
 ```
 
----
+</details>
 
-## Building the Installer
-
-Requires [Inno Setup 6](https://jrsoftware.org/isinfo.php).
-
-```bat
-cd Installer
-build-installer.bat
-```
-
-The resulting `OpenStreamMS-Setup-x.x.x.exe` is placed in `dist\`.
-
----
-
-## Architecture
+<details>
+<summary><b>Architecture</b></summary>
 
 ```
 OpenStreamMS.exe  (Windows Service, SYSTEM)
@@ -284,7 +383,7 @@ OpenStreamMS.exe  (Windows Service, SYSTEM)
 ├── ServiceConfig.cs        — Loads/saves service.config.json
 ├── RdpSessionCreator.cs    — Creates the loopback RDP session via WTS API + FreeRDP
 ├── SunshineManager.cs      — Launches and monitors Sunshine.exe inside the RDP session
-├── SunshineConfigurator.cs — Patches apps.json to enable virtual-display support
+├── SunshineConfigurator.cs — Writes each instance's sunshine.conf and apps.json
 ├── ProcessInSession.cs     — CreateProcessAsUser wrapper; supports custom env overrides
 ├── StreamProfileSetup.cs   — Builds the stream profile sandbox; restarts Explorer with new env
 ├── TrayApp.cs              — WinForms ApplicationContext for the system tray icon
@@ -308,15 +407,11 @@ OpenStreamMS.exe  (Windows Service, SYSTEM)
     └── CredentialTester.cs      — Windows credential validation (LogonUser)
 ```
 
+</details>
+
 ---
 
-## Comparative
-<img width="1600" height="980" alt="openstreamms-comparison" src="https://github.com/user-attachments/assets/6bec8234-b742-4b35-b4a9-1769a642041d" />
-
-
-
-## License
+## 📄 License
 
 OpenStreamMS is released under the [MIT License](LICENSE).
-
 The bundled Sunshine (GPL-3.0) and FreeRDP (Apache-2.0) binaries keep their own licenses — see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
