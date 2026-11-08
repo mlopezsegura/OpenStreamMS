@@ -335,7 +335,7 @@ namespace OpenStreamMS.Core.Helpers
             ErrAuthenticationFailed or ErrLogonFailure or ErrWrongPassword =>
                 "Remote Desktop rejected the username or password.",
             ErrAccessDenied =>
-                "The user does not have permission to log on via Remote Desktop.",
+                "The user does not have permission to log on via Remote Desktop. Use an administrator account or add it to 'Remote Desktop Users' (OpenStreamMS does this for local accounts).",
             ErrBadArgument =>
                 "Unsupported argument: wfreerdp prints help and exits.",
             _ => $"Codigo de FreeRDP 0x{exitCode:X}.",

@@ -64,6 +64,10 @@ internal static class IsolatedUserManager
     static extern int NetUserEnum(string? servername, int level, int filter, out IntPtr bufptr, int prefmaxlen,
                                   out int entriesread, out int totalentries, ref int resumeHandle);
 
+    [DllImport("netapi32.dll", CharSet = CharSet.Unicode)]
+    static extern int NetUserGetLocalGroups(string? servername, string username, int level, int flags,
+                                            out IntPtr bufptr, int prefmaxlen, out int entriesread, out int totalentries);
+
     [DllImport("netapi32.dll")]
     static extern int NetApiBufferFree(IntPtr buffer);
 
@@ -477,6 +481,64 @@ internal static class IsolatedUserManager
             return total;
         }
         catch { return null; }
+    }
+
+    /// <summary>
+    /// Sesión con la cuenta propia del usuario (no aislada): Windows solo deja iniciar sesión
+    /// por Escritorio remoto a Administradores y a Remote Desktop Users. Una cuenta estándar
+    /// fuera de ese grupo era rechazada (FreeRDP ERRCONNECT_ACCESS_DENIED, 0x20016) y la sesión
+    /// no arrancaba. Si la cuenta es local y no tiene acceso, se añade a Remote Desktop Users
+    /// (o, sin ese grupo, se le da el derecho). Las cuentas de dominio o de Microsoft no se tocan.
+    /// </summary>
+    internal static void EnsureRemoteLogonForOwnAccount(string username, string? domain)
+    {
+        if (string.IsNullOrWhiteSpace(username) || username.Contains('@') || username.Contains('\\')) return;
+        if (!string.IsNullOrEmpty(domain) && domain != "." &&
+            !domain.Equals(Environment.MachineName, StringComparison.OrdinalIgnoreCase)) return;
+        try
+        {
+            var groups = LocalGroupsOf(username);
+            if (groups is null) return;   // no es una cuenta local de este equipo
+            if (groups.Contains(GroupName(WellKnownSidType.BuiltinAdministratorsSid) ?? "") ||
+                groups.Contains(GroupName(WellKnownSidType.BuiltinRemoteDesktopUsersSid) ?? "")) return;
+
+            Logger.Log($"[RDP] '{username}' no es administrador ni está en Remote Desktop Users: se le da acceso por Escritorio remoto para que la sesión pueda iniciarse.");
+            if (!AddToLocalGroup(username, WellKnownSidType.BuiltinRemoteDesktopUsersSid, required: false))
+                GrantRemoteLogonRight(username);
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"[RDP] No se pudo comprobar el acceso por Escritorio remoto de '{username}': {ex.Message}");
+        }
+    }
+
+    /// <summary>Grupos locales (también indirectos) de una cuenta local, o null si no existe.</summary>
+    static HashSet<string>? LocalGroupsOf(string username)
+    {
+        const int LG_INCLUDE_INDIRECT = 1;
+        int rc = NetUserGetLocalGroups(null, username, 0, LG_INCLUDE_INDIRECT, out var buf,
+                                       MAX_PREFERRED_LENGTH, out int read, out _);
+        try
+        {
+            if (rc == NERR_UserNotFound) return null;
+            if (rc != NERR_Success) throw new InvalidOperationException($"NetUserGetLocalGroups={rc}");
+            var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < read; i++)
+                if (Marshal.PtrToStringUni(Marshal.ReadIntPtr(buf, i * IntPtr.Size)) is { } name) set.Add(name);
+            return set;
+        }
+        finally { if (buf != IntPtr.Zero) NetApiBufferFree(buf); }
+    }
+
+    /// <summary>Nombre localizado de un grupo integrado, o null si este Windows no lo tiene.</summary>
+    static string? GroupName(WellKnownSidType groupSid)
+    {
+        try
+        {
+            var account = ((NTAccount)new SecurityIdentifier(groupSid, null).Translate(typeof(NTAccount))).Value;
+            return account.Contains('\\') ? account[(account.IndexOf('\\') + 1)..] : account;
+        }
+        catch (IdentityNotMappedException) { return null; }
     }
 
     // ── Privados ──────────────────────────────────────────────────────────────
