@@ -4,11 +4,8 @@ Windows service that automates the setup of a game streaming environment using [
 
 Manages the full lifecycle of isolated RDP streaming sessions — creation, monitoring, auto-restart, and teardown — from a web dashboard or REST API. With extra monitors, keyboards, mice and gamepads, the same sessions become **local seats**: several people using one PC at the same time, each with their own screen, input and sound.
 
----
-<img width="1101" height="195" alt="image" src="https://github.com/user-attachments/assets/d749b03f-c2a4-482b-aca6-04525fb0391c" />
-
 ## Features
-
+<img width="1101" height="195" alt="image" src="https://github.com/user-attachments/assets/d749b03f-c2a4-482b-aca6-04525fb0391c" />
 - **Isolated RDP sessions** — each session runs under its own Windows user account with a dedicated Sunshine instance, fully separated from your local desktop
   <img width="1440" height="830" alt="01-sessions" src="https://github.com/user-attachments/assets/6c246ab5-262f-4558-8bd4-87cfb124b335" />
 
