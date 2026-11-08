@@ -78,7 +78,9 @@ nav.top .wrap { display: flex; align-items: center; gap: 20px; height: 60px; }
   border-radius: 8px; padding: 5px 10px; font: 600 12px Inter, sans-serif; cursor: pointer;
 }
 .chip:hover { border-color: var(--accent); }
-@media (max-width: 760px) { .links { display: none; } .tools { margin-left: auto; } }
+.links a { white-space: nowrap; }
+@media (max-width: 1120px) { .links { gap: 14px; font-size: 13px; } }
+@media (max-width: 980px) { .links { display: none; } .tools { margin-left: auto; } }
 
 /* Hero */
 .hero { padding: 88px 0 64px; position: relative; }
@@ -192,6 +194,20 @@ td code { font-size: 12.5px; }
 
 kbd { font: 600 12px "JetBrains Mono", monospace; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 5px; padding: 0 5px; background: var(--bg); }
 
+/* Hall of fame */
+.fame { display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; list-style: none; margin: 0; padding: 0; }
+.fame li { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px 14px 18px; text-align: center; position: relative; transition: border-color .2s, transform .2s; }
+.fame li:hover { border-color: var(--accent); transform: translateY(-2px); }
+.fame li:first-child { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 10px 40px var(--glow); }
+.fame .rank { position: absolute; top: 10px; left: 12px; font: 700 12px "JetBrains Mono", monospace; color: var(--accent-2); }
+.fame img { width: 72px; height: 72px; border-radius: 50%; border: 2px solid var(--border); display: block; margin: 0 auto 12px; background: var(--bg); }
+.fame li:first-child img { border-color: var(--accent); }
+.fame a.who { display: block; font-weight: 700; color: var(--text); overflow-wrap: anywhere; }
+.fame .n { color: var(--muted); font-size: 13px; }
+.fame-more { margin-top: 20px; color: var(--muted); font-size: 14px; }
+@media (max-width: 900px) { .fame { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 520px) { .fame { grid-template-columns: repeat(2, 1fr); } }
+
 footer { padding: 40px 0 56px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--border); }
 footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space-between; }
 </style>
@@ -211,6 +227,7 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
       <a href="#features"><span lang="en">Features</span><span lang="es">Características</span></a>
       <a href="#api">API</a>
       <a href="#install"><span lang="en">Install</span><span lang="es">Instalación</span></a>
+      <a href="#fame"><span lang="en">Hall of fame</span><span lang="es">Hall de la fama</span></a>
       <a href="https://github.com/mlopezsegura/OpenStreamMS">GitHub</a>
     </div>
     <div class="tools">
@@ -705,6 +722,25 @@ publish\OpenStreamMS.exe --install</pre>
   </div>
 </section>
 
+<!-- ───────────────────────── HALL OF FAME ───────────────────────── -->
+<section id="fame" class="alt">
+  <div class="wrap">
+    <div class="eyebrow"><span lang="en">Hall of fame</span><span lang="es">Hall de la fama</span></div>
+    <h2><span lang="en">The people who build it</span><span lang="es">Quienes lo construyen</span></h2>
+    <p class="sub"><span lang="en">Top contributors by commits to the main branch, straight from GitHub.</span><span lang="es">Los que más commits han aportado a la rama principal, según GitHub.</span></p>
+    <!-- Lista de respaldo si la API de GitHub no responde; el script la sustituye por la actual. -->
+    <ol class="fame" id="fameList">
+      <li><span class="rank">#1</span><img src="https://github.com/mlopezsegura.png?size=144" alt="" loading="lazy" width="72" height="72"><a class="who" href="https://github.com/mlopezsegura">mlopezsegura</a></li>
+      <li><span class="rank">#2</span><img src="https://github.com/Dani6ca-T.png?size=144" alt="" loading="lazy" width="72" height="72"><a class="who" href="https://github.com/Dani6ca-T">Dani6ca-T</a></li>
+      <li><span class="rank">#3</span><img src="https://github.com/muamkh.png?size=144" alt="" loading="lazy" width="72" height="72"><a class="who" href="https://github.com/muamkh">muamkh</a></li>
+    </ol>
+    <p class="fame-more">
+      <span lang="en">Want to be here? Pull requests are welcome on</span><span lang="es">¿Quieres aparecer aquí? Las pull requests son bienvenidas en</span>
+      <a href="https://github.com/mlopezsegura/OpenStreamMS">GitHub</a>.
+    </p>
+  </div>
+</section>
+
 <footer>
   <div class="wrap">
     <div>
@@ -745,6 +781,44 @@ publish\OpenStreamMS.exe --install</pre>
                                   : !matchMedia('(prefers-color-scheme: light)').matches;
     root.dataset.theme = dark ? 'light' : 'dark'; set('osms-theme', root.dataset.theme);
   });
+
+  // Hall of fame: top 5 contributors from GitHub, without bots or Claude.
+  // If the API fails (offline, rate limit), the static list in the HTML stays.
+  var fame = document.getElementById('fameList');
+  function isExcluded(c) {
+    return c.type !== 'User' || /claude/i.test(c.login) || /\[bot\]$/i.test(c.login);
+  }
+  function el(tag, attrs, text) {
+    var e = document.createElement(tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function commits(n) {
+    var s = document.createElement('span');
+    s.className = 'n';
+    s.appendChild(el('span', { lang: 'en' }, n + (n === 1 ? ' commit' : ' commits')));
+    s.appendChild(el('span', { lang: 'es' }, n + (n === 1 ? ' commit' : ' commits')));
+    return s;
+  }
+  if (fame && window.fetch) {
+    fetch('https://api.github.com/repos/mlopezsegura/OpenStreamMS/contributors?per_page=100')
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (list) {
+        var top = list.filter(function (c) { return !isExcluded(c); }).slice(0, 5);
+        if (!top.length) return;
+        fame.textContent = '';
+        top.forEach(function (c, i) {
+          var li = document.createElement('li');
+          li.appendChild(el('span', { 'class': 'rank' }, '#' + (i + 1)));
+          li.appendChild(el('img', { src: c.avatar_url + '&s=144', alt: '', loading: 'lazy', width: 72, height: 72 }));
+          li.appendChild(el('a', { 'class': 'who', href: c.html_url }, c.login));
+          li.appendChild(commits(c.contributions));
+          fame.appendChild(li);
+        });
+      })
+      .catch(function () { /* keep the static list */ });
+  }
 })();
 </script>
 </body>
