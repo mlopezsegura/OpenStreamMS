@@ -217,6 +217,8 @@ public class StreamSession
     /// Null fuera del arranque. No se persiste.
     /// </summary>
     public string?      StartPhase      { get; set; }
+    /// <summary>Paso del arranque en el que falló el último intento (mismos valores que StartPhase). No se persiste.</summary>
+    public string?      FailedPhase     { get; set; }
     /// <summary>
     /// Clientes transmitiendo ahora por Moonlight y por WebRTC (TVs), según el Sunshine de la
     /// sesión (<see cref="OpenStreamMS.Services.OpenStream.ActiveStreamsMonitor"/>). Null si no se sabe:

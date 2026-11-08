@@ -20,6 +20,8 @@
       <span class="nav-brand-text">OpenStreamMS</span>
     </div>
     <div class="nav-actions">
+      <!-- Uso del equipo: solo se mide con el panel abierto (insights.js). -->
+      <div class="res-strip" id="res-strip" hidden></div>
       <!-- Estado del sistema: una sola píldora; las dependencias, en su desplegable. -->
       <div class="nav-pop-wrap">
         <button id="sys-pill" class="status-pill sys-pill" type="button" onclick="togglePop('sys-pop', event)" aria-haspopup="true">
@@ -92,7 +94,17 @@
     <section id="view-sessions">
       <div class="toolbar">
         <span class="toolbar-title"><span data-i18n="toolbar.sessions">Sesiones</span> — <strong id="session-count">0</strong></span>
-        <button class="btn btn-primary btn-sm" onclick="openNewModal()" data-i18n="toolbar.newSession">+ Nueva sesión</button>
+        <div class="toolbar-actions">
+          <div class="view-toggle" role="group" data-i18n-aria="view.toggle" aria-label="Vista">
+            <button type="button" data-view="cards" class="active" aria-pressed="true" onclick="setSessionsView('cards')" data-i18n-title="view.cards" data-i18n-aria="view.cards" title="Tarjetas" aria-label="Tarjetas">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></svg>
+            </button>
+            <button type="button" data-view="list" aria-pressed="false" onclick="setSessionsView('list')" data-i18n-title="view.list" data-i18n-aria="view.list" title="Lista" aria-label="Lista">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1" fill="currentColor"/><circle cx="3.5" cy="12" r="1" fill="currentColor"/><circle cx="3.5" cy="18" r="1" fill="currentColor"/></svg>
+            </button>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openNewModal()" data-i18n="toolbar.newSession">+ Nueva sesión</button>
+        </div>
       </div>
       <div class="sessions-grid" id="sessions-grid">
         <div class="empty-state"><p data-i18n="empty.loading">Cargando…</p></div>
@@ -597,7 +609,14 @@
     <div class="modal-body">
       <div class="log-toolbar">
         <span id="log-status" data-i18n="log.updating">Actualizando…</span>
-        <div style="display:flex;gap:.5rem;align-items:center">
+        <div class="log-controls">
+          <input type="search" id="log-search" class="log-search" oninput="renderLogs()" data-i18n-placeholder="log.search" placeholder="Buscar…" data-i18n-aria="log.search" aria-label="Buscar…">
+          <select id="log-level" class="btn btn-ghost btn-sm log-level" onchange="renderLogs()" data-i18n-aria="log.filter" aria-label="Mostrar">
+            <option value="all" data-i18n="log.filter.all">Todo</option>
+            <option value="warn" data-i18n="log.filter.warn">Avisos y errores</option>
+            <option value="error" data-i18n="log.filter.error">Solo errores</option>
+          </select>
+          <button type="button" class="btn btn-ghost btn-sm" id="log-pause" onclick="toggleLogPause()" aria-pressed="false" data-i18n="log.pause">Pausar</button>
           <label class="toggle" data-i18n-title="log.autoscroll_title" title="Auto-scroll al final">
             <input type="checkbox" id="scroll-toggle" checked onchange="autoScroll=this.checked">
             <span class="toggle-track"></span>
@@ -963,6 +982,7 @@
 
 <script src="/ui-messages.js"></script>
 <script src="/app.js"></script>
+<script src="/insights.js"></script>
 <script src="/seats.js"></script>
 <script src="/guide.js"></script>
 </body>

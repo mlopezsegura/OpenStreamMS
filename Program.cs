@@ -133,6 +133,7 @@ static async Task RunService(string[] args)
     builder.Services.AddSingleton<ViGEmBusManager>();
     builder.Services.AddSingleton<HidHideManager>();
     builder.Services.AddSingleton<OpenStreamMS.Services.Seats.SeatManager>();
+    builder.Services.AddSingleton<OpenStreamMS.Services.Metrics.SystemMetrics>();
     builder.Services.AddHostedService<OpenStreamService>();
     builder.Services.AddHostedService<OpenStreamMS.Services.OpenStream.ActiveStreamsMonitor>();
     builder.Services.AddHostedService<OpenStreamMS.Services.Gamepad.GamepadSessionIsolation>();
@@ -320,6 +321,10 @@ static async Task RunService(string[] args)
 
     // ── Paquete de diagnóstico (.zip para depurar un equipo) ─────────────────
     app.MapDiagnosticsApi();
+
+    // ── Uso del equipo y de cada sesión (solo se mide mientras el panel lo consulta) ──
+    app.MapGet("/api/metrics", (OpenStreamMS.Services.Metrics.SystemMetrics m) => TypedResults.Ok(m.Get()))
+       .WithTags("Metrics");
 
     Logger.Log($"[Service] Web disponible en http://localhost:{config.ApiPort}");
     Logger.Log($"[Service] API docs en http://localhost:{config.ApiPort}/scalar/v1");
