@@ -7,11 +7,12 @@ namespace OpenStreamMS.Services.Session;
 /// endpoint render activo del host. Usa WASAPI <c>IAudioSessionManager2</c> +
 /// <c>IAudioSessionControl2.GetProcessId</c> + <c>ISimpleAudioVolume.SetMute</c>.
 ///
-/// Caso de uso: silenciar a wfreerdp.exe en el host. wfreerdp recibe el audio
-/// redirigido por RDP y lo reproduce en su endpoint default (físico). Mute de su
-/// audio session = host mudo. Sunshine, dentro de la sesión RDP, sigue capturando
-/// el audio en el endpoint origen ("Remote Audio") por loopback antes del transporte
-/// RDP, así que Moonlight no se ve afectado.
+/// Caso de uso: silenciar a mstsc.exe en el host. mstsc recibe el audio redirigido
+/// por RDP y lo reproduce en su endpoint default (físico). Mute de su audio session
+/// = host mudo. Sunshine, dentro de la sesión RDP, sigue capturando el audio en el
+/// endpoint origen ("Remote Audio") por loopback antes del transporte RDP, así que
+/// Moonlight no se ve afectado. wfreerdp no lo necesita: va con <c>/sound:sys:fake</c>
+/// y descarta el audio sin reproducirlo.
 /// </summary>
 public static class AudioSessionMuter
 {
