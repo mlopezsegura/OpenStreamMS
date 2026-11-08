@@ -1650,6 +1650,145 @@ section#view-sessions, section#view-seats { animation: viewIn .35s var(--ease); 
 :root[data-theme="matrix"] .modal, :root[data-theme="matrix"] .session-card,
 :root[data-theme="matrix"] .onboarding { border-radius: 3px; }
 
+/* ── Nord: azules árticos sobre gris pizarra ───────────────────────────── */
+:root[data-theme="nord"] {
+  --bg: #242933;            --bg-deep: #1f232b;      --bg-deep-2: #1f232b;    --bg-deep-3: #1b1f26;
+  --surface: #2e3440;       --card: #3b4252;
+  --border: #4c566a;        --border-h: #5e6a82;
+  --text: #eceff4;          --muted: #aab3c5;        --muted-h: #d8dee9;
+  --accent: #88c0d0;        --accent-h: #77b2c3;     --accent-mid: #8fbcbb;   --accent-alt: #81a1c1;
+  --brand-from: #eceff4;
+  --accent-text: #8fd0e0;   --accent-soft: #88c0d0;  --indigo-text: #b4c6e0; --indigo-pale: #e5e9f0;
+  --accent-2: #8fbcbb;      --cyan: #88c0d0;         --cyan-soft: #a3d5e0;
+  --pink: #b48ead;          --pink-soft: #c9a7c3;    --amber: #ebcb8b;
+  --green: #a3be8c;         --green-soft: #b5cc9f;   --ok: #a3be8c;
+  --blue: #81a1c1;          --blue-soft: #94b2d0;    --blue-text: #b4c9df;   --blue-pale: #d8e3ef;
+  --orange: #d08770;        --red: #bf616a;          --red-soft: #d0808a;
+  --on-accent: #2e3440;
+  --c-accent: 136,192,208;  --c-orange: 208,135,112; --c-amber: 235,203,139;  --c-ok: 163,190,140;
+  --glow-green: 163,190,140; --glow-blue: 129,161,193; --glow-red: 191,97,106;
+  --c-ink: 236,239,244;     --c-shadow: 12,15,20;
+  --c-panel: 59,66,82;      --c-panel-2: 52,58,72;   --c-panel-3: 46,52,64;
+  --c-glass: 59,66,82;      --c-glass-h: 67,76,94;   --c-deep: 31,35,43;
+  --glass: rgba(59,66,82,.72); --glass-h: rgba(67,76,94,.82);
+  --shadow: 0 8px 36px rgba(12,15,20,.5);
+}
+:root[data-theme="nord"] .bg-glow span:nth-child(1) { background: #5e81ac; }
+:root[data-theme="nord"] .bg-glow span:nth-child(2) { background: #88c0d0; }
+:root[data-theme="nord"] .bg-glow span:nth-child(3) { background: #b48ead; }
+
+/* ── Dracula: violeta, rosa y cian sobre gris noche ────────────────────── */
+:root[data-theme="dracula"] {
+  --bg: #21222c;            --bg-deep: #191a21;      --bg-deep-2: #191a21;    --bg-deep-3: #15161c;
+  --surface: #282a36;       --card: #2d2f3d;
+  --border: #44475a;        --border-h: #6272a4;
+  --text: #f8f8f2;          --muted: #a2abd0;        --muted-h: #cfd4ea;
+  --accent: #bd93f9;        --accent-h: #a97ff0;     --accent-mid: #caa6ff;   --accent-alt: #ff79c6;
+  --brand-from: #f8f8f2;
+  --accent-text: #d6bcff;   --accent-soft: #c7a4fb;  --indigo-text: #c7b6ff; --indigo-pale: #ece4ff;
+  --accent-2: #8be9fd;      --cyan: #8be9fd;         --cyan-soft: #b0f1ff;
+  --pink: #ff79c6;          --pink-soft: #ff9fd6;    --amber: #f1fa8c;
+  --green: #50fa7b;         --green-soft: #7dfb9b;   --ok: #50fa7b;
+  --blue: #8be9fd;          --blue-soft: #a6eefd;    --blue-text: #c2f4fe;   --blue-pale: #e0faff;
+  --orange: #ffb86c;        --red: #ff5555;          --red-soft: #ff7f7f;
+  --on-accent: #21222c;
+  --c-accent: 189,147,249;  --c-orange: 255,184,108; --c-amber: 241,250,140;  --c-ok: 80,250,123;
+  --glow-green: 80,250,123; --glow-blue: 139,233,253; --glow-red: 255,85,85;
+  --c-ink: 248,248,242;     --c-shadow: 8,8,12;
+  --c-panel: 45,47,61;      --c-panel-2: 40,42,54;   --c-panel-3: 35,36,47;
+  --c-glass: 45,47,61;      --c-glass-h: 55,58,75;   --c-deep: 25,26,33;
+  --glass: rgba(45,47,61,.7); --glass-h: rgba(55,58,75,.8);
+  --shadow: 0 8px 40px rgba(8,8,12,.55);
+}
+:root[data-theme="dracula"] .bg-glow span:nth-child(1) { background: #bd93f9; }
+:root[data-theme="dracula"] .bg-glow span:nth-child(2) { background: #ff79c6; }
+:root[data-theme="dracula"] .bg-glow span:nth-child(3) { background: #8be9fd; }
+
+/* ── Solarized: el claro de Ethan Schoonover, papel crema y acentos sobrios ── */
+:root[data-theme="solarized"] {
+  color-scheme: light;
+  --bg: #fdf6e3;            --bg-deep: #f6efda;      --bg-deep-2: #f6efda;    --bg-deep-3: #eee8d5;
+  --surface: #fffbee;       --card: #fffbee;
+  --border: #e4dcc4;        --border-h: #cfc5a8;
+  --text: #073642;          --muted: #586e75;        --muted-h: #3d5056;
+  --accent: #2176b5;        --accent-h: #1a6299;     --accent-mid: #268bd2;   --accent-alt: #6c71c4;
+  --brand-from: #073642;
+  --accent-text: #1a5f91;   --accent-soft: #2176b5;  --indigo-text: #6c71c4; --indigo-pale: #e7e8f7;
+  --accent-2: #2aa198;      --cyan: #1e7f78;         --cyan-soft: #2aa198;
+  --pink: #d33682;          --pink-soft: #b02a6c;    --amber: #8a6a00;
+  --green: #5f7000;         --green-soft: #5f7000;   --ok: #859900;
+  --blue: #268bd2;          --blue-soft: #1f73b0;    --blue-text: #1a5f91;   --blue-pale: #154d75;
+  --orange: #b04112;        --red: #dc322f;          --red-soft: #b82724;
+  --on-accent: #ffffff;
+  --c-accent: 33,118,181;   --c-orange: 203,75,22;   --c-amber: 181,137,0;    --c-ok: 133,153,0;
+  --glow-green: 133,153,0;  --glow-blue: 38,139,210; --glow-red: 220,50,47;
+  --c-ink: 7,54,66;         --c-shadow: 88,74,40;
+  --c-slate: 101,123,131;   --c-slate-h: 88,110,117;
+  --c-panel: 255,251,238;   --c-panel-2: 255,251,238; --c-panel-3: 250,244,226;
+  --c-glass: 255,251,238;   --c-glass-h: 255,253,245; --c-deep: 238,232,213;
+  --glass: rgba(255,251,238,.8); --glass-h: rgba(255,253,245,.92);
+  --shadow: 0 8px 30px rgba(88,74,40,.14);
+}
+:root[data-theme="solarized"] .bg-glow span { opacity: .10; }
+:root[data-theme="solarized"] .bg-glow span:nth-child(1) { background: #268bd2; }
+:root[data-theme="solarized"] .bg-glow span:nth-child(2) { background: #2aa198; opacity: .08; }
+:root[data-theme="solarized"] .bg-glow span:nth-child(3) { background: #b58900; opacity: .06; }
+
+/* ── OLED: negro puro (los píxeles se apagan) y sin brillos de fondo ───── */
+:root[data-theme="oled"] {
+  --bg: #000000;            --bg-deep: #000000;      --bg-deep-2: #000000;    --bg-deep-3: #000000;
+  --surface: #000000;       --card: #0a0a0a;
+  --border: #262626;        --border-h: #3d3d3d;
+  --text: #f5f5f5;          --muted: #a3a3a3;        --muted-h: #d4d4d4;
+  --accent: #8b5cf6;        --accent-h: #7c3aed;     --accent-mid: #a78bfa;   --accent-alt: #818cf8;
+  --brand-from: #ffffff;
+  --accent-text: #c4b5fd;   --accent-soft: #a78bfa;
+  --on-accent: #ffffff;
+  --c-accent: 139,92,246;
+  --c-ink: 255,255,255;     --c-shadow: 0,0,0;
+  --c-panel: 10,10,10;      --c-panel-2: 8,8,8;      --c-panel-3: 5,5,5;
+  --c-glass: 10,10,10;      --c-glass-h: 20,20,20;   --c-deep: 0,0,0;
+  --glass: rgba(10,10,10,.92); --glass-h: rgba(20,20,20,.95);
+  --shadow: 0 0 0 1px rgba(255,255,255,.06);
+}
+:root[data-theme="oled"] .bg-glow { display: none; }
+
+/* ── Alto contraste: blanco y amarillo sobre negro, bordes siempre visibles ── */
+:root[data-theme="contrast"] {
+  --bg: #000000;            --bg-deep: #000000;      --bg-deep-2: #000000;    --bg-deep-3: #000000;
+  --surface: #000000;       --card: #000000;
+  --border: #ffffff;        --border-h: #ffff00;
+  --text: #ffffff;          --muted: #e6e6e6;        --muted-h: #ffffff;
+  --accent: #ffff00;        --accent-h: #e6e600;     --accent-mid: #ffff66;   --accent-alt: #00ffff;
+  --brand-from: #ffffff;
+  --accent-text: #ffff00;   --accent-soft: #ffff00;  --indigo-text: #ffff00; --indigo-pale: #ffffff;
+  --accent-2: #00ffff;      --cyan: #00ffff;         --cyan-soft: #66ffff;
+  --pink: #ff66ff;          --pink-soft: #ff99ff;    --amber: #ffd000;
+  --green: #00ff00;         --green-soft: #66ff66;   --ok: #00ff00;
+  --blue: #66ccff;          --blue-soft: #99ddff;    --blue-text: #99ddff;   --blue-pale: #ccf0ff;
+  --orange: #ffb000;        --red: #ff6666;          --red-soft: #ff9999;
+  --on-accent: #000000;
+  --c-accent: 255,255,0;    --c-orange: 255,176,0;   --c-amber: 255,208,0;    --c-ok: 0,255,0;
+  --glow-green: 0,255,0;    --glow-blue: 102,204,255; --glow-red: 255,102,102;
+  --c-ink: 255,255,255;     --c-shadow: 0,0,0;
+  --c-slate: 230,230,230;   --c-slate-h: 255,255,255;
+  --c-panel: 0,0,0;         --c-panel-2: 0,0,0;      --c-panel-3: 0,0,0;
+  --c-glass: 0,0,0;         --c-glass-h: 0,0,0;      --c-deep: 0,0,0;
+  --glass: #000000;         --glass-h: #000000;
+  --shadow: none;
+}
+:root[data-theme="contrast"] .bg-glow { display: none; }
+:root[data-theme="contrast"] .modal, :root[data-theme="contrast"] .session-card,
+:root[data-theme="contrast"] .nav-pop, :root[data-theme="contrast"] .onboarding,
+:root[data-theme="contrast"] .monitor-map, :root[data-theme="contrast"] .hw-pool { border: 2px solid var(--border); }
+:root[data-theme="contrast"] .nav { border-bottom: 2px solid var(--border); }
+:root[data-theme="contrast"] a { text-decoration: underline; }
+:root[data-theme="contrast"] :focus-visible { outline: 3px solid #ffff00 !important; outline-offset: 2px; }
+:root[data-theme="contrast"] .nav-brand-text { background: none; color: #ffffff; }
+
+/* ── Windows: claro u oscuro según Windows; theme.js pone el acento en línea ── */
+:root[data-accent="windows"] .bg-glow span:nth-child(1) { background: var(--accent); }
+
 /* ── Efectos reducidos: sin desenfoque, sin animaciones continuas ni fondos animados ── */
 :root[data-effects="reduced"] *,
 :root[data-effects="reduced"] *::before,
@@ -1691,6 +1830,49 @@ section#view-sessions, section#view-seats { animation: viewIn .35s var(--ease); 
 .ts-btn { width: 40%; height: 7px; border-radius: 3px; margin-top: 2px; }
 .theme-name { text-align: center; }
 #effects-picker { flex-wrap: wrap; }
+
+/* ── Ventana de ajustes: ancha, con secciones a la izquierda ───────────── */
+.modal.modal-settings { max-width: min(1040px, 94vw); height: min(720px, 90vh); overflow: hidden; background: rgb(var(--c-panel)); }
+.settings-layout { display: grid; grid-template-columns: 210px minmax(0, 1fr); flex: 1; min-height: 0; }
+.settings-nav {
+  display: flex; flex-direction: column; gap: .25rem; padding: 1rem .7rem;
+  border-right: 1px solid var(--border); background: rgba(var(--c-deep),.35);
+}
+.settings-tab {
+  display: flex; align-items: center; gap: .65rem; padding: .6rem .75rem; border: 0; border-radius: 10px;
+  background: transparent; color: var(--muted-h); font: inherit; font-size: .88rem; text-align: left; cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.settings-tab svg { width: 18px; height: 18px; flex-shrink: 0; }
+.settings-tab:hover { background: rgba(var(--c-ink),.05); color: var(--text); }
+.settings-tab[aria-selected="true"] { background: rgba(var(--c-accent),.16); color: var(--text); box-shadow: inset 3px 0 0 var(--accent); }
+.settings-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.modal-settings .settings-panes { overflow-y: auto; padding: 1.4rem 1.8rem 1.8rem; scrollbar-width: thin; scrollbar-color: var(--border-h) transparent; }
+.settings-pane[hidden] { display: none; }
+.settings-pane > .settings-section {
+  margin: 0 0 1.1rem; padding: 0; border: 0; font-size: 1.05rem; font-weight: 600;
+  letter-spacing: -.01em; text-transform: none; color: var(--text);
+}
+.modal-settings .form-row { margin-bottom: 1.3rem; }
+.modal-settings .theme-picker { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: .65rem; }
+.modal-settings .theme-swatch { height: 64px; }
+.modal-settings .level-picker { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.modal-settings .diag-row { max-width: 640px; }
+#windows-theme-hint { margin-top: .55rem; }
+
+@media (max-width: 640px) {
+  .modal.modal-settings { height: 92vh; max-width: none; }
+  .settings-layout { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
+  .settings-nav {
+    flex-direction: row; overflow-x: auto; gap: .3rem; padding: .5rem .6rem;
+    border-right: 0; border-bottom: 1px solid var(--border); scrollbar-width: none;
+  }
+  .settings-tab { flex: 0 0 auto; padding: .5rem .7rem; }
+  .settings-tab[aria-selected="true"] { box-shadow: inset 0 -2px 0 var(--accent); }
+  .modal-settings .settings-panes { padding: 1.1rem 1rem 1.4rem; }
+  .modal-settings .theme-picker { grid-template-columns: repeat(2, 1fr); }
+  .modal-settings .level-picker { grid-template-columns: 1fr; }
+}
 
 /* Pistas sueltas en el cuerpo de una ventana (fuera de un .form-row) */
 .modal-body > .hint { font-size: .76rem; color: var(--muted); margin: .3rem 0 0; }

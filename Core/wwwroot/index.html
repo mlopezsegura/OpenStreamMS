@@ -517,64 +517,76 @@
 
 <!-- ─── Modal: ajustes globales ─────────────────────────────────────────── -->
 <div class="modal-backdrop hidden" id="settings-modal" onclick="handleBackdropClick(event,'settings-modal')">
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title" onclick="event.stopPropagation()">
+  <div class="modal modal-settings" role="dialog" aria-modal="true" aria-labelledby="settings-title" onclick="event.stopPropagation()">
     <div class="modal-header">
       <h3 id="settings-title" data-i18n="settings.title">Ajustes</h3>
       <button class="modal-close" type="button" onclick="hide('settings-modal')" data-i18n-aria="btn.close" aria-label="Cerrar">×</button>
     </div>
-    <div class="modal-body">
-      <h4 class="settings-section" data-i18n="appearance.title">Apariencia</h4>
-      <div class="form-row">
-        <label data-i18n="appearance.theme">Tema</label>
-        <div class="theme-picker" id="theme-picker" role="radiogroup"></div>
-      </div>
-      <div class="form-row">
-        <label data-i18n="appearance.effects">Efectos visuales</label>
-        <div class="segmented" role="radiogroup" id="effects-picker">
-          <input type="radio" name="Effects" id="fx-auto" value="auto" onchange="Theme.setEffects(this.value)">
-          <label for="fx-auto" data-i18n="appearance.fx.auto">Automático</label>
-          <input type="radio" name="Effects" id="fx-full" value="full" onchange="Theme.setEffects(this.value)">
-          <label for="fx-full" data-i18n="appearance.fx.full">Completos</label>
-          <input type="radio" name="Effects" id="fx-reduced" value="reduced" onchange="Theme.setEffects(this.value)">
-          <label for="fx-reduced" data-i18n="appearance.fx.reduced">Reducidos</label>
-        </div>
-        <div class="hint" id="effects-hint"></div>
-      </div>
-      <p class="hint" data-i18n="appearance.local">El tema y los efectos se guardan en este navegador; no cambian lo que ven los demás.</p>
-
-      <h4 class="settings-section" data-i18n="settings.logSection">Registro</h4>
-      <div class="form-row">
-        <label data-i18n="settings.logLabel">Nivel de log</label>
-        <div class="level-picker" role="radiogroup" id="settings-log-level">
-          <label class="level-option"><input type="radio" name="LogLevel" value="Info">
-            <span><strong data-i18n="settings.log.Info">Info</strong><small data-i18n="settings.log.InfoHint">Todo: arranques, conexiones, avisos y errores. Útil para diagnosticar.</small></span></label>
-          <label class="level-option"><input type="radio" name="LogLevel" value="Warning">
-            <span><strong data-i18n="settings.log.Warning">Avisos</strong><small data-i18n="settings.log.WarningHint">Solo avisos y errores.</small></span></label>
-          <label class="level-option"><input type="radio" name="LogLevel" value="Error">
-            <span><strong data-i18n="settings.log.Error">Errores</strong><small data-i18n="settings.log.ErrorHint">Solo lo que ha fallado.</small></span></label>
-          <label class="level-option"><input type="radio" name="LogLevel" value="Off">
-            <span><strong data-i18n="settings.log.Off">Desactivado</strong><small data-i18n="settings.log.OffHint">No se escribe nada. Si algo falla, no quedará rastro.</small></span></label>
-        </div>
-        <div class="hint" data-i18n="settings.logHint">Vale para el servicio, la bandeja, los puestos y Sunshine. Cada Sunshine lo aplica la próxima vez que se reinicie su sesión.</div>
-      </div>
-
-      <h4 class="settings-section" data-i18n="settings.diagSection">Diagnóstico</h4>
-      <div class="form-row">
-        <p class="hint diag-hint" data-i18n="settings.diagHint">Genera un .zip con la versión de Windows, datos del equipo, los logs de OpenStreamMS y de Sunshine (también los de la sesión anterior) y los errores de Windows. Oculta el nombre del equipo, las cuentas y los correos. Para más detalle, pon antes el nivel de log en Info y reproduce el fallo. Revísalo antes de enviarlo.</p>
-        <label for="diag-days" data-i18n="settings.diagDays">Eventos de Windows</label>
-        <div class="diag-row">
-          <select id="diag-days">
-            <option value="1" data-i18n="settings.diagDays1">Último día</option>
-            <option value="3" selected data-i18n="settings.diagDays3">Últimos 3 días</option>
-            <option value="7" data-i18n="settings.diagDays7">Últimos 7 días</option>
-          </select>
-          <button class="btn btn-ghost" type="button" id="diag-download" onclick="downloadDiagnostics()" data-i18n="settings.diagDownload">Descargar paquete de diagnóstico</button>
-        </div>
+    <div class="settings-layout">
+      <nav class="settings-nav" role="tablist" aria-orientation="vertical" data-i18n-aria="settings.title" aria-label="Ajustes">
+        <button type="button" role="tab" class="settings-tab" id="settings-tab-appearance" data-pane="appearance" aria-controls="settings-pane-appearance" onclick="settingsPane('appearance')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.7-.9 1.4-1.9-.3-.9.2-1.8 1.2-1.8H17a4 4 0 0 0 4-4c0-5.1-4-9.3-9-9.3z"/><circle cx="7.5" cy="11" r="1.2" fill="currentColor"/><circle cx="10.5" cy="7.2" r="1.2" fill="currentColor"/><circle cx="15" cy="7.8" r="1.2" fill="currentColor"/></svg><span data-i18n="appearance.title">Apariencia</span></button>
+        <button type="button" role="tab" class="settings-tab" id="settings-tab-log" data-pane="log" aria-controls="settings-pane-log" onclick="settingsPane('log')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6"/><path d="M8 13h8M8 17h5"/></svg><span data-i18n="settings.logSection">Registro</span></button>
+        <button type="button" role="tab" class="settings-tab" id="settings-tab-diag" data-pane="diag" aria-controls="settings-pane-diag" onclick="settingsPane('diag')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg><span data-i18n="settings.diagSection">Diagnóstico</span></button>
+      </nav>
+      <div class="modal-body settings-panes">
+        <section class="settings-pane" id="settings-pane-appearance" role="tabpanel" aria-labelledby="settings-tab-appearance">
+          <h4 class="settings-section" data-i18n="appearance.title">Apariencia</h4>
+          <div class="form-row">
+            <label data-i18n="appearance.theme">Tema</label>
+            <div class="theme-picker" id="theme-picker" role="radiogroup"></div>
+            <div class="hint hidden" id="windows-theme-hint"></div>
+          </div>
+          <div class="form-row">
+            <label data-i18n="appearance.effects">Efectos visuales</label>
+            <div class="segmented" role="radiogroup" id="effects-picker">
+              <input type="radio" name="Effects" id="fx-auto" value="auto" onchange="Theme.setEffects(this.value)">
+              <label for="fx-auto" data-i18n="appearance.fx.auto">Automático</label>
+              <input type="radio" name="Effects" id="fx-full" value="full" onchange="Theme.setEffects(this.value)">
+              <label for="fx-full" data-i18n="appearance.fx.full">Completos</label>
+              <input type="radio" name="Effects" id="fx-reduced" value="reduced" onchange="Theme.setEffects(this.value)">
+              <label for="fx-reduced" data-i18n="appearance.fx.reduced">Reducidos</label>
+            </div>
+            <div class="hint" id="effects-hint"></div>
+          </div>
+          <p class="hint" data-i18n="appearance.local">El tema y los efectos se guardan en este navegador; no cambian lo que ven los demás.</p>
+        </section>
+        <section class="settings-pane" id="settings-pane-log" role="tabpanel" aria-labelledby="settings-tab-log">
+          <h4 class="settings-section" data-i18n="settings.logSection">Registro</h4>
+          <div class="form-row">
+            <label data-i18n="settings.logLabel">Nivel de log</label>
+            <div class="level-picker" role="radiogroup" id="settings-log-level">
+              <label class="level-option"><input type="radio" name="LogLevel" value="Info">
+                <span><strong data-i18n="settings.log.Info">Info</strong><small data-i18n="settings.log.InfoHint">Todo: arranques, conexiones, avisos y errores. Útil para diagnosticar.</small></span></label>
+              <label class="level-option"><input type="radio" name="LogLevel" value="Warning">
+                <span><strong data-i18n="settings.log.Warning">Avisos</strong><small data-i18n="settings.log.WarningHint">Solo avisos y errores.</small></span></label>
+              <label class="level-option"><input type="radio" name="LogLevel" value="Error">
+                <span><strong data-i18n="settings.log.Error">Errores</strong><small data-i18n="settings.log.ErrorHint">Solo lo que ha fallado.</small></span></label>
+              <label class="level-option"><input type="radio" name="LogLevel" value="Off">
+                <span><strong data-i18n="settings.log.Off">Desactivado</strong><small data-i18n="settings.log.OffHint">No se escribe nada. Si algo falla, no quedará rastro.</small></span></label>
+            </div>
+            <div class="hint" data-i18n="settings.logHint">Vale para el servicio, la bandeja, los puestos y Sunshine. Cada Sunshine lo aplica la próxima vez que se reinicie su sesión.</div>
+          </div>
+        </section>
+        <section class="settings-pane" id="settings-pane-diag" role="tabpanel" aria-labelledby="settings-tab-diag">
+          <h4 class="settings-section" data-i18n="settings.diagSection">Diagnóstico</h4>
+          <div class="form-row">
+            <p class="hint diag-hint" data-i18n="settings.diagHint">Genera un .zip con la versión de Windows, datos del equipo, los logs de OpenStreamMS y de Sunshine (también los de la sesión anterior) y los errores de Windows. Oculta el nombre del equipo, las cuentas y los correos. Para más detalle, pon antes el nivel de log en Info y reproduce el fallo. Revísalo antes de enviarlo.</p>
+            <label for="diag-days" data-i18n="settings.diagDays">Eventos de Windows</label>
+            <div class="diag-row">
+              <select id="diag-days">
+                <option value="1" data-i18n="settings.diagDays1">Último día</option>
+                <option value="3" selected data-i18n="settings.diagDays3">Últimos 3 días</option>
+                <option value="7" data-i18n="settings.diagDays7">Últimos 7 días</option>
+              </select>
+              <button class="btn btn-ghost" type="button" id="diag-download" onclick="downloadDiagnostics()" data-i18n="settings.diagDownload">Descargar paquete de diagnóstico</button>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
     <div class="modal-footer">
-      <button class="btn btn-ghost" type="button" onclick="hide('settings-modal')" data-i18n="btn.cancel">Cancelar</button>
-      <button class="btn btn-primary" type="button" id="settings-save" onclick="saveSettings()" data-i18n="btn.save">Guardar</button>
+      <button class="btn btn-ghost" type="button" id="settings-cancel" onclick="hide('settings-modal')">Cerrar</button>
+      <button class="btn btn-primary hidden" type="button" id="settings-save" onclick="saveSettings()" data-i18n="btn.save">Guardar</button>
     </div>
   </div>
 </div>
