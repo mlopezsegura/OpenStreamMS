@@ -915,6 +915,7 @@ bool active = session.State is SessionState.Starting or SessionState.Running;
                     Domain   = session.Domain,
                     Password = session.Password,
                 };
+                IsolatedUserManager.EnsureRemoteLogonForOwnAccount(session.Username, session.Domain);
             }
 
             Logger.Log($"[{session.Name}] Iniciando sesión RDP para usuario '{user.Username}'...", session.Id);

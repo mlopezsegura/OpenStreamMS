@@ -34,9 +34,11 @@
     const required = text.match(/El campo '(Name|Username|Password)' es obligatorio/);
     if (required) return this.t('error.required', { field: this.t({ Name: 'new.nameLabel', Username: 'login.user', Password: 'login.password' }[required[1]]).replace(/\s*\*$/, '') });
     for (const [pattern, key] of rules) if (pattern.test(text)) return this.t(key);
-    // Keep diagnostics available without exposing untranslated server prose in UI.
-    console.warn('OpenStreamMS operation diagnostic:', text);
-    return this.t('error.request');
+    // No rule matched: show the server's own message. A generic "operation failed" hid the
+    // real cause (FreeRDP exit code, monitor error…) and left users with nothing to report.
+    text = text.trim();
+    if (!text || /^<!doctype|^<html/i.test(text)) return this.t('error.request');
+    return text.length > 600 ? text.slice(0, 600) + '…' : text;
   };
   I18n.responseError = async function(response) { return this.message(await response.text()); };
   I18n.status = function(text) {
