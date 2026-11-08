@@ -1,9 +1,6 @@
-<img width="1100" height="306" alt="image" src="https://github.com/user-attachments/assets/41a93d90-00d3-4eb4-ba67-767be534ae00" />
-
-
 # OpenStreamMS
-
 Windows service that automates the setup of a game streaming environment using [Sunshine](https://github.com/ClassicOldSong/Sunshine/) (Moonlight/GameStream host).
+<img width="1100" height="306" alt="image" src="https://github.com/user-attachments/assets/41a93d90-00d3-4eb4-ba67-767be534ae00" />
 
 Manages the full lifecycle of isolated RDP streaming sessions — creation, monitoring, auto-restart, and teardown — from a web dashboard or REST API. With extra monitors, keyboards, mice and gamepads, the same sessions become **local seats**: several people using one PC at the same time, each with their own screen, input and sound.
 
