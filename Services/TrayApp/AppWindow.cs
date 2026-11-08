@@ -81,6 +81,12 @@ internal sealed class AppWindow : Form
         core.Settings.IsStatusBarEnabled          = false;
         core.Settings.AreBrowserAcceleratorKeysEnabled = true;   // F5, Ctrl+F
 
+        // theme.js manda el color de la barra del panel cada vez que cambia el tema.
+        core.WebMessageReceived += (_, e) =>
+        {
+            if (IsPanel(e.Source)) OnThemeMessage(e.WebMessageAsJson);
+        };
+
         core.DocumentTitleChanged += (_, _) =>
             Text = string.IsNullOrWhiteSpace(core.DocumentTitle) ? "OpenStreamMS" : core.DocumentTitle;
 
@@ -118,6 +124,55 @@ internal sealed class AppWindow : Form
         if (!Uri.TryCreate(uri, UriKind.Absolute, out var u) || u.Scheme is not ("http" or "https")) return;
         try { Process.Start(new ProcessStartInfo(u.AbsoluteUri) { UseShellExecute = true }); }
         catch (Exception ex) { Logger.Warning($"[App] No se pudo abrir {u.AbsoluteUri}: {ex.Message}"); }
+    }
+
+    // ── Barra de título del color del tema ──────────────────────────────────────
+
+    [System.Runtime.InteropServices.DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
+    private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;   // Windows 10 20H1+
+    private const int DWMWA_CAPTION_COLOR = 35, DWMWA_TEXT_COLOR = 36;   // Windows 11
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        ApplyCaption(BackColor, dark: true);   // hasta que el panel diga su tema
+    }
+
+    /// <summary><c>{"type":"theme","color":"rgb(r, g, b)","dark":true}</c> desde theme.js.</summary>
+    private void OnThemeMessage(string json)
+    {
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            if (root.ValueKind != System.Text.Json.JsonValueKind.Object ||
+                !root.TryGetProperty("type", out var type) || type.GetString() != "theme") return;
+            bool dark = root.TryGetProperty("dark", out var d) && d.ValueKind == System.Text.Json.JsonValueKind.True;
+            var m = System.Text.RegularExpressions.Regex.Match(
+                root.TryGetProperty("color", out var c) ? c.GetString() ?? "" : "",
+                @"^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})");
+            if (!m.Success) { ApplyCaption(null, dark); return; }
+            var color = Color.FromArgb(Math.Min(255, int.Parse(m.Groups[1].Value)),
+                                       Math.Min(255, int.Parse(m.Groups[2].Value)),
+                                       Math.Min(255, int.Parse(m.Groups[3].Value)));
+            BackColor = color;
+            ApplyCaption(color, dark);
+        }
+        catch (Exception ex) { Logger.Warning($"[App] Tema de la ventana no aplicado: {ex.Message}"); }
+    }
+
+    /// <summary>Modo oscuro de la barra (Windows 10/11) y, en Windows 11, su color y el del texto.</summary>
+    private void ApplyCaption(Color? caption, bool dark)
+    {
+        if (!IsHandleCreated) return;
+        int on = dark ? 1 : 0;
+        DwmSetWindowAttribute(Handle, DWMWA_USE_IMMERSIVE_DARK_MODE, ref on, sizeof(int));
+        if (caption is not { } c) return;
+        int colorRef = c.R | (c.G << 8) | (c.B << 16);
+        int text = dark ? 0x00FFFFFF : 0x00000000;
+        DwmSetWindowAttribute(Handle, DWMWA_CAPTION_COLOR, ref colorRef, sizeof(int));
+        DwmSetWindowAttribute(Handle, DWMWA_TEXT_COLOR, ref text, sizeof(int));
     }
 
     private static string OfflinePage => $"""
