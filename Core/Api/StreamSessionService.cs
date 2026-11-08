@@ -1030,6 +1030,7 @@ bool active = session.State is SessionState.Starting or SessionState.Running;
             {
                 session.State        = SessionState.Error;
                 session.ErrorMessage = ex.Message;
+                session.FailedPhase  = session.StartPhase ?? (session.Local ? "sunshine" : "user");
             }
             Logger.Error($"[{session.Name}] Error al iniciar: {ex.Message}", session.Id);
         }

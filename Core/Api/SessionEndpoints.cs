@@ -254,7 +254,9 @@ public record SessionResponse(
     /// <summary>Escala de la pantalla de la sesión RDP en %.</summary>
     int          RdpDisplayScale = 100,
     /// <summary>Ritmo de composición de la sesión RDP.</summary>
-    RdpCompositionMode RdpComposition = RdpCompositionMode.Smooth
+    RdpCompositionMode RdpComposition = RdpCompositionMode.Smooth,
+    /// <summary>Paso del arranque en el que falló (user, rdp, profile, unlock, sunshine); null si no hay error.</summary>
+    string?      FailedPhase = null
 );
 
 /// <summary>Usuario dedicado o perfil osms-* que ya no usa ninguna sesión.</summary>
@@ -960,5 +962,6 @@ public static class SessionEndpoints
         s.ClientsMoonlight, s.ClientsWebRtc,
         s.Isolated ? s.GetIsolatedUser() : null,
         StreamSessionService.SteamLoginState(s),
-        s.RdpDisplayScale, s.RdpComposition);
+        s.RdpDisplayScale, s.RdpComposition,
+        s.ErrorMessage is null ? null : s.FailedPhase);
 }
