@@ -12,6 +12,10 @@ public record SettingsResponse(string LogLevel);
 
 public record SetLogLevelRequest(string LogLevel);
 
+/// <param name="Accent">Color de acento de Windows ("#rrggbb"), o null si no se puede leer.</param>
+/// <param name="LightTheme">true si las apps de Windows usan el modo claro; null si no se sabe.</param>
+public record WindowsAppearanceResponse(string? Accent, bool? LightTheme);
+
 /// <param name="HostName">Nombre del PC en la red.</param>
 /// <param name="Addresses">IPv4 de la red local, primero las de adaptadores con puerta de enlace.</param>
 public record NetworkInfoResponse(string HostName, List<string> Addresses);
@@ -39,6 +43,13 @@ public static class SettingsEndpoints
                  return Results.Ok(new SettingsResponse(level.ToString()));
              })
              .WithSummary("Cambia el nivel de log global (servicio, bandeja, puestos y, al relanzarse, Sunshine).");
+
+        group.MapGet("/windows-appearance", () =>
+             {
+                 var (accent, light) = WindowsAppearance.Read();
+                 return TypedResults.Ok(new WindowsAppearanceResponse(accent, light));
+             })
+             .WithSummary("Color de acento y modo claro/oscuro de Windows del usuario de la consola (tema \"Windows\" del panel).");
 
         app.MapGet("/api/system/network", () => TypedResults.Ok(GetNetworkInfo()))
            .WithTags("Settings")

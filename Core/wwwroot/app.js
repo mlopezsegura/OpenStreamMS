@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 // dinámicamente por JS se traduzcan inmediatamente.
 window.addEventListener('langchange', () => {
   renderSessions();
-  if (!byId('settings-modal').classList.contains('hidden')) renderAppearance();
+  if (!byId('settings-modal').classList.contains('hidden')) { renderAppearance(); settingsPane(settingsActivePane); }
   if (!byId('orphans-modal').classList.contains('hidden')) renderOrphans();
   fillReuseOptions();
   if (rdpLastStatus) {
@@ -679,7 +679,7 @@ async function showLogLevelNote() {
   const { logLevel } = await res.json();
   if (logLevel === 'Info') return;
   note.innerHTML = `${esc(t('log.levelNote', { level: t('settings.log.' + logLevel) }))}
-    <button type="button" class="btn btn-ghost btn-xs" onclick="closeLogModal(); openSettingsModal()">${esc(t('settings.title'))}</button>`;
+    <button type="button" class="btn btn-ghost btn-xs" onclick="closeLogModal(); openSettingsModal('log')">${esc(t('settings.title'))}</button>`;
   note.classList.remove('hidden');
 }
 
@@ -1541,7 +1541,13 @@ const THEME_PREVIEWS = {
   synthwave: { bg: '#12062b', card: '#211046', accent: '#ff2fb3', text: '#fbeaff', line: '#2de2e6' },
   retro:     { bg: '#0e0a04', card: '#1b1308', accent: '#ffb000', text: '#ffcf70', line: '#4d3812' },
   matrix:    { bg: '#000000', card: '#03100a', accent: '#00e05a', text: '#b8ffd0', line: '#0f4024' },
+  nord:      { bg: '#242933', card: '#3b4252', accent: '#88c0d0', text: '#eceff4', line: '#4c566a' },
+  dracula:   { bg: '#21222c', card: '#2d2f3d', accent: '#bd93f9', text: '#f8f8f2', line: '#44475a' },
+  solarized: { bg: '#fdf6e3', card: '#fffbee', accent: '#2176b5', text: '#073642', line: '#e4dcc4' },
+  oled:      { bg: '#000000', card: '#0a0a0a', accent: '#8b5cf6', text: '#f5f5f5', line: '#262626' },
+  contrast:  { bg: '#000000', card: '#000000', accent: '#ffff00', text: '#ffffff', line: '#ffffff' },
 };
+const DEFAULT_WINDOWS_ACCENT = '#0078d4';   // el azul de Windows, mientras no se sepa el del usuario
 
 function themeSwatch(p) {
   return `<span class="theme-swatch" style="background:${p.bg}">
@@ -1554,21 +1560,67 @@ function themeSwatch(p) {
 
 function renderAppearance() {
   const picker = byId('theme-picker');
+  const winAccent = Theme.windows.accent || DEFAULT_WINDOWS_ACCENT;
   picker.innerHTML = Theme.THEMES.map(name => {
-    // "Según el sistema": mitad oscuro, mitad claro
+    // "Según el sistema": mitad oscuro, mitad claro. "Windows": igual, con el acento de Windows.
     const swatch = name === 'system'
       ? `<span class="theme-swatch split">${themeSwatch(THEME_PREVIEWS.dark)}${themeSwatch(THEME_PREVIEWS.light)}</span>`
+      : name === 'windows'
+      ? `<span class="theme-swatch split">${themeSwatch({ ...THEME_PREVIEWS.dark, accent: winAccent })}${themeSwatch({ ...THEME_PREVIEWS.light, accent: winAccent })}</span>`
       : themeSwatch(THEME_PREVIEWS[name]);
     return `<label class="theme-option">
         <input type="radio" name="Theme" value="${name}" ${Theme.theme === name ? 'checked' : ''}
-               onchange="Theme.setTheme(this.value); updateEffectsHint()">
+               onchange="Theme.setTheme(this.value); updateEffectsHint(); updateWindowsThemeHint()">
         ${swatch}<span class="theme-name">${esc(t('appearance.theme.' + name))}</span>
       </label>`;
   }).join('');
   const fx = document.querySelector(`#effects-picker input[value="${Theme.effects}"]`);
   if (fx) fx.checked = true;
   updateEffectsHint();
+  updateWindowsThemeHint();
 }
+
+// Tema "Windows": de dónde sale el color y qué hacer si no se puede leer.
+function updateWindowsThemeHint() {
+  const hint = byId('windows-theme-hint');
+  if (!hint) return;
+  const on = Theme.theme === 'windows';
+  hint.classList.toggle('hidden', !on);
+  if (on) hint.textContent = t(Theme.windows.accent ? 'appearance.windowsHint' : 'appearance.windowsUnknown');
+}
+document.addEventListener('windowsappearance', () => {
+  if (!byId('settings-modal').classList.contains('hidden')) renderAppearance();
+});
+
+// Secciones de la ventana de ajustes (pestañas a la izquierda; arriba en el móvil).
+let settingsActivePane = 'appearance';
+function settingsPane(name, focus) {
+  settingsActivePane = name;
+  document.querySelectorAll('#settings-modal .settings-tab').forEach(tab => {
+    const on = tab.dataset.pane === name;
+    tab.setAttribute('aria-selected', on ? 'true' : 'false');
+    tab.tabIndex = on ? 0 : -1;
+    if (on && focus) tab.focus();
+  });
+  document.querySelectorAll('#settings-modal .settings-pane').forEach(pane => {
+    pane.hidden = pane.id !== 'settings-pane-' + name;
+  });
+  // Solo el nivel de log se guarda con el botón; el tema y los efectos se aplican al momento.
+  byId('settings-save').classList.toggle('hidden', name !== 'log');
+  byId('settings-cancel').textContent = t(name === 'log' ? 'btn.cancel' : 'btn.close');
+}
+// Flechas para moverse entre secciones, como en cualquier lista de pestañas.
+document.addEventListener('keydown', e => {
+  const tab = e.target.closest?.('#settings-modal .settings-tab');
+  if (!tab || !['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+  const tabs = [...document.querySelectorAll('#settings-modal .settings-tab')];
+  let i = tabs.indexOf(tab);
+  if (e.key === 'Home') i = 0;
+  else if (e.key === 'End') i = tabs.length - 1;
+  else i = (i + (e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? -1 : 1) + tabs.length) % tabs.length;
+  e.preventDefault();
+  settingsPane(tabs[i].dataset.pane, true);
+});
 
 // En automático, se dice qué está aplicando ahora y por qué.
 function updateEffectsHint() {
@@ -1580,9 +1632,11 @@ function updateEffectsHint() {
 }
 document.addEventListener('change', e => { if (e.target.name === 'Effects') updateEffectsHint(); });
 
-async function openSettingsModal() {
+async function openSettingsModal(pane) {
   document.querySelectorAll('.nav-pop').forEach(p => p.classList.add('hidden'));
+  settingsPane(typeof pane === 'string' ? pane : settingsActivePane);
   renderAppearance();
+  Theme.refreshWindows(true);
   const res = await api('GET', '/api/settings');
   if (!res) return;
   if (!res.ok) { toast(t('toast.connectionError'), true); return; }
@@ -1590,7 +1644,7 @@ async function openSettingsModal() {
   const radio = document.querySelector(`#settings-log-level input[value="${st.logLevel}"]`);
   if (radio) radio.checked = true;
   show('settings-modal');
-  (radio || document.querySelector('#settings-log-level input')).focus();
+  document.querySelector('#settings-modal .settings-tab[aria-selected="true"]').focus();
 }
 
 async function saveSettings() {
