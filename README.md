@@ -4,6 +4,8 @@
 
 ### One Windows PC. Many players. Each with their own desktop.
 
+<sub><b>OpenStreamMS</b> = OpenStream <b>M</b>ulti-<b>S</b>ession</sub>
+
 Isolated streaming sessions for **Moonlight** and **WebRTC TVs**, and **local seats** that turn one PC into several —
 managed from a web dashboard, a tray icon or a REST API.
 
@@ -415,3 +417,5 @@ OpenStreamMS.exe  (Windows Service, SYSTEM)
 
 OpenStreamMS is released under the [MIT License](LICENSE).
 The bundled Sunshine (GPL-3.0) and FreeRDP (Apache-2.0) binaries keep their own licenses — see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+"MS" stands for *Multi-Session*. OpenStreamMS is an independent project, not affiliated with or endorsed by Microsoft. Windows is a trademark of Microsoft Corporation.
