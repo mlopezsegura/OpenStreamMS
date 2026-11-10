@@ -4,7 +4,7 @@
 
 ### One Windows PC. Many players. Each with their own desktop.
 
-<sub><b>OpenStreamMS</b> = OpenStream <b>M</b>ulti-<b>S</b>ession</sub>
+<sub><b>OpenStreamMS</b> = OpenStream <b>M</b>ulti-<b>S</b>eat</sub>
 
 Isolated streaming sessions for **Moonlight** and **WebRTC TVs**, and **local seats** that turn one PC into several —
 managed from a web dashboard, a tray icon or a REST API.
