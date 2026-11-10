@@ -9,7 +9,7 @@ remains under its own license; the full license text ships next to the binaries.
 
 | Component | Version | License | License file | Source code |
 |---|---|---|---|---|
-| [Sunshine](https://github.com/LizardByte/Sunshine) (LizardByte), [sunshine-webrtc](https://github.com/mlopezsegura/Sunshine-Web-RTC) build: upstream Sunshine plus Moonlight WebRTC for Samsung TVs | 2026.1006.152353-16-gbcde822b (commit `bcde822bd8f5d750be1eb71c8ccbcb87c98f0b7a`, upstream base `0594f62d4cc6179aa055f0363043adbc8849b62b`) | GPL-3.0 | `Sunshine/LICENSE.txt` | https://github.com/mlopezsegura/Sunshine-Web-RTC/tree/bcde822bd8f5d750be1eb71c8ccbcb87c98f0b7a |
+| [Sunshine](https://github.com/LizardByte/Sunshine) (LizardByte), [sunshine-webrtc](https://github.com/OpenstreamCo/Sunshine-Web-RTC) build: upstream Sunshine plus Moonlight WebRTC for Samsung TVs | 2026.1006.152353-16-gbcde822b (commit `bcde822bd8f5d750be1eb71c8ccbcb87c98f0b7a`, upstream base `0594f62d4cc6179aa055f0363043adbc8849b62b`) | GPL-3.0 | `Sunshine/LICENSE.txt` | https://github.com/OpenstreamCo/Sunshine-Web-RTC/tree/bcde822bd8f5d750be1eb71c8ccbcb87c98f0b7a |
 | [FreeRDP](https://github.com/FreeRDP/FreeRDP) | 3.32.0 | Apache-2.0 | `FreeRDP/LICENSE.txt` | https://github.com/FreeRDP/FreeRDP |
 | [zlib](https://zlib.net) (bundled with Sunshine) | — | zlib | `Sunshine/zlib-LICENSE.txt` | https://github.com/madler/zlib |
 

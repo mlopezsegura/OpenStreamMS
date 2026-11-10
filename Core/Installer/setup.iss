@@ -9,8 +9,8 @@
 #ifndef AppVersion
   #define AppVersion "1.5.1"
 #endif
-#define AppPublisher "mlopezsegura"
-#define AppURL       "https://github.com/mlopezsegura/OpenStreamMS"
+#define AppPublisher "OpenstreamCo"
+#define AppURL       "https://github.com/OpenstreamCo/OpenStreamMultiSeat"
 #define AppExeName   "OpenStreamMS.exe"
 #define AppService   "OpenStreamMS"
 

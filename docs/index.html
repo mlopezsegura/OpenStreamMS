@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>OpenStreamMS</title>
+<title>OpenStreamMS · Multi-Seat</title>
 <meta name="description" content="Windows service that runs multiple isolated Sunshine game-streaming sessions for Moonlight, each in its own RDP session, and turns one PC into several local seats with their own monitor, keyboard, mouse, gamepad and audio.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%237c3aed'/><path d='M12 9l11 7-11 7z' fill='white'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -210,6 +210,7 @@ kbd { font: 600 12px "JetBrains Mono", monospace; border: 1px solid var(--border
 
 footer { padding: 40px 0 56px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--border); }
 footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space-between; }
+footer .legal { flex-basis: 100%; font-size: 12px; line-height: 1.6; opacity: .85; }
 </style>
 </head>
 <body>
@@ -228,7 +229,7 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
       <a href="#api">API</a>
       <a href="#install"><span lang="en">Install</span><span lang="es">Instalación</span></a>
       <a href="#fame"><span lang="en">Hall of fame</span><span lang="es">Hall de la fama</span></a>
-      <a href="https://github.com/mlopezsegura/OpenStreamMS">GitHub</a>
+      <a href="https://github.com/OpenstreamCo/OpenStreamMultiSeat">GitHub</a>
     </div>
     <div class="tools">
       <button class="chip" id="langBtn" type="button" aria-label="Switch language">ES</button>
@@ -252,10 +253,10 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
       <span lang="es">OpenStreamMS es un servicio de Windows que ejecuta varias sesiones de streaming de juegos con <strong>Sunshine</strong> a la vez, cada una dentro de su propia sesión RDP aislada, con su usuario, escritorio, audio y clientes Moonlight. Conecta más monitores, teclados, ratones y mandos y esas mismas sesiones se convierten en <strong>puestos locales</strong>: varias personas jugando en un solo PC, en la misma habitación. Todo se gestiona desde un panel, en su propia ventana, en el navegador o en el móvil.</span>
     </p>
     <div class="cta">
-      <a class="btn primary" href="https://github.com/mlopezsegura/OpenStreamMS/releases">
+      <a class="btn primary" href="https://github.com/OpenstreamCo/OpenStreamMultiSeat/releases">
         <span lang="en">Download installer</span><span lang="es">Descargar instalador</span>
       </a>
-      <a class="btn" href="https://github.com/mlopezsegura/OpenStreamMS">
+      <a class="btn" href="https://github.com/OpenstreamCo/OpenStreamMultiSeat">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
         <span lang="en">View on GitHub</span><span lang="es">Ver en GitHub</span>
       </a>
@@ -713,8 +714,8 @@ footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space
           <li><span lang="en">Optional: WebView2 (included in Windows 11) to open the dashboard in its own window; without it, it opens in the browser</span><span lang="es">Opcional: WebView2 (viene con Windows 11) para abrir el panel en su propia ventana; sin él se abre en el navegador</span></li>
         </ul>
         <h3 style="margin-top:28px"><span lang="en">Build from source</span><span lang="es">Compilar desde el código</span></h3>
-<pre><span class="k">git</span> clone https://github.com/mlopezsegura/OpenStreamMS
-<span class="k">cd</span> OpenStreamMS
+<pre><span class="k">git</span> clone https://github.com/OpenstreamCo/OpenStreamMultiSeat
+<span class="k">cd</span> OpenStreamMultiSeat
 <span class="k">dotnet</span> publish -c Release -r win-x64 --self-contained -o publish
 publish\OpenStreamMS.exe --install</pre>
       </div>
@@ -736,7 +737,7 @@ publish\OpenStreamMS.exe --install</pre>
     </ol>
     <p class="fame-more">
       <span lang="en">Want to be here? Pull requests are welcome on</span><span lang="es">¿Quieres aparecer aquí? Las pull requests son bienvenidas en</span>
-      <a href="https://github.com/mlopezsegura/OpenStreamMS">GitHub</a>.
+      <a href="https://github.com/OpenstreamCo/OpenStreamMultiSeat">GitHub</a>.
     </p>
   </div>
 </section>
@@ -746,7 +747,7 @@ publish\OpenStreamMS.exe --install</pre>
     <div>
       <strong style="color:var(--text)">OpenStreamMS</strong> ·
       <span lang="en">MIT License</span><span lang="es">Licencia MIT</span> ·
-      <a href="https://github.com/mlopezsegura/OpenStreamMS/blob/master/THIRD_PARTY_NOTICES.md"><span lang="en">Third-party notices</span><span lang="es">Avisos de terceros</span></a>
+      <a href="https://github.com/OpenstreamCo/OpenStreamMultiSeat/blob/master/THIRD_PARTY_NOTICES.md"><span lang="en">Third-party notices</span><span lang="es">Avisos de terceros</span></a>
     </div>
     <div>
       <span lang="en">Built on</span><span lang="es">Construido sobre</span>
@@ -754,6 +755,9 @@ publish\OpenStreamMS.exe --install</pre>
       <a href="https://moonlight-stream.org">Moonlight</a> &amp;
       <a href="https://github.com/FreeRDP/FreeRDP">FreeRDP</a>.
       <span lang="en">Not affiliated with them.</span><span lang="es">Sin afiliación con ellos.</span>
+    </div>
+    <div class="legal">
+      <span lang="en">“MS” stands for Multi-Seat. OpenStreamMS is an independent project, not affiliated with or endorsed by Microsoft; Windows is a trademark of Microsoft Corporation. On Windows Home/Pro, concurrent sessions and local seats rely on TermWrap, which patches <code>termsrv</code>: this is not permitted by the Windows license terms, and using it is each user's decision and responsibility. The supported way to run multiple concurrent sessions is Windows Server with RDS CALs.</span><span lang="es">“MS” significa Multi-Seat (multipuesto). OpenStreamMS es un proyecto independiente, sin relación con Microsoft ni respaldo suyo; Windows es una marca de Microsoft Corporation. En Windows Home/Pro, las sesiones simultáneas y los puestos locales dependen de TermWrap, que modifica <code>termsrv</code>: la licencia de Windows no lo permite y usarlo es decisión y responsabilidad de cada usuario. La forma soportada de tener varias sesiones simultáneas es Windows Server con licencias RDS CAL.</span>
     </div>
   </div>
 </footer>
@@ -802,7 +806,7 @@ publish\OpenStreamMS.exe --install</pre>
     return s;
   }
   if (fame && window.fetch) {
-    fetch('https://api.github.com/repos/mlopezsegura/OpenStreamMS/contributors?per_page=100')
+    fetch('https://api.github.com/repos/OpenstreamCo/OpenStreamMultiSeat/contributors?per_page=100')
       .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
       .then(function (list) {
         var top = list.filter(function (c) { return !isExcluded(c); }).slice(0, 5);
