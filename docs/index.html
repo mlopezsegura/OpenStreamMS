@@ -208,6 +208,19 @@ kbd { font: 600 12px "JetBrains Mono", monospace; border: 1px solid var(--border
 @media (max-width: 900px) { .fame { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 520px) { .fame { grid-template-columns: repeat(2, 1fr); } }
 
+/* Announcement */
+.announce-bar { background: color-mix(in srgb, var(--accent) 14%, var(--bg)); border-bottom: 1px solid var(--border); font-size: 14px; }
+.announce-bar .wrap { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; justify-content: center; padding-block: 9px; text-align: center; }
+.announce-bar .tag { font: 700 11px Inter, sans-serif; text-transform: uppercase; letter-spacing: .08em; color: #fff; background: var(--accent); border-radius: 999px; padding: 2px 9px; }
+.announce { display: grid; grid-template-columns: 1fr 1.4fr; gap: 16px; }
+@media (max-width: 860px) { .announce { grid-template-columns: 1fr; } }
+.announce .feat:hover { transform: none; }
+.announce .feat p + p { margin-top: 10px; }
+.announce ul.check { margin-top: 14px; font-size: 14px; }
+.announce .cta { margin-top: 18px; }
+.btn.discord { background: #5865f2; border-color: #5865f2; color: #fff; }
+.btn.discord:hover { filter: brightness(1.1); }
+
 footer { padding: 40px 0 56px; color: var(--muted); font-size: 14px; border-top: 1px solid var(--border); }
 footer .wrap { display: flex; gap: 20px; flex-wrap: wrap; justify-content: space-between; }
 footer .legal { flex-basis: 100%; font-size: 12px; line-height: 1.6; opacity: .85; }
@@ -222,6 +235,7 @@ footer .legal { flex-basis: 100%; font-size: 12px; line-height: 1.6; opacity: .8
       OpenStreamMS
     </a>
     <div class="links">
+      <a href="#announcement"><span lang="en">2.0 &amp; Discord</span><span lang="es">2.0 y Discord</span></a>
       <a href="#new"><span lang="en">What’s new</span><span lang="es">Novedades</span></a>
       <a href="#how"><span lang="en">How it works</span><span lang="es">Cómo funciona</span></a>
       <a href="#seats"><span lang="en">Local seats</span><span lang="es">Puestos locales</span></a>
@@ -237,6 +251,14 @@ footer .legal { flex-basis: 100%; font-size: 12px; line-height: 1.6; opacity: .8
     </div>
   </div>
 </nav>
+
+<div class="announce-bar" role="note">
+  <div class="wrap">
+    <span class="tag"><span lang="en">New</span><span lang="es">Nuevo</span></span>
+    <span><span lang="en">We now have a Discord community, and OpenStreamMS 2.0 is on its way.</span><span lang="es">Ya tenemos comunidad en Discord y OpenStreamMS 2.0 está en camino.</span></span>
+    <a href="#announcement"><span lang="en">Read the announcement →</span><span lang="es">Leer el anuncio →</span></a>
+  </div>
+</div>
 
 <header class="hero">
   <div class="wrap">
@@ -269,6 +291,41 @@ footer .legal { flex-basis: 100%; font-size: 12px; line-height: 1.6; opacity: .8
     </div>
   </div>
 </header>
+
+<!-- ───────────────────────── ANNOUNCEMENT ───────────────────────── -->
+<section id="announcement">
+  <div class="wrap">
+    <div class="eyebrow"><span lang="en">Announcement</span><span lang="es">Anuncio</span></div>
+    <h2><span lang="en">A community on Discord, and what’s coming in 2.0</span><span lang="es">Comunidad en Discord y lo que llega con la 2.0</span></h2>
+    <p class="sub"><span lang="en">Thank you to everyone following the project. Two pieces of news: there is now a place to talk, and the next major version changes direction.</span><span lang="es">Gracias a todos los que seguís el proyecto. Dos noticias: ya hay un sitio donde hablar, y la próxima versión mayor cambia de rumbo.</span></p>
+
+    <div class="announce">
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
+        <h3><span lang="en">Join the Discord community</span><span lang="es">Únete a la comunidad en Discord</span></h3>
+        <p><span lang="en">Ask questions, share your setup, report problems and help shape what comes next. It is also where you will hear first about 2.0 test builds.</span><span lang="es">Pregunta, comparte tu montaje, cuenta los problemas que encuentres y ayuda a decidir lo que viene. También es donde se avisará primero de las versiones de prueba de la 2.0.</span></p>
+        <div class="cta">
+          <a class="btn discord" href="https://discord.gg/uAu9WWqzw" target="_blank" rel="noopener"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M20.3 4.4A19.6 19.6 0 0 0 15.4 3l-.6 1.3a18.2 18.2 0 0 0-5.6 0L8.6 3a19.5 19.5 0 0 0-4.9 1.5C.6 9.1-.3 13.7.1 18.2a19.7 19.7 0 0 0 6 3l1.3-2.1c-.7-.3-1.4-.6-2-1l.5-.4a14 14 0 0 0 12.2 0l.5.4c-.6.4-1.3.7-2 1l1.3 2.1a19.6 19.6 0 0 0 6-3c.5-5.2-.9-9.8-3.6-13.8zM8.1 15.4c-1.2 0-2.2-1.1-2.2-2.4s1-2.4 2.2-2.4 2.2 1.1 2.2 2.4-1 2.4-2.2 2.4zm7.8 0c-1.2 0-2.2-1.1-2.2-2.4s1-2.4 2.2-2.4 2.2 1.1 2.2 2.4-1 2.4-2.2 2.4z"/></svg><span lang="en">Join on Discord</span><span lang="es">Entrar en Discord</span></a>
+        </div>
+      </div>
+
+      <div class="feat">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M12 2l3 7h7l-5.5 4.5 2 7.5L12 16.5 5.5 21l2-7.5L2 9h7z"/></svg></div>
+        <h3><span lang="en">Coming in 2.0</span><span lang="es">Lo que llega con la 2.0</span></h3>
+        <p><span lang="en">OpenStreamMS will no longer include TermWrap or RDP Wrapper. Patching <code>termsrv</code> does not comply with the Windows license terms, so the project cannot distribute it. Out of the box, 2.0 will run several sessions on Windows Server with RDS CALs; on Windows Home and Pro it will need a multi-session package that you obtain separately, under your own responsibility.</span><span lang="es">OpenStreamMS dejará de incluir TermWrap y RDP Wrapper. Modificar <code>termsrv</code> no cumple la licencia de Windows, así que el proyecto no puede distribuirlo. Tal cual se instala, la 2.0 ejecutará varias sesiones en Windows Server con licencias RDS CAL; en Windows Home y Pro necesitará un paquete multisesión que consigas por tu cuenta y bajo tu responsabilidad.</span></p>
+        <ul class="check">
+          <li><span lang="en"><strong>Devices:</strong> big changes in how devices are handled.</span><span lang="es"><strong>Dispositivos:</strong> grandes cambios en cómo se gestionan.</span></li>
+          <li><span lang="en"><strong>Network adapters:</strong> a few surprises on the way.</span><span lang="es"><strong>Tarjetas de red:</strong> alguna sorpresa en camino.</span></li>
+          <li><span lang="en"><strong>Steam:</strong> better isolation between sessions.</span><span lang="es"><strong>Steam:</strong> mejor aislamiento entre sesiones.</span></li>
+        </ul>
+        <div class="cta">
+          <a class="btn" href="https://github.com/OpenstreamCo/OpenStreamMultiSeat/discussions/50" target="_blank" rel="noopener"><span lang="en">Read the full announcement</span><span lang="es">Leer el anuncio completo</span></a>
+          <a class="btn" href="https://github.com/OpenstreamCo/OpenStreamMultiSeat/discussions" target="_blank" rel="noopener"><span lang="en">Join the discussion</span><span lang="es">Participar en el debate</span></a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
 
 <!-- ───────────────────────── WHAT'S NEW ───────────────────────── -->
 <section id="new" class="alt">
