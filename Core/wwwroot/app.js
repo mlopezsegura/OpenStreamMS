@@ -256,8 +256,12 @@ function mosaicHostMenu(btn, s) {
     (!h.mosaicHost || h.mosaicHost === h.id) && (h.mosaicCount || 1) < 4 &&
     (h.clientsMoonlight == null || h.clientsWebRtc == null || h.clientsMoonlight + h.clientsWebRtc > 0));
   if (!hosts.length) { toast(t('mosaic.noHosts'), true); return; }
-  openMenu({ stopPropagation() {}, currentTarget: btn },
-    hosts.map(h => ({ icon: 'grid', label: t('mosaic.joinTo', { name: h.name, n: (h.mosaicCount || 1) + 1 }), run: () => joinMosaic(h, s) })));
+  // Después del clic actual: si se abre dentro de él, el clic llega al document, que cierra
+  // cualquier menú cuando el clic no fue dentro (el botón pulsado ya no está en la página).
+  // Si la tarjeta se repintó entretanto, el botón "⋯" es otro.
+  const anchor = () => btn.isConnected ? btn : document.querySelector(`#card-${s.id} .more-btn`) || btn;
+  setTimeout(() => openMenu({ stopPropagation() {}, currentTarget: anchor() },
+    hosts.map(h => ({ icon: 'grid', label: t('mosaic.joinTo', { name: h.name, n: (h.mosaicCount || 1) + 1 }), run: () => joinMosaic(h, s) }))));
 }
 
 async function joinMosaic(host, guest) {
