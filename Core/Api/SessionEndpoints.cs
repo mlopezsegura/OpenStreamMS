@@ -262,7 +262,9 @@ public record SessionResponse(
     /// <summary>Posición en el mosaico por orden de llegada (0 = anfitriona; el mando N va a la N).</summary>
     int?         MosaicIndex = null,
     /// <summary>Sesiones en el mosaico de la anfitriona (solo en la anfitriona).</summary>
-    int?         MosaicCount = null
+    int?         MosaicCount = null,
+    /// <summary>Solo en la anfitriona: con dos sesiones, una encima de otra en vez de una al lado de otra.</summary>
+    bool         MosaicStacked = false
 );
 
 /// <summary>Usuario dedicado o perfil osms-* que ya no usa ninguna sesión.</summary>
@@ -970,5 +972,5 @@ public static class SessionEndpoints
         StreamSessionService.SteamLoginState(s),
         s.RdpDisplayScale, s.RdpComposition,
         s.ErrorMessage is null ? null : s.FailedPhase,
-        s.MosaicHost, s.MosaicIndex, s.MosaicCount);
+        s.MosaicHost, s.MosaicIndex, s.MosaicCount, s.MosaicStacked);
 }

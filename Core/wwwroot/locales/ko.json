@@ -724,5 +724,8 @@
   "mosaic.hostChip": "모자이크 {n}/4",
   "mosaic.guestChip": "{name}의 모자이크에 있음",
   "mosaic.member": "컨트롤러 {n} → {name}",
-  "mosaic.chip_title": "최대 4개 세션이 이 스트림을 공유합니다. 각 컨트롤러는 연결 순서대로 하나의 세션에 배정됩니다: {list}"
+  "mosaic.chip_title": "최대 4개 세션이 이 스트림을 공유합니다. 각 컨트롤러는 연결 순서대로 하나의 세션에 배정됩니다: {list}",
+  "mosaic.stack": "위아래로 배치",
+  "mosaic.sideBySide": "나란히 배치",
+  "mosaic.relayout": "다시 배치하는 중… 두 세션이 새 절반 크기로 다시 연결됩니다."
 }

@@ -11,7 +11,9 @@ monitor del PC.
 2. En el panel, en el menú **⋯** de otra sesión, elige **Unir al stream de…** y la anfitriona.
    La sesión se arranca si estaba parada.
 3. La disposición se adapta a cuántas haya: 1 a pantalla entera, 2 en mitades (izquierda/derecha),
-   3 o 4 en cuartos (con 3, el cuarto de abajo a la derecha queda en negro).
+   3 o 4 en cuartos (con 3, el cuarto de abajo a la derecha queda en negro). Con dos, el menú de la
+   anfitriona permite **Poner una encima de otra** (arriba/abajo) y volver con **Poner una al lado
+   de otra**; la elección se recuerda si entran más sesiones y vuelven a quedar dos.
 4. Para sacar una sesión: **Salir del mosaico** en su menú. En la anfitriona, **Deshacer el
    mosaico** saca a todas.
 
@@ -55,9 +57,10 @@ que hubieran quedado de una ejecución anterior.
 | GET | `/api/sessions/{id}/mosaic` | Miembros por orden de llegada con su parte |
 | POST | `/api/sessions/{id}/mosaic/{guestId}` | Une `guestId` al stream de `{id}` |
 | DELETE | `/api/sessions/{id}/mosaic/{memberId}` | Saca a `memberId`; si es la anfitriona, deshace el mosaico |
+| PUT | `/api/sessions/{id}/mosaic/layout` | Con dos sesiones, `{ "stacked": true }` una encima de otra; `false`, una al lado de otra |
 
 `GET /api/sessions` incluye en cada sesión `mosaicHost`, `mosaicIndex` y, en la anfitriona,
-`mosaicCount`.
+`mosaicCount` y `mosaicStacked`.
 
 ## Requisitos y límites
 

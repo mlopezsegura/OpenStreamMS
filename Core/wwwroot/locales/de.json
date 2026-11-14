@@ -724,5 +724,8 @@
   "mosaic.hostChip": "Mosaik {n}/4",
   "mosaic.guestChip": "Im Mosaik von {name}",
   "mosaic.member": "Controller {n} → {name}",
-  "mosaic.chip_title": "Bis zu 4 Sitzungen teilen sich diesen Stream. Jeder Controller gehört in der Reihenfolge seiner Ankunft zu einer Sitzung: {list}"
+  "mosaic.chip_title": "Bis zu 4 Sitzungen teilen sich diesen Stream. Jeder Controller gehört in der Reihenfolge seiner Ankunft zu einer Sitzung: {list}",
+  "mosaic.stack": "Übereinander anordnen",
+  "mosaic.sideBySide": "Nebeneinander anordnen",
+  "mosaic.relayout": "Wird neu angeordnet… beide Sitzungen verbinden sich mit ihrer neuen Hälfte neu."
 }

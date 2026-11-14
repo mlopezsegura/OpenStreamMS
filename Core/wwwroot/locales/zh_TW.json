@@ -724,5 +724,8 @@
   "mosaic.hostChip": "拼接畫面 {n}/4",
   "mosaic.guestChip": "在 {name} 的拼接畫面中",
   "mosaic.member": "控制器 {n} → {name}",
-  "mosaic.chip_title": "最多 4 個工作階段共用此串流。每個控制器依連線順序分配給一個工作階段：{list}"
+  "mosaic.chip_title": "最多 4 個工作階段共用此串流。每個控制器依連線順序分配給一個工作階段：{list}",
+  "mosaic.stack": "上下排列",
+  "mosaic.sideBySide": "左右排列",
+  "mosaic.relayout": "正在重新排列… 兩個工作階段會依新的半螢幕重新連線。"
 }

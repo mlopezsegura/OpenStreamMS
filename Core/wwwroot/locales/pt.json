@@ -724,5 +724,8 @@
   "mosaic.hostChip": "Mosaico {n}/4",
   "mosaic.guestChip": "No mosaico de {name}",
   "mosaic.member": "Comando {n} → {name}",
-  "mosaic.chip_title": "Até 4 sessões partilham este stream. Cada comando vai para uma sessão por ordem de chegada: {list}"
+  "mosaic.chip_title": "Até 4 sessões partilham este stream. Cada comando vai para uma sessão por ordem de chegada: {list}",
+  "mosaic.stack": "Pôr uma por cima da outra",
+  "mosaic.sideBySide": "Pôr lado a lado",
+  "mosaic.relayout": "A reorganizar… as duas sessões voltam a ligar-se com a sua nova metade."
 }

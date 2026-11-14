@@ -724,5 +724,8 @@
   "mosaic.hostChip": "Mozaika {n}/4",
   "mosaic.guestChip": "W mozaice {name}",
   "mosaic.member": "Kontroler {n} → {name}",
-  "mosaic.chip_title": "Ten stream dzieli do 4 sesji. Każdy kontroler trafia do jednej sesji według kolejności podłączenia: {list}"
+  "mosaic.chip_title": "Ten stream dzieli do 4 sesji. Każdy kontroler trafia do jednej sesji według kolejności podłączenia: {list}",
+  "mosaic.stack": "Jedna nad drugą",
+  "mosaic.sideBySide": "Obok siebie",
+  "mosaic.relayout": "Przestawianie… obie sesje łączą się ponownie w nowej połowie."
 }

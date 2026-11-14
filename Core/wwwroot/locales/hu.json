@@ -724,5 +724,8 @@
   "mosaic.hostChip": "Mozaik {n}/4",
   "mosaic.guestChip": "{name} mozaikjában",
   "mosaic.member": "{n}. kontroller → {name}",
-  "mosaic.chip_title": "Legfeljebb 4 munkamenet osztozik ezen a streamen. Minden kontroller érkezési sorrendben egy munkamenethez kerül: {list}"
+  "mosaic.chip_title": "Legfeljebb 4 munkamenet osztozik ezen a streamen. Minden kontroller érkezési sorrendben egy munkamenethez kerül: {list}",
+  "mosaic.stack": "Egymás fölé",
+  "mosaic.sideBySide": "Egymás mellé",
+  "mosaic.relayout": "Átrendezés… mindkét munkamenet újracsatlakozik az új felével."
 }

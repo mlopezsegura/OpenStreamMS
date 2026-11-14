@@ -15,6 +15,23 @@ public class MosaicLayoutTests
                      MosaicLayout.Areas(4));
     }
 
+    [Fact]
+    public void Areas_Stacked_OnlyChangesTwoSessions()
+    {
+        Assert.Equal([SeatScreenArea.Top, SeatScreenArea.Bottom], MosaicLayout.Areas(2, stacked: true));
+        Assert.Equal([SeatScreenArea.Full], MosaicLayout.Areas(1, stacked: true));
+        Assert.Equal(MosaicLayout.Areas(3), MosaicLayout.Areas(3, stacked: true));
+        Assert.Equal(MosaicLayout.Areas(4), MosaicLayout.Areas(4, stacked: true));
+    }
+
+    [Fact]
+    public void Render_Stacked_PutsSessionsTopAndBottom()
+    {
+        var lines = MosaicLayout.Render(1920, 1080, [7u, 9u], stacked: true).Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(["canvas 1920 1080", "7 Top", "9 Bottom"], lines[1..]);
+        Assert.Equal((1920, 540), MosaicLayout.PartSize(SeatScreenArea.Top, 1920, 1080));
+    }
+
     [Theory]
     [InlineData(1, 0b1111)]
     [InlineData(2, 0b1111)]

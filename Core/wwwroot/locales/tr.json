@@ -724,5 +724,8 @@
   "mosaic.hostChip": "Mozaik {n}/4",
   "mosaic.guestChip": "{name} mozaiğinde",
   "mosaic.member": "Kumanda {n} → {name}",
-  "mosaic.chip_title": "Bu yayını en fazla 4 oturum paylaşır. Her kumanda bağlanma sırasına göre bir oturuma gider: {list}"
+  "mosaic.chip_title": "Bu yayını en fazla 4 oturum paylaşır. Her kumanda bağlanma sırasına göre bir oturuma gider: {list}",
+  "mosaic.stack": "Üst üste koy",
+  "mosaic.sideBySide": "Yan yana koy",
+  "mosaic.relayout": "Yeniden yerleştiriliyor… iki oturum da yeni yarısıyla yeniden bağlanır."
 }

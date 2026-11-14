@@ -18,13 +18,14 @@ public static class MosaicLayout
     public const string FileName = "osms-mosaic.txt";
 
     /// <summary>
-    /// Partes por orden de llegada: 1 sesión, pantalla entera; 2, mitades izquierda/derecha;
-    /// 3 o 4, cuartos (con 3, el de abajo a la derecha queda en negro).
+    /// Partes por orden de llegada: 1 sesión, pantalla entera; 2, mitades izquierda/derecha
+    /// (o arriba/abajo con <paramref name="stacked"/>); 3 o 4, cuartos (con 3, el de abajo a la
+    /// derecha queda en negro).
     /// </summary>
-    public static SeatScreenArea[] Areas(int count) => count switch
+    public static SeatScreenArea[] Areas(int count, bool stacked = false) => count switch
     {
         <= 1 => [SeatScreenArea.Full],
-        2    => [SeatScreenArea.Left, SeatScreenArea.Right],
+        2    => stacked ? [SeatScreenArea.Top, SeatScreenArea.Bottom] : [SeatScreenArea.Left, SeatScreenArea.Right],
         3    => [SeatScreenArea.TopLeft, SeatScreenArea.TopRight, SeatScreenArea.BottomLeft],
         _    => [SeatScreenArea.TopLeft, SeatScreenArea.TopRight, SeatScreenArea.BottomLeft, SeatScreenArea.BottomRight],
     };
@@ -40,9 +41,9 @@ public static class MosaicLayout
     /// Contenido de <c>osms-mosaic.txt</c>: el lienzo y una línea por sesión
     /// ("&lt;id de sesión de Windows&gt; &lt;parte&gt;"), en orden de llegada.
     /// </summary>
-    public static string Render(int canvasWidth, int canvasHeight, IReadOnlyList<uint> windowsSessions)
+    public static string Render(int canvasWidth, int canvasHeight, IReadOnlyList<uint> windowsSessions, bool stacked = false)
     {
-        var areas = Areas(windowsSessions.Count);
+        var areas = Areas(windowsSessions.Count, stacked);
         var sb = new StringBuilder();
         sb.Append("# OpenStreamMS mosaic: <Windows session id> <part>\n");
         sb.Append($"canvas {canvasWidth} {canvasHeight}\n");

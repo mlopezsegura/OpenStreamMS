@@ -235,4 +235,6 @@ public class StreamSession
     public int?         MosaicIndex      { get; set; }
     /// <summary>Sesiones en el mosaico, solo en la anfitriona. No se persiste.</summary>
     public int?         MosaicCount      { get; set; }
+    /// <summary>Solo en la anfitriona: con dos sesiones, una encima de otra. No se persiste.</summary>
+    public bool         MosaicStacked    { get; set; }
 }

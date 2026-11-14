@@ -724,5 +724,8 @@
   "mosaic.hostChip": "Khảm {n}/4",
   "mosaic.guestChip": "Trong khảm của {name}",
   "mosaic.member": "Tay cầm {n} → {name}",
-  "mosaic.chip_title": "Tối đa 4 phiên dùng chung luồng này. Mỗi tay cầm thuộc về một phiên theo thứ tự kết nối: {list}"
+  "mosaic.chip_title": "Tối đa 4 phiên dùng chung luồng này. Mỗi tay cầm thuộc về một phiên theo thứ tự kết nối: {list}",
+  "mosaic.stack": "Xếp trên dưới",
+  "mosaic.sideBySide": "Xếp cạnh nhau",
+  "mosaic.relayout": "Đang sắp xếp lại… cả hai phiên kết nối lại theo nửa mới."
 }

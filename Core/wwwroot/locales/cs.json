@@ -724,5 +724,8 @@
   "mosaic.hostChip": "Mozaika {n}/4",
   "mosaic.guestChip": "V mozaice {name}",
   "mosaic.member": "Ovladač {n} → {name}",
-  "mosaic.chip_title": "Tento stream sdílí až 4 relace. Každý ovladač patří jedné relaci podle pořadí připojení: {list}"
+  "mosaic.chip_title": "Tento stream sdílí až 4 relace. Každý ovladač patří jedné relaci podle pořadí připojení: {list}",
+  "mosaic.stack": "Dát nad sebe",
+  "mosaic.sideBySide": "Dát vedle sebe",
+  "mosaic.relayout": "Přeskládání… obě relace se znovu připojí ve své nové polovině."
 }

@@ -724,5 +724,8 @@
   "mosaic.hostChip": "モザイク {n}/4",
   "mosaic.guestChip": "{name} のモザイク内",
   "mosaic.member": "コントローラー {n} → {name}",
-  "mosaic.chip_title": "このストリームは最大 4 セッションで共有されます。各コントローラーは接続順に 1 つのセッションに割り当てられます: {list}"
+  "mosaic.chip_title": "このストリームは最大 4 セッションで共有されます。各コントローラーは接続順に 1 つのセッションに割り当てられます: {list}",
+  "mosaic.stack": "上下に並べる",
+  "mosaic.sideBySide": "左右に並べる",
+  "mosaic.relayout": "配置を変更しています… 2 つのセッションが新しい半分のサイズで再接続されます。"
 }

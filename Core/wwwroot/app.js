@@ -201,9 +201,14 @@ function sessionMenu(e, id) {
   const mosaic = s.mosaicHost
     ? { icon: 'grid', label: t(s.mosaicHost === s.id ? 'mosaic.dissolve' : 'mosaic.leave'), run: () => leaveMosaic(s) }
     : { icon: 'grid', label: t('mosaic.join'), run: () => mosaicHostMenu(btn, s), disabled: s.local || busy, hint: t('mosaic.join_disabled') };
+  // Con dos sesiones, la anfitriona elige una al lado de otra o una encima de otra.
+  const layout = s.mosaicHost === s.id && s.mosaicCount === 2
+    ? [{ icon: 'grid', label: t(s.mosaicStacked ? 'mosaic.sideBySide' : 'mosaic.stack'), run: () => setMosaicStacked(s, !s.mosaicStacked) }]
+    : [];
   openMenu(e, [
     { icon: 'restart',  label: t('btn.restart'),  run: () => restartSession(s.id, s.name) },
     mosaic,
+    ...layout,
     { icon: 'link',     label: t('ux.connect.btn'), run: () => openSunMgrModal(s.id), disabled: !running, hint: t('btn.sunshine_disabled_title') },
     { icon: 'external', label: t('btn.panel'),    run: () => openSunshinePanel(s.id), disabled: !running, hint: t('btn.panel_disabled_title') },
     { icon: 'log',      label: t('btn.log'),      run: () => openLogModal(s.id, s.name) },
@@ -226,6 +231,7 @@ function clientsChip(s) {
 // Partes por número de sesiones, como MosaicLayout.Areas: celdas 0 arriba-izq., 1 arriba-der.,
 // 2 abajo-izq., 3 abajo-der.
 const MOSAIC_CELLS = { 1: [[0, 1, 2, 3]], 2: [[0, 2], [1, 3]], 3: [[0], [1], [2]], 4: [[0], [1], [2], [3]] };
+const MOSAIC_CELLS_STACKED = [[0, 1], [2, 3]];
 
 function mosaicMembers(hostId) {
   return sessions.filter(x => x.mosaicHost === hostId).sort((a, b) => (a.mosaicIndex ?? 0) - (b.mosaicIndex ?? 0));
@@ -237,7 +243,7 @@ function mosaicChip(s) {
   const members = mosaicMembers(s.mosaicHost);
   const host = sessions.find(x => x.id === s.mosaicHost);
   if (!host || members.length < 2) return '';
-  const parts = MOSAIC_CELLS[Math.min(members.length, 4)];
+  const parts = members.length === 2 && host.mosaicStacked ? MOSAIC_CELLS_STACKED : MOSAIC_CELLS[Math.min(members.length, 4)];
   const own = parts[s.mosaicIndex ?? 0] || [];
   const used = new Set(parts.flat());
   const cells = [0, 1, 2, 3].map(c =>
@@ -270,6 +276,14 @@ async function joinMosaic(host, guest) {
   if (!res) return;
   if (!res.ok) { toast(await I18n.responseError(res), true); loadSessions(); return; }
   toast(t('mosaic.joined', { name: guest.name, host: host.name }));
+  loadSessions();
+}
+
+async function setMosaicStacked(host, stacked) {
+  toast(t('mosaic.relayout'));
+  const res = await api('PUT', `/api/sessions/${host.id}/mosaic/layout`, { stacked });
+  if (!res) return;
+  if (!res.ok) { toast(await I18n.responseError(res), true); return; }
   loadSessions();
 }
 

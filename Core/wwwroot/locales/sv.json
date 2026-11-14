@@ -724,5 +724,8 @@
   "mosaic.hostChip": "Mosaik {n}/4",
   "mosaic.guestChip": "I {name}s mosaik",
   "mosaic.member": "Handkontroll {n} → {name}",
-  "mosaic.chip_title": "Upp till 4 sessioner delar på den här streamen. Varje handkontroll går till en session i den ordning de ansluter: {list}"
+  "mosaic.chip_title": "Upp till 4 sessioner delar på den här streamen. Varje handkontroll går till en session i den ordning de ansluter: {list}",
+  "mosaic.stack": "Placera ovanför varandra",
+  "mosaic.sideBySide": "Placera sida vid sida",
+  "mosaic.relayout": "Ordnar om… båda sessionerna återansluter till sin nya halva."
 }

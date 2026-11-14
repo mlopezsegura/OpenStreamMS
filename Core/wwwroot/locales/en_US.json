@@ -724,5 +724,8 @@
   "mosaic.hostChip": "Mosaic {n}/4",
   "mosaic.guestChip": "In {name}'s mosaic",
   "mosaic.member": "Controller {n} → {name}",
-  "mosaic.chip_title": "Up to 4 sessions share this stream. Each controller goes to one session in order of arrival: {list}"
+  "mosaic.chip_title": "Up to 4 sessions share this stream. Each controller goes to one session in order of arrival: {list}",
+  "mosaic.stack": "Put one above the other",
+  "mosaic.sideBySide": "Put them side by side",
+  "mosaic.relayout": "Rearranging… both sessions reconnect to their new half."
 }

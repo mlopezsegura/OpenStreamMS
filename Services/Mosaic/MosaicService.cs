@@ -32,6 +32,8 @@ public sealed class MosaicService(StreamSessionService sessions, SeatManager sea
         public readonly List<Guid> Members = [];
         /// <summary>Resolución RDP que tiene ahora cada miembro, para reconectar solo lo que cambia.</summary>
         public readonly Dictionary<Guid, (int W, int H)> Applied = [];
+        /// <summary>Con dos sesiones, una encima de otra en vez de una al lado de otra. Se conserva si entran y salen más.</summary>
+        public bool Stacked;
         public DateTime? NoClientSince;
     }
 
@@ -48,6 +50,44 @@ public sealed class MosaicService(StreamSessionService sessions, SeatManager sea
     public IReadOnlyList<Guid> Members(Guid host)
     {
         lock (_sync) return _groups.TryGetValue(host, out var g) ? g.Members.ToList() : [];
+    }
+
+    /// <summary>Con dos sesiones, el mosaico de <paramref name="host"/> las pone una encima de otra.</summary>
+    public bool IsStacked(Guid host)
+    {
+        lock (_sync) return _groups.TryGetValue(host, out var g) && g.Stacked;
+    }
+
+    /// <summary>
+    /// Con dos sesiones, una al lado de otra (<paramref name="stacked"/> = false) o una encima de
+    /// otra (true). Con tres o cuatro no cambia nada ahora, pero se recuerda para cuando vuelvan a ser dos.
+    /// </summary>
+    /// <exception cref="KeyNotFoundException">La sesión no es anfitriona de un mosaico.</exception>
+    public async Task SetStackedAsync(Guid hostId, bool stacked, CancellationToken ct = default)
+    {
+        await _ops.WaitAsync(ct);
+        try
+        {
+            Group g;
+            lock (_sync)
+            {
+                if (!_groups.TryGetValue(hostId, out g!)) throw new KeyNotFoundException();
+                if (g.Stacked == stacked) return;
+                g.Stacked = stacked;
+                Renumber(g);
+            }
+            Logger.Log($"[Mosaico] Dos sesiones {(stacked ? "una encima de otra" : "una al lado de otra")}.", hostId);
+            try { Apply(g); }
+            catch (Exception ex)
+            {
+                Logger.Error($"[Mosaico] No se pudo cambiar la disposición: {ex.Message}", hostId);
+                throw new InvalidOperationException(RequestCulture.T("error.mosaicApply", ex.Message));
+            }
+        }
+        finally
+        {
+            _ops.Release();
+        }
     }
 
     /// <summary>
@@ -196,7 +236,7 @@ public sealed class MosaicService(StreamSessionService sessions, SeatManager sea
         var host = sessions.Get(g.Host) ?? throw new KeyNotFoundException();
         int w = host.RdpWidth, h = host.RdpHeight, hz = host.RdpFrameRate;
         var members = g.Members.Select(id => sessions.Get(id) ?? throw new KeyNotFoundException()).ToList();
-        var areas = MosaicLayout.Areas(members.Count);
+        var areas = MosaicLayout.Areas(members.Count, g.Stacked);
 
         WriteFile(g, members, w, h);
         for (int i = 0; i < members.Count; i++)
@@ -272,6 +312,7 @@ public sealed class MosaicService(StreamSessionService sessions, SeatManager sea
             s.MosaicHost  = g.Host;
             s.MosaicIndex = i;
             s.MosaicCount = i == 0 ? g.Members.Count : null;
+            s.MosaicStacked = i == 0 && g.Stacked;
         }
     }
 
@@ -280,6 +321,7 @@ public sealed class MosaicService(StreamSessionService sessions, SeatManager sea
         s.MosaicHost  = null;
         s.MosaicIndex = null;
         s.MosaicCount = null;
+        s.MosaicStacked = false;
     }
 
     private void RestoreOwnSize(Group g, StreamSession s)
@@ -299,7 +341,7 @@ public sealed class MosaicService(StreamSessionService sessions, SeatManager sea
     private static void WriteFile(Group g, List<StreamSession> members, int w, int h)
     {
         var path = Path.Combine(StreamSessionService.SunshineConfigDir(g.Host), MosaicLayout.FileName);
-        var text = MosaicLayout.Render(w, h, members.Select(m => m.RdpSessionId).ToList());
+        var text = MosaicLayout.Render(w, h, members.Select(m => m.RdpSessionId).ToList(), g.Stacked);
         if (File.Exists(path) && File.ReadAllText(path) == text) return;
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var tmp = path + ".tmp";
