@@ -92,7 +92,7 @@
   "error.mosaicBusy": "'{0}' už je v mozaice.",
   "error.mosaicFull": "Mozaika už má 4 relace.",
   "error.mosaicGuestStart": "'{0}' se nespustila včas.",
-  "error.mosaicApply": "Relace se nepodařilo přeskládat: {0}"
+  "error.mosaicApply": "Relace se nepodařilo přeskládat: {0}",
   "isolatedUser.passwordKept": "Uživatel '{0}' již existoval; jeho heslo se zachovává (Steam a další uložená přihlášení zůstávají platná).",
   "isolatedUser.passwordStoreFailed": "Heslo uživatele '{0}' nelze uložit ani přečíst v LSA: {1}. Při příštím spuštění bude obnoveno."
 }

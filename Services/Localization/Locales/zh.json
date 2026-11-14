@@ -92,7 +92,7 @@
   "error.mosaicBusy": "'{0}' 已在拼接画面中。",
   "error.mosaicFull": "拼接画面已有 4 个会话。",
   "error.mosaicGuestStart": "'{0}' 未能及时启动。",
-  "error.mosaicApply": "无法重新排列会话：{0}"
+  "error.mosaicApply": "无法重新排列会话：{0}",
   "isolatedUser.passwordKept": "用户 '{0}' 已存在；保留其密码（Steam 和其他已保存的登录仍然有效）。",
   "isolatedUser.passwordStoreFailed": "无法在 LSA 中保存或读取 '{0}' 的密码：{1}。下次启动时将重置。"
 }

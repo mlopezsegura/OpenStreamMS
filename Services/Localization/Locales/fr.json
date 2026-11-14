@@ -92,7 +92,7 @@
   "error.mosaicBusy": "'{0}' est déjà dans une mosaïque.",
   "error.mosaicFull": "La mosaïque compte déjà 4 sessions.",
   "error.mosaicGuestStart": "'{0}' n'a pas démarré à temps.",
-  "error.mosaicApply": "Impossible de réorganiser les sessions : {0}"
+  "error.mosaicApply": "Impossible de réorganiser les sessions : {0}",
   "isolatedUser.passwordKept": "L'utilisateur '{0}' existait déjà ; son mot de passe est conservé (Steam et les autres connexions enregistrées restent valides).",
   "isolatedUser.passwordStoreFailed": "Impossible d'enregistrer ou de lire le mot de passe de '{0}' dans LSA : {1}. Il sera réinitialisé au prochain démarrage."
 }

@@ -92,7 +92,7 @@
   "error.mosaicBusy": "'{0}' ist bereits in einem Mosaik.",
   "error.mosaicFull": "Das Mosaik hat bereits 4 Sitzungen.",
   "error.mosaicGuestStart": "'{0}' ist nicht rechtzeitig gestartet.",
-  "error.mosaicApply": "Die Sitzungen konnten nicht neu angeordnet werden: {0}"
+  "error.mosaicApply": "Die Sitzungen konnten nicht neu angeordnet werden: {0}",
   "isolatedUser.passwordKept": "Benutzer '{0}' war bereits vorhanden; sein Kennwort bleibt erhalten (Steam und andere gespeicherte Anmeldungen bleiben gültig).",
   "isolatedUser.passwordStoreFailed": "Das Kennwort von '{0}' konnte in LSA nicht gespeichert oder gelesen werden: {1}. Es wird beim nächsten Start zurückgesetzt."
 }

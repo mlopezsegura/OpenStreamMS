@@ -92,7 +92,7 @@
   "error.mosaicBusy": "'{0}' jest już w mozaice.",
   "error.mosaicFull": "Mozaika ma już 4 sesje.",
   "error.mosaicGuestStart": "'{0}' nie uruchomiła się na czas.",
-  "error.mosaicApply": "Nie udało się przestawić sesji: {0}"
+  "error.mosaicApply": "Nie udało się przestawić sesji: {0}",
   "isolatedUser.passwordKept": "Użytkownik '{0}' już istniał; jego hasło zostaje zachowane (Steam i inne zapisane logowania pozostają ważne).",
   "isolatedUser.passwordStoreFailed": "Nie udało się zapisać ani odczytać hasła '{0}' w LSA: {1}. Zostanie zresetowane przy następnym uruchomieniu."
 }
