@@ -92,7 +92,7 @@
   "error.mosaicBusy": "'{0}' zaten bir mozaikte.",
   "error.mosaicFull": "Mozaikte zaten 4 oturum var.",
   "error.mosaicGuestStart": "'{0}' zamanında başlamadı.",
-  "error.mosaicApply": "Oturumlar yeniden yerleştirilemedi: {0}"
+  "error.mosaicApply": "Oturumlar yeniden yerleştirilemedi: {0}",
   "isolatedUser.passwordKept": "'{0}' kullanıcısı zaten vardı; parolası korunuyor (Steam ve diğer kayıtlı oturum açmalar geçerli kalır).",
   "isolatedUser.passwordStoreFailed": "'{0}' parolası LSA'ya kaydedilemedi veya okunamadı: {1}. Bir sonraki başlatmada sıfırlanacak."
 }

@@ -92,7 +92,7 @@
   "error.mosaicBusy": "'{0}' já está em um mosaico.",
   "error.mosaicFull": "O mosaico já tem 4 sessões.",
   "error.mosaicGuestStart": "'{0}' não iniciou a tempo.",
-  "error.mosaicApply": "Não foi possível reorganizar as sessões: {0}"
+  "error.mosaicApply": "Não foi possível reorganizar as sessões: {0}",
   "isolatedUser.passwordKept": "O usuário '{0}' já existia; a senha dele é mantida (o Steam e outros logins salvos continuam válidos).",
   "isolatedUser.passwordStoreFailed": "Não foi possível salvar ou ler a senha de '{0}' no LSA: {1}. Ela será redefinida na próxima inicialização."
 }
