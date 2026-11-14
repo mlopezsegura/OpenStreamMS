@@ -710,5 +710,19 @@
   "log.noMatches": "沒有符合篩選條件的行。",
   "view.toggle": "工作階段檢視",
   "view.cards": "卡片",
-  "view.list": "清單"
+  "view.list": "清單",
+  "mosaic.join": "加入其他工作階段的串流…",
+  "mosaic.join_disabled": "本機工作階段或正在啟動、停止的工作階段無法使用。",
+  "mosaic.joinTo": "加入 {name}（4 格中的第 {n} 格）",
+  "mosaic.leave": "退出拼接畫面",
+  "mosaic.dissolve": "結束拼接畫面",
+  "mosaic.noHosts": "目前沒有其他工作階段正在串流到用戶端。",
+  "mosaic.joining": "正在將 {name} 加入 {host} 的串流… 各工作階段會依其區域大小重新連線。",
+  "mosaic.joined": "{name} 已加入 {host} 的串流。",
+  "mosaic.left": "{name} 已退出拼接畫面。",
+  "mosaic.dissolved": "拼接畫面已結束：{name} 恢復全螢幕。",
+  "mosaic.hostChip": "拼接畫面 {n}/4",
+  "mosaic.guestChip": "在 {name} 的拼接畫面中",
+  "mosaic.member": "控制器 {n} → {name}",
+  "mosaic.chip_title": "最多 4 個工作階段共用此串流。每個控制器依連線順序分配給一個工作階段：{list}"
 }

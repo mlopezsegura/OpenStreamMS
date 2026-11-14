@@ -170,7 +170,7 @@ function renderCard(s) {
         </div>
         ${power}
       </div>
-      <div class="card-chips">${protos.join('')}${sessionSeatLine(s)}${clientsChip(s)}</div>
+      <div class="card-chips">${protos.join('')}${sessionSeatLine(s)}${clientsChip(s)}${mosaicChip(s)}</div>
       ${metricsSlot(s)}
       ${startProgress(s)}
       ${rdpWarning(s)}
@@ -197,8 +197,13 @@ function sessionMenu(e, id) {
   const s = sessions.find(x => x.id === id);
   if (!s) return;
   const running = s.state === 'Running', busy = s.state === 'Starting' || s.state === 'Stopping';
+  const btn = e.currentTarget;
+  const mosaic = s.mosaicHost
+    ? { icon: 'grid', label: t(s.mosaicHost === s.id ? 'mosaic.dissolve' : 'mosaic.leave'), run: () => leaveMosaic(s) }
+    : { icon: 'grid', label: t('mosaic.join'), run: () => mosaicHostMenu(btn, s), disabled: s.local || busy, hint: t('mosaic.join_disabled') };
   openMenu(e, [
     { icon: 'restart',  label: t('btn.restart'),  run: () => restartSession(s.id, s.name) },
+    mosaic,
     { icon: 'link',     label: t('ux.connect.btn'), run: () => openSunMgrModal(s.id), disabled: !running, hint: t('btn.sunshine_disabled_title') },
     { icon: 'external', label: t('btn.panel'),    run: () => openSunshinePanel(s.id), disabled: !running, hint: t('btn.panel_disabled_title') },
     { icon: 'log',      label: t('btn.log'),      run: () => openLogModal(s.id, s.name) },
@@ -215,6 +220,61 @@ function clientsChip(s) {
   const title = t('ux.clients.detail', { moonlight: s.clientsMoonlight, webrtc: s.clientsWebRtc });
   return `<span class="chip chip-clients${n ? ' active' : ''}" title="${esc(title)}">${uiIcon('users')}${esc(
     n === 0 ? t('ux.clients.none') : n === 1 ? t('ux.clients.one') : t('ux.clients.many', { n }))}</span>`;
+}
+
+// ── Mosaico: hasta cuatro sesiones en el stream de una (ver MosaicService) ─────
+// Partes por número de sesiones, como MosaicLayout.Areas: celdas 0 arriba-izq., 1 arriba-der.,
+// 2 abajo-izq., 3 abajo-der.
+const MOSAIC_CELLS = { 1: [[0, 1, 2, 3]], 2: [[0, 2], [1, 3]], 3: [[0], [1], [2]], 4: [[0], [1], [2], [3]] };
+
+function mosaicMembers(hostId) {
+  return sessions.filter(x => x.mosaicHost === hostId).sort((a, b) => (a.mosaicIndex ?? 0) - (b.mosaicIndex ?? 0));
+}
+
+// Etiqueta con un mapa 2×2: la parte de esta sesión resaltada; el título dice qué mando va a cada una.
+function mosaicChip(s) {
+  if (!s.mosaicHost) return '';
+  const members = mosaicMembers(s.mosaicHost);
+  const host = sessions.find(x => x.id === s.mosaicHost);
+  if (!host || members.length < 2) return '';
+  const parts = MOSAIC_CELLS[Math.min(members.length, 4)];
+  const own = parts[s.mosaicIndex ?? 0] || [];
+  const used = new Set(parts.flat());
+  const cells = [0, 1, 2, 3].map(c =>
+    `<i class="${own.includes(c) ? 'own' : used.has(c) ? 'used' : ''}"></i>`).join('');
+  const list = members.map((m, i) => t('mosaic.member', { n: i + 1, name: m.name })).join(' · ');
+  const label = s.id === host.id
+    ? t('mosaic.hostChip', { n: members.length })
+    : t('mosaic.guestChip', { name: host.name });
+  return `<span class="chip chip-mosaic active" title="${esc(t('mosaic.chip_title', { list }))}"><span class="mosaic-map" aria-hidden="true">${cells}</span>${esc(label)}</span>`;
+}
+
+// Sesiones a cuyo stream se puede unir s: en marcha, retransmitiendo (o sin dato), sin mosaico
+// o anfitrionas con hueco. s no puede ser ya anfitriona de otras.
+function mosaicHostMenu(btn, s) {
+  const hosts = sessions.filter(h => h.id !== s.id && h.state === 'Running' && !h.local &&
+    (!h.mosaicHost || h.mosaicHost === h.id) && (h.mosaicCount || 1) < 4 &&
+    (h.clientsMoonlight == null || h.clientsWebRtc == null || h.clientsMoonlight + h.clientsWebRtc > 0));
+  if (!hosts.length) { toast(t('mosaic.noHosts'), true); return; }
+  openMenu({ stopPropagation() {}, currentTarget: btn },
+    hosts.map(h => ({ icon: 'grid', label: t('mosaic.joinTo', { name: h.name, n: (h.mosaicCount || 1) + 1 }), run: () => joinMosaic(h, s) })));
+}
+
+async function joinMosaic(host, guest) {
+  toast(t('mosaic.joining', { name: guest.name, host: host.name }));
+  const res = await api('POST', `/api/sessions/${host.id}/mosaic/${guest.id}`);
+  if (!res) return;
+  if (!res.ok) { toast(await I18n.responseError(res), true); loadSessions(); return; }
+  toast(t('mosaic.joined', { name: guest.name, host: host.name }));
+  loadSessions();
+}
+
+async function leaveMosaic(s) {
+  const res = await api('DELETE', `/api/sessions/${s.mosaicHost}/mosaic/${s.id}`);
+  if (!res) return;
+  if (!res.ok) { toast(await I18n.responseError(res), true); return; }
+  toast(t(s.mosaicHost === s.id ? 'mosaic.dissolved' : 'mosaic.left', { name: s.name }));
+  loadSessions();
 }
 
 // Puesto local asociado a la sesión: su nombre y si ahora mismo la está usando.
@@ -1308,6 +1368,7 @@ async function powerAction(kind) {
 // Iconos de trazo (heredan el color del texto).
 const UI_ICONS = {
   power:    '<path d="M12 2v10"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/>',
+  grid:     '<rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/>',
   copy:     '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>',
   download: '<path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/>',
   help:     '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6"/><circle cx="12" cy="17.2" r=".6" fill="currentColor"/>',

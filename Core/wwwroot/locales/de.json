@@ -710,5 +710,19 @@
   "log.noMatches": "Keine Zeile entspricht dem Filter.",
   "view.toggle": "Sitzungsansicht",
   "view.cards": "Karten",
-  "view.list": "Liste"
+  "view.list": "Liste",
+  "mosaic.join": "Dem Stream einer anderen Sitzung beitreten…",
+  "mosaic.join_disabled": "Nicht verfügbar für eine lokale Sitzung oder während sie startet oder stoppt.",
+  "mosaic.joinTo": "{name} beitreten (Teil {n} von 4)",
+  "mosaic.leave": "Mosaik verlassen",
+  "mosaic.dissolve": "Mosaik beenden",
+  "mosaic.noHosts": "Gerade streamt keine andere Sitzung an einen Client.",
+  "mosaic.joining": "{name} tritt dem Stream von {host} bei… Die Sitzungen verbinden sich in der Größe ihres Teils neu.",
+  "mosaic.joined": "{name} ist jetzt im Stream von {host}.",
+  "mosaic.left": "{name} hat das Mosaik verlassen.",
+  "mosaic.dissolved": "Mosaik beendet: {name} ist wieder im Vollbild.",
+  "mosaic.hostChip": "Mosaik {n}/4",
+  "mosaic.guestChip": "Im Mosaik von {name}",
+  "mosaic.member": "Controller {n} → {name}",
+  "mosaic.chip_title": "Bis zu 4 Sitzungen teilen sich diesen Stream. Jeder Controller gehört in der Reihenfolge seiner Ankunft zu einer Sitzung: {list}"
 }

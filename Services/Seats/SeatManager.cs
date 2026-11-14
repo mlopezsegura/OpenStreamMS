@@ -255,6 +255,8 @@ public sealed class SeatManager(StreamSessionService sessions) : BackgroundServi
         if (seat.State == SeatState.Running) return;
         if (seat.SessionId is not { } sessionId) throw new InvalidOperationException(BackendText.Get("error.assigned"));
         var session = sessions.Get(sessionId) ?? throw new InvalidOperationException(BackendText.Get("error.assigned"));
+        // Una sesión en un mosaico ya se ve en el stream de la anfitriona, a otro tamaño.
+        if (session.MosaicHost is not null) throw new InvalidOperationException(BackendText.Get("error.mosaicBusy", session.Name));
 
         seat.State = SeatState.Starting;
         seat.ErrorMessage = null;

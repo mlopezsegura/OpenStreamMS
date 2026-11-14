@@ -710,5 +710,19 @@
   "log.noMatches": "Không có dòng nào khớp bộ lọc.",
   "view.toggle": "Chế độ xem phiên",
   "view.cards": "Thẻ",
-  "view.list": "Danh sách"
+  "view.list": "Danh sách",
+  "mosaic.join": "Tham gia luồng của phiên khác…",
+  "mosaic.join_disabled": "Không khả dụng cho phiên cục bộ hoặc khi phiên đang khởi động hay dừng.",
+  "mosaic.joinTo": "Tham gia {name} (phần {n}/4)",
+  "mosaic.leave": "Rời khỏi khảm",
+  "mosaic.dissolve": "Kết thúc khảm",
+  "mosaic.noHosts": "Hiện không có phiên nào khác đang phát tới một máy khách.",
+  "mosaic.joining": "Đang đưa {name} vào luồng của {host}… Các phiên kết nối lại theo kích thước phần của mình.",
+  "mosaic.joined": "{name} hiện đã ở trong luồng của {host}.",
+  "mosaic.left": "{name} đã rời khỏi khảm.",
+  "mosaic.dissolved": "Đã kết thúc khảm: {name} trở lại toàn màn hình.",
+  "mosaic.hostChip": "Khảm {n}/4",
+  "mosaic.guestChip": "Trong khảm của {name}",
+  "mosaic.member": "Tay cầm {n} → {name}",
+  "mosaic.chip_title": "Tối đa 4 phiên dùng chung luồng này. Mỗi tay cầm thuộc về một phiên theo thứ tự kết nối: {list}"
 }

@@ -89,6 +89,7 @@ Then add the PC in Moonlight (or on your TV) — **Connect** in the dashboard sh
 - ⚡ **Low latency to TVs** — zero playout delay: 1080p60 from 54 → 38 ms screen to screen
 - 🎞️ **A true 60 fps** in RDP sessions (instead of 58.8 Hz)
 - 🧬 **RemoteIdd display** *(experimental)* — our own IddCx driver hands frames to Sunshine as a GPU texture, no screen capture
+- 🧩 **Mosaic** *(experimental)* — up to four sessions in one stream (halves or quarters), joined live from the dashboard; controller N goes to session N in order of arrival ([details](docs/mosaico.md))
 
 **Local seats**
 - 🖱️ Monitor, keyboard, mouse, gamepads, audio and microphone per seat — drag and drop in the dashboard

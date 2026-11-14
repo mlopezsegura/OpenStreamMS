@@ -710,5 +710,19 @@
   "log.noMatches": "Filtreyle eşleşen satır yok.",
   "view.toggle": "Oturum görünümü",
   "view.cards": "Kartlar",
-  "view.list": "Liste"
+  "view.list": "Liste",
+  "mosaic.join": "Başka bir oturumun yayınına katıl…",
+  "mosaic.join_disabled": "Yerel oturumda veya oturum başlarken ya da dururken kullanılamaz.",
+  "mosaic.joinTo": "{name} oturumuna katıl (4 parçadan {n}.)",
+  "mosaic.leave": "Mozaikten ayrıl",
+  "mosaic.dissolve": "Mozaiği sonlandır",
+  "mosaic.noHosts": "Şu anda başka hiçbir oturum bir istemciye yayın yapmıyor.",
+  "mosaic.joining": "{name}, {host} yayınına katılıyor… Oturumlar kendi parçalarının boyutunda yeniden bağlanır.",
+  "mosaic.joined": "{name} artık {host} yayınında.",
+  "mosaic.left": "{name} mozaikten ayrıldı.",
+  "mosaic.dissolved": "Mozaik sonlandırıldı: {name} yeniden tam ekranda.",
+  "mosaic.hostChip": "Mozaik {n}/4",
+  "mosaic.guestChip": "{name} mozaiğinde",
+  "mosaic.member": "Kumanda {n} → {name}",
+  "mosaic.chip_title": "Bu yayını en fazla 4 oturum paylaşır. Her kumanda bağlanma sırasına göre bir oturuma gider: {list}"
 }

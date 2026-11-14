@@ -710,5 +710,19 @@
   "log.noMatches": "Żadna linia nie pasuje do filtra.",
   "view.toggle": "Widok sesji",
   "view.cards": "Karty",
-  "view.list": "Lista"
+  "view.list": "Lista",
+  "mosaic.join": "Dołącz do streamu innej sesji…",
+  "mosaic.join_disabled": "Niedostępne dla sesji lokalnej ani podczas uruchamiania lub zatrzymywania.",
+  "mosaic.joinTo": "Dołącz do {name} (część {n} z 4)",
+  "mosaic.leave": "Opuść mozaikę",
+  "mosaic.dissolve": "Zakończ mozaikę",
+  "mosaic.noHosts": "Żadna inna sesja nie streamuje teraz do klienta.",
+  "mosaic.joining": "Dołączanie {name} do streamu {host}… Sesje łączą się ponownie w rozmiarze swojej części.",
+  "mosaic.joined": "{name} jest teraz w streamie {host}.",
+  "mosaic.left": "{name} opuściła mozaikę.",
+  "mosaic.dissolved": "Mozaika zakończona: {name} wraca do pełnego ekranu.",
+  "mosaic.hostChip": "Mozaika {n}/4",
+  "mosaic.guestChip": "W mozaice {name}",
+  "mosaic.member": "Kontroler {n} → {name}",
+  "mosaic.chip_title": "Ten stream dzieli do 4 sesji. Każdy kontroler trafia do jednej sesji według kolejności podłączenia: {list}"
 }

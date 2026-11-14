@@ -82,5 +82,15 @@
   "isolatedUser.profileDeleteError": "Could not delete profile '{0}': {1}.",
   "isolatedUser.orphanFolderDeleted": "Orphan folder '{0}' deleted.",
   "isolatedUser.errorAddingToGroup": "Could not add '{0}' to group '{1}': error {2}.",
-  "isolatedUser.errorRemovingRights": "Could not remove rights for '{0}': {1}."
+  "isolatedUser.errorRemovingRights": "Could not remove rights for '{0}': {1}.",
+  "error.mosaicSelf": "A session cannot join its own stream.",
+  "error.mosaicHostStopped": "The host session must be running.",
+  "error.mosaicCapture": "'{0}' does not use RemoteIdd capture, which the mosaic needs.",
+  "error.mosaicSeat": "'{0}' is in use by a local seat.",
+  "error.mosaicNoClient": "Nobody is streaming '{0}' right now. Connect a client first.",
+  "error.mosaicGuestStreaming": "'{0}' has a client connected. Disconnect it first.",
+  "error.mosaicBusy": "'{0}' is already in a mosaic.",
+  "error.mosaicFull": "The mosaic already has 4 sessions.",
+  "error.mosaicGuestStart": "'{0}' did not start in time.",
+  "error.mosaicApply": "The sessions could not be rearranged: {0}"
 }

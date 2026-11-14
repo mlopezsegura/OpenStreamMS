@@ -710,5 +710,19 @@
   "log.noMatches": "Inga rader matchar filtret.",
   "view.toggle": "Sessionsvy",
   "view.cards": "Kort",
-  "view.list": "Lista"
+  "view.list": "Lista",
+  "mosaic.join": "Anslut till en annan sessions stream…",
+  "mosaic.join_disabled": "Inte tillgängligt för en lokal session eller medan den startar eller stoppas.",
+  "mosaic.joinTo": "Anslut till {name} (del {n} av 4)",
+  "mosaic.leave": "Lämna mosaiken",
+  "mosaic.dissolve": "Avsluta mosaiken",
+  "mosaic.noHosts": "Ingen annan session streamar till en klient just nu.",
+  "mosaic.joining": "Ansluter {name} till {host}s stream… Sessionerna återansluter i storleken på sin del.",
+  "mosaic.joined": "{name} är nu i {host}s stream.",
+  "mosaic.left": "{name} lämnade mosaiken.",
+  "mosaic.dissolved": "Mosaiken avslutad: {name} är tillbaka i helskärm.",
+  "mosaic.hostChip": "Mosaik {n}/4",
+  "mosaic.guestChip": "I {name}s mosaik",
+  "mosaic.member": "Handkontroll {n} → {name}",
+  "mosaic.chip_title": "Upp till 4 sessioner delar på den här streamen. Varje handkontroll går till en session i den ordning de ansluter: {list}"
 }

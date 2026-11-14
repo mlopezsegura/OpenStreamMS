@@ -710,5 +710,19 @@
   "log.noMatches": "No lines match the filter.",
   "view.toggle": "Sessions view",
   "view.cards": "Cards",
-  "view.list": "List"
+  "view.list": "List",
+  "mosaic.join": "Join another session's stream…",
+  "mosaic.join_disabled": "Not available for a local session or while it is starting or stopping.",
+  "mosaic.joinTo": "Join {name} (part {n} of 4)",
+  "mosaic.leave": "Leave the mosaic",
+  "mosaic.dissolve": "End the mosaic",
+  "mosaic.noHosts": "No other session is streaming to a client right now.",
+  "mosaic.joining": "Joining {name} to {host}'s stream… The sessions reconnect to the size of their part.",
+  "mosaic.joined": "{name} is now in {host}'s stream.",
+  "mosaic.left": "{name} left the mosaic.",
+  "mosaic.dissolved": "Mosaic ended: {name} is back to full screen.",
+  "mosaic.hostChip": "Mosaic {n}/4",
+  "mosaic.guestChip": "In {name}'s mosaic",
+  "mosaic.member": "Controller {n} → {name}",
+  "mosaic.chip_title": "Up to 4 sessions share this stream. Each controller goes to one session in order of arrival: {list}"
 }

@@ -710,5 +710,19 @@
   "log.noMatches": "没有符合筛选条件的行。",
   "view.toggle": "会话视图",
   "view.cards": "卡片",
-  "view.list": "列表"
+  "view.list": "列表",
+  "mosaic.join": "加入其他会话的串流…",
+  "mosaic.join_disabled": "本地会话或正在启动、停止的会话不可用。",
+  "mosaic.joinTo": "加入 {name}（4 格中的第 {n} 格）",
+  "mosaic.leave": "退出拼接画面",
+  "mosaic.dissolve": "结束拼接画面",
+  "mosaic.noHosts": "当前没有其他会话正在向客户端串流。",
+  "mosaic.joining": "正在将 {name} 加入 {host} 的串流… 各会话将按其区域大小重新连接。",
+  "mosaic.joined": "{name} 已加入 {host} 的串流。",
+  "mosaic.left": "{name} 已退出拼接画面。",
+  "mosaic.dissolved": "拼接画面已结束：{name} 恢复全屏。",
+  "mosaic.hostChip": "拼接画面 {n}/4",
+  "mosaic.guestChip": "在 {name} 的拼接画面中",
+  "mosaic.member": "手柄 {n} → {name}",
+  "mosaic.chip_title": "最多 4 个会话共享此串流。每个手柄按连接顺序分配给一个会话：{list}"
 }

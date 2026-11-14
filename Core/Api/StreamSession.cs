@@ -226,4 +226,13 @@ public class StreamSession
     /// </summary>
     public int?         ClientsMoonlight { get; set; }
     public int?         ClientsWebRtc    { get; set; }
+    /// <summary>
+    /// Sesión anfitriona del mosaico en el que está esta sesión (la propia si es la anfitriona);
+    /// null fuera de un mosaico. Lo mantiene <see cref="OpenStreamMS.Services.Mosaic.MosaicService"/>. No se persiste.
+    /// </summary>
+    public Guid?        MosaicHost       { get; set; }
+    /// <summary>Posición en el mosaico por orden de llegada (0 = anfitriona; el mando N va a la N). No se persiste.</summary>
+    public int?         MosaicIndex      { get; set; }
+    /// <summary>Sesiones en el mosaico, solo en la anfitriona. No se persiste.</summary>
+    public int?         MosaicCount      { get; set; }
 }

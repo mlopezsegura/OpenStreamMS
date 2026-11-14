@@ -82,5 +82,15 @@
   "isolatedUser.profileDeleteError": "No se pudo borrar el perfil '{0}': {1}.",
   "isolatedUser.orphanFolderDeleted": "Carpeta huérfana '{0}' eliminada.",
   "isolatedUser.errorAddingToGroup": "No se pudo añadir '{0}' al grupo '{1}': error {2}.",
-  "isolatedUser.errorRemovingRights": "No se pudieron quitar los derechos de '{0}': {1}."
+  "isolatedUser.errorRemovingRights": "No se pudieron quitar los derechos de '{0}': {1}.",
+  "error.mosaicSelf": "Une session ne peut pas rejoindre son propre stream.",
+  "error.mosaicHostStopped": "La session hôte doit être en cours d'exécution.",
+  "error.mosaicCapture": "'{0}' n'utilise pas la capture RemoteIdd, nécessaire à la mosaïque.",
+  "error.mosaicSeat": "'{0}' est utilisée par un poste local.",
+  "error.mosaicNoClient": "Personne ne regarde '{0}' pour le moment. Connectez d'abord un client.",
+  "error.mosaicGuestStreaming": "'{0}' a un client connecté. Déconnectez-le d'abord.",
+  "error.mosaicBusy": "'{0}' est déjà dans une mosaïque.",
+  "error.mosaicFull": "La mosaïque compte déjà 4 sessions.",
+  "error.mosaicGuestStart": "'{0}' n'a pas démarré à temps.",
+  "error.mosaicApply": "Impossible de réorganiser les sessions : {0}"
 }

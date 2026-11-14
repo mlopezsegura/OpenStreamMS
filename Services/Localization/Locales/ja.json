@@ -82,5 +82,15 @@
   "isolatedUser.profileDeleteError": "プロファイル '{0}' を削除できません: {1}。",
   "isolatedUser.orphanFolderDeleted": "孤立フォルダー '{0}' を削除しました。",
   "isolatedUser.errorAddingToGroup": "'{0}' をグループ '{1}' に追加できません: エラー {2}。",
-  "isolatedUser.errorRemovingRights": "'{0}' の権利を削除できません: {1}。"
+  "isolatedUser.errorRemovingRights": "'{0}' の権利を削除できません: {1}。",
+  "error.mosaicSelf": "セッションは自分自身のストリームには参加できません。",
+  "error.mosaicHostStopped": "ホストセッションが実行中である必要があります。",
+  "error.mosaicCapture": "'{0}' はモザイクに必要な RemoteIdd キャプチャを使用していません。",
+  "error.mosaicSeat": "'{0}' はローカル席で使用中です。",
+  "error.mosaicNoClient": "現在 '{0}' を視聴しているクライアントはありません。先にクライアントを接続してください。",
+  "error.mosaicGuestStreaming": "'{0}' にはクライアントが接続されています。先に切断してください。",
+  "error.mosaicBusy": "'{0}' はすでにモザイクに参加しています。",
+  "error.mosaicFull": "モザイクにはすでに 4 セッションあります。",
+  "error.mosaicGuestStart": "'{0}' が時間内に起動しませんでした。",
+  "error.mosaicApply": "セッションを再配置できませんでした: {0}"
 }

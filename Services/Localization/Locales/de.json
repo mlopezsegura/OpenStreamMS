@@ -82,5 +82,15 @@
   "isolatedUser.profileDeleteError": "Profil '{0}' konnte nicht gelöscht werden: {1}.",
   "isolatedUser.orphanFolderDeleted": "Verwaistes Verzeichnis '{0}' gelöscht.",
   "isolatedUser.errorAddingToGroup": "'{0}' konnte nicht zur Gruppe '{1}' hinzugefügt werden: Fehler {2}.",
-  "isolatedUser.errorRemovingRights": "Rechte für '{0}' konnten nicht entfernt werden: {1}."
+  "isolatedUser.errorRemovingRights": "Rechte für '{0}' konnten nicht entfernt werden: {1}.",
+  "error.mosaicSelf": "Eine Sitzung kann nicht ihrem eigenen Stream beitreten.",
+  "error.mosaicHostStopped": "Die Host-Sitzung muss laufen.",
+  "error.mosaicCapture": "'{0}' verwendet keine RemoteIdd-Aufnahme, die das Mosaik braucht.",
+  "error.mosaicSeat": "'{0}' wird von einem lokalen Arbeitsplatz verwendet.",
+  "error.mosaicNoClient": "Gerade schaut niemand '{0}'. Verbinde zuerst einen Client.",
+  "error.mosaicGuestStreaming": "Mit '{0}' ist ein Client verbunden. Trenne ihn zuerst.",
+  "error.mosaicBusy": "'{0}' ist bereits in einem Mosaik.",
+  "error.mosaicFull": "Das Mosaik hat bereits 4 Sitzungen.",
+  "error.mosaicGuestStart": "'{0}' ist nicht rechtzeitig gestartet.",
+  "error.mosaicApply": "Die Sitzungen konnten nicht neu angeordnet werden: {0}"
 }

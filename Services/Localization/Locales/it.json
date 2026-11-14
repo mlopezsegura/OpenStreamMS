@@ -82,5 +82,15 @@
   "isolatedUser.profileDeleteError": "Impossibile eliminare il profilo '{0}': {1}.",
   "isolatedUser.orphanFolderDeleted": "Cartella orfana '{0}' eliminata.",
   "isolatedUser.errorAddingToGroup": "Impossibile aggiungere '{0}' al gruppo '{1}': errore {2}.",
-  "isolatedUser.errorRemovingRights": "Impossibile rimuovere i diritti per '{0}': {1}."
+  "isolatedUser.errorRemovingRights": "Impossibile rimuovere i diritti per '{0}': {1}.",
+  "error.mosaicSelf": "Una sessione non può unirsi al proprio stream.",
+  "error.mosaicHostStopped": "La sessione host deve essere in esecuzione.",
+  "error.mosaicCapture": "'{0}' non usa la cattura RemoteIdd, necessaria per il mosaico.",
+  "error.mosaicSeat": "'{0}' è in uso da una postazione locale.",
+  "error.mosaicNoClient": "Al momento nessuno sta guardando '{0}'. Collega prima un client.",
+  "error.mosaicGuestStreaming": "'{0}' ha un client connesso. Disconnettilo prima.",
+  "error.mosaicBusy": "'{0}' è già in un mosaico.",
+  "error.mosaicFull": "Il mosaico ha già 4 sessioni.",
+  "error.mosaicGuestStart": "'{0}' non si è avviata in tempo.",
+  "error.mosaicApply": "Impossibile riorganizzare le sessioni: {0}"
 }

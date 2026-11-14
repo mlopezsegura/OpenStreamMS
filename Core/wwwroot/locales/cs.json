@@ -710,5 +710,19 @@
   "log.noMatches": "Filtru neodpovídá žádný řádek.",
   "view.toggle": "Zobrazení relací",
   "view.cards": "Karty",
-  "view.list": "Seznam"
+  "view.list": "Seznam",
+  "mosaic.join": "Připojit ke streamu jiné relace…",
+  "mosaic.join_disabled": "Není k dispozici pro místní relaci ani během spouštění či zastavování.",
+  "mosaic.joinTo": "Připojit k {name} (část {n} ze 4)",
+  "mosaic.leave": "Opustit mozaiku",
+  "mosaic.dissolve": "Ukončit mozaiku",
+  "mosaic.noHosts": "Žádná jiná relace teď nestreamuje do klienta.",
+  "mosaic.joining": "Připojování {name} ke streamu {host}… Relace se znovu připojí ve velikosti své části.",
+  "mosaic.joined": "{name} je nyní ve streamu {host}.",
+  "mosaic.left": "{name} opustila mozaiku.",
+  "mosaic.dissolved": "Mozaika ukončena: {name} je opět na celé obrazovce.",
+  "mosaic.hostChip": "Mozaika {n}/4",
+  "mosaic.guestChip": "V mozaice {name}",
+  "mosaic.member": "Ovladač {n} → {name}",
+  "mosaic.chip_title": "Tento stream sdílí až 4 relace. Každý ovladač patří jedné relaci podle pořadí připojení: {list}"
 }

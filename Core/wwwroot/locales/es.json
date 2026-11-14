@@ -710,5 +710,19 @@
   "log.noMatches": "Ninguna línea coincide con el filtro.",
   "view.toggle": "Vista de sesiones",
   "view.cards": "Tarjetas",
-  "view.list": "Lista"
+  "view.list": "Lista",
+  "mosaic.join": "Unir al stream de otra sesión…",
+  "mosaic.join_disabled": "No disponible en una sesión local ni mientras arranca o se detiene.",
+  "mosaic.joinTo": "Unir a {name} (parte {n} de 4)",
+  "mosaic.leave": "Salir del mosaico",
+  "mosaic.dissolve": "Deshacer el mosaico",
+  "mosaic.noHosts": "Ahora mismo ninguna otra sesión está retransmitiendo a un cliente.",
+  "mosaic.joining": "Uniendo {name} al stream de {host}… Las sesiones se reconectan al tamaño de su parte.",
+  "mosaic.joined": "{name} ya está en el stream de {host}.",
+  "mosaic.left": "{name} ha salido del mosaico.",
+  "mosaic.dissolved": "Mosaico deshecho: {name} vuelve a pantalla completa.",
+  "mosaic.hostChip": "Mosaico {n}/4",
+  "mosaic.guestChip": "En el mosaico de {name}",
+  "mosaic.member": "Mando {n} → {name}",
+  "mosaic.chip_title": "Hasta 4 sesiones comparten este stream. Cada mando va a una sesión por orden de llegada: {list}"
 }

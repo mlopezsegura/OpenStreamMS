@@ -82,5 +82,15 @@
   "isolatedUser.profileDeleteError": "无法删除配置文件 '{0}': {1}。",
   "isolatedUser.orphanFolderDeleted": "孤立文件夹 '{0}' 已删除。",
   "isolatedUser.errorAddingToGroup": "无法将 '{0}' 添加到组 '{1}': 错误 {2}。",
-  "isolatedUser.errorRemovingRights": "无法移除 '{0}' 的权限: {1}。"
+  "isolatedUser.errorRemovingRights": "无法移除 '{0}' 的权限: {1}。",
+  "error.mosaicSelf": "会话不能加入自己的串流。",
+  "error.mosaicHostStopped": "主会话必须处于运行状态。",
+  "error.mosaicCapture": "'{0}' 未使用拼接画面所需的 RemoteIdd 捕获。",
+  "error.mosaicSeat": "'{0}' 正被本地座位使用。",
+  "error.mosaicNoClient": "当前没有人在观看 '{0}'。请先连接一个客户端。",
+  "error.mosaicGuestStreaming": "'{0}' 已连接客户端。请先断开连接。",
+  "error.mosaicBusy": "'{0}' 已在拼接画面中。",
+  "error.mosaicFull": "拼接画面已有 4 个会话。",
+  "error.mosaicGuestStart": "'{0}' 未能及时启动。",
+  "error.mosaicApply": "无法重新排列会话：{0}"
 }

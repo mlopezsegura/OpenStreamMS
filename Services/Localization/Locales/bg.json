@@ -82,5 +82,15 @@
   "isolatedUser.profileDeleteError": "Не може да се изтрие профилът '{0}': {1}.",
   "isolatedUser.orphanFolderDeleted": "Останала папка '{0}' изтрита.",
   "isolatedUser.errorAddingToGroup": "Не може да се добави '{0}' към група '{1}': грешка {2}.",
-  "isolatedUser.errorRemovingRights": "Не може да се премахнат правата за '{0}': {1}."
+  "isolatedUser.errorRemovingRights": "Не може да се премахнат правата за '{0}': {1}.",
+  "error.mosaicSelf": "Сесия не може да се присъедини към собствения си стрийм.",
+  "error.mosaicHostStopped": "Сесията домакин трябва да работи.",
+  "error.mosaicCapture": "'{0}' не използва заснемане с RemoteIdd, което е нужно за мозайката.",
+  "error.mosaicSeat": "'{0}' се използва от локална работна станция.",
+  "error.mosaicNoClient": "В момента никой не гледа '{0}'. Първо свържете клиент.",
+  "error.mosaicGuestStreaming": "'{0}' има свързан клиент. Първо го изключете.",
+  "error.mosaicBusy": "'{0}' вече е в мозайка.",
+  "error.mosaicFull": "Мозайката вече има 4 сесии.",
+  "error.mosaicGuestStart": "'{0}' не стартира навреме.",
+  "error.mosaicApply": "Сесиите не можаха да бъдат пренаредени: {0}"
 }
