@@ -93,4 +93,6 @@
   "error.mosaicFull": "Mosaiken har redan 4 sessioner.",
   "error.mosaicGuestStart": "'{0}' startade inte i tid.",
   "error.mosaicApply": "Sessionerna kunde inte ordnas om: {0}"
+  "isolatedUser.passwordKept": "Användaren '{0}' fanns redan; lösenordet behålls (Steam och andra sparade inloggningar fortsätter att gälla).",
+  "isolatedUser.passwordStoreFailed": "Det gick inte att spara eller läsa lösenordet för '{0}' i LSA: {1}. Det återställs vid nästa start."
 }

@@ -93,4 +93,6 @@
   "error.mosaicFull": "モザイクにはすでに 4 セッションあります。",
   "error.mosaicGuestStart": "'{0}' が時間内に起動しませんでした。",
   "error.mosaicApply": "セッションを再配置できませんでした: {0}"
+  "isolatedUser.passwordKept": "ユーザー '{0}' は既に存在していました。パスワードはそのまま保持されます (Steam などの保存済みログインは引き続き有効です)。",
+  "isolatedUser.passwordStoreFailed": "'{0}' のパスワードを LSA に保存または読み取りできませんでした: {1}。次回の起動時にリセットされます。"
 }

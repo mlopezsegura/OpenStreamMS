@@ -93,4 +93,6 @@
   "error.mosaicFull": "El mosaico ya tiene 4 sesiones.",
   "error.mosaicGuestStart": "'{0}' no arrancó a tiempo.",
   "error.mosaicApply": "No se pudieron recolocar las sesiones: {0}"
+  "isolatedUser.passwordKept": "Usuario '{0}' ya existía; se conserva su contraseña (Steam y otros inicios de sesión guardados siguen valiendo).",
+  "isolatedUser.passwordStoreFailed": "No se pudo guardar o leer la contraseña de '{0}' en LSA: {1}. Se restablecerá en el siguiente arranque."
 }

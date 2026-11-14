@@ -93,4 +93,6 @@
   "error.mosaicFull": "A mozaikban már 4 munkamenet van.",
   "error.mosaicGuestStart": "'{0}' nem indult el időben.",
   "error.mosaicApply": "Nem sikerült átrendezni a munkameneteket: {0}"
+  "isolatedUser.passwordKept": "A(z) '{0}' felhasználó már létezett; a jelszava megmarad (a Steam és más mentett bejelentkezések érvényesek maradnak).",
+  "isolatedUser.passwordStoreFailed": "Nem sikerült menteni vagy olvasni a(z) '{0}' jelszavát az LSA-ban: {1}. A következő indításkor alaphelyzetbe áll."
 }

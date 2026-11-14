@@ -93,4 +93,6 @@
   "error.mosaicFull": "拼接畫面已有 4 個工作階段。",
   "error.mosaicGuestStart": "'{0}' 未能及時啟動。",
   "error.mosaicApply": "無法重新排列工作階段：{0}"
+  "isolatedUser.passwordKept": "使用者 '{0}' 已存在；保留其密碼（Steam 和其他已儲存的登入仍然有效）。",
+  "isolatedUser.passwordStoreFailed": "無法在 LSA 中儲存或讀取 '{0}' 的密碼：{1}。下次啟動時將重設。"
 }

@@ -93,4 +93,6 @@
   "error.mosaicFull": "Khảm đã có 4 phiên.",
   "error.mosaicGuestStart": "'{0}' không khởi động kịp thời.",
   "error.mosaicApply": "Không thể sắp xếp lại các phiên: {0}"
+  "isolatedUser.passwordKept": "Người dùng '{0}' đã tồn tại; mật khẩu được giữ nguyên (Steam và các thông tin đăng nhập đã lưu khác vẫn hợp lệ).",
+  "isolatedUser.passwordStoreFailed": "Không thể lưu hoặc đọc mật khẩu của '{0}' trong LSA: {1}. Mật khẩu sẽ được đặt lại ở lần khởi động tiếp theo."
 }

@@ -93,4 +93,6 @@
   "error.mosaicFull": "The mosaic already has 4 sessions.",
   "error.mosaicGuestStart": "'{0}' did not start in time.",
   "error.mosaicApply": "The sessions could not be rearranged: {0}"
+  "isolatedUser.passwordKept": "User '{0}' already existed; its password is kept (Steam and other saved logins stay valid).",
+  "isolatedUser.passwordStoreFailed": "Could not save or read the password of '{0}' in LSA: {1}. It will be reset on the next start."
 }
