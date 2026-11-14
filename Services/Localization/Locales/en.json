@@ -82,5 +82,7 @@
   "isolatedUser.profileDeleteError": "Could not delete profile '{0}': {1}.",
   "isolatedUser.orphanFolderDeleted": "Orphan folder '{0}' deleted.",
   "isolatedUser.errorAddingToGroup": "Could not add '{0}' to group '{1}': error {2}.",
-  "isolatedUser.errorRemovingRights": "Could not remove rights for '{0}': {1}."
+  "isolatedUser.errorRemovingRights": "Could not remove rights for '{0}': {1}.",
+  "isolatedUser.passwordKept": "User '{0}' already existed; its password is kept (Steam and other saved logins stay valid).",
+  "isolatedUser.passwordStoreFailed": "Could not save or read the password of '{0}' in LSA: {1}. It will be reset on the next start."
 }

@@ -82,5 +82,7 @@
   "isolatedUser.profileDeleteError": "Impossibile eliminare il profilo '{0}': {1}.",
   "isolatedUser.orphanFolderDeleted": "Cartella orfana '{0}' eliminata.",
   "isolatedUser.errorAddingToGroup": "Impossibile aggiungere '{0}' al gruppo '{1}': errore {2}.",
-  "isolatedUser.errorRemovingRights": "Impossibile rimuovere i diritti per '{0}': {1}."
+  "isolatedUser.errorRemovingRights": "Impossibile rimuovere i diritti per '{0}': {1}.",
+  "isolatedUser.passwordKept": "L'utente '{0}' esisteva già; la sua password viene mantenuta (Steam e gli altri accessi salvati restano validi).",
+  "isolatedUser.passwordStoreFailed": "Impossibile salvare o leggere la password di '{0}' in LSA: {1}. Verrà reimpostata al prossimo avvio."
 }

@@ -82,5 +82,7 @@
   "isolatedUser.profileDeleteError": "Не удалось удалить профиль '{0}': {1}.",
   "isolatedUser.orphanFolderDeleted": "Оставшаяся папка '{0}' удалена.",
   "isolatedUser.errorAddingToGroup": "Не удалось добавить '{0}' в группу '{1}': ошибка {2}.",
-  "isolatedUser.errorRemovingRights": "Не удалось удалить права для '{0}': {1}."
+  "isolatedUser.errorRemovingRights": "Не удалось удалить права для '{0}': {1}.",
+  "isolatedUser.passwordKept": "Пользователь '{0}' уже существовал; его пароль сохраняется (Steam и другие сохранённые входы остаются действительными).",
+  "isolatedUser.passwordStoreFailed": "Не удалось сохранить или прочитать пароль '{0}' в LSA: {1}. Он будет сброшен при следующем запуске."
 }

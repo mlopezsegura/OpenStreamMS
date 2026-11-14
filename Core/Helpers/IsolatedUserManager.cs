@@ -23,15 +23,18 @@ namespace OpenStreamMS.Core.Helpers;
 ///   - Sin driver kernel, sin licencias, sin binarios externos.
 ///
 /// SEGURIDAD:
-///   - Contraseña aleatoria (24 chars, 4 clases) ROTADA en cada arranque y nunca
-///     persistida en disco — solo vive en memoria durante el arranque de la sesión.
+///   - Contraseña aleatoria (24 chars, 4 clases), guardada como secreto local de LSA
+///     (<see cref="IsolatedUserSecret"/>, solo legible por SYSTEM) y reutilizada en cada
+///     arranque. No se rota: restablecer la contraseña de una cuenta local deja inservibles
+///     sus claves DPAPI, y con ellas el inicio de sesión guardado de Steam y las contraseñas
+///     de los navegadores. Solo se restablece si no hay secreto o ya no vale.
 ///   - Usuario oculto de la pantalla de login (SpecialAccounts\UserList).
 ///   - Miembro únicamente de Users + Remote Desktop Users. Donde no existe ese grupo
 ///     (Windows Home), recibe directamente el derecho de inicio de sesión remoto y
 ///     acceso a la escucha RDP-Tcp; se le quitan al borrar la cuenta.
 ///
 /// CICLO DE VIDA:
-///   - EnsureUser            → crea el usuario (o rota la contraseña si ya existe).
+///   - EnsureUser            → crea el usuario (o reutiliza su contraseña si ya existe).
 ///   - TryDeleteProfile      → borra C:\Users\osms-... + hive de registro (modo efímero).
 ///   - RemoveUser            → perfil + cuenta + entrada de registro (al eliminar la sesión,
 ///                             salvo que se pida conservarlo para reutilizarlo en otra).
@@ -70,6 +73,16 @@ internal static class IsolatedUserManager
 
     [DllImport("netapi32.dll")]
     static extern int NetApiBufferFree(IntPtr buffer);
+
+    [DllImport("advapi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    static extern bool LogonUser(string user, string domain, string password, int logonType, int provider, out IntPtr token);
+
+    [DllImport("kernel32.dll")]
+    static extern bool CloseHandle(IntPtr handle);
+
+    const int LOGON32_LOGON_NETWORK    = 3;
+    const int LOGON32_PROVIDER_DEFAULT = 0;
+    const int ERROR_LOGON_FAILURE      = 1326;
 
     [DllImport("userenv.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     static extern bool DeleteProfile(string lpSidString, string? lpProfilePath, string? lpComputerName);
@@ -128,9 +141,9 @@ internal static class IsolatedUserManager
     }
 
     /// <summary>
-    /// Crea el usuario local dedicado de la sesión (o rota su contraseña si ya existe),
-    /// lo añade a Users + Remote Desktop Users y lo oculta de la pantalla de login.
-    /// Devuelve credenciales listas para FreeRDP. La contraseña no se persiste nunca.
+    /// Crea el usuario local dedicado de la sesión (o reutiliza su contraseña guardada si ya
+    /// existe), lo añade a Users + Remote Desktop Users y lo oculta de la pantalla de login.
+    /// Devuelve credenciales listas para FreeRDP. Ver <see cref="IsolatedUserSecret"/>.
     /// </summary>
     internal static IsolatedCredentials EnsureUser(string username, string sessionName)
     {
@@ -153,15 +166,24 @@ internal static class IsolatedUserManager
         {
             case NERR_Success:
                 Logger.Log(BackendText.Get("isolatedUser.userCreated", username, sessionName));
+                KeepPassword(username, password);
                 break;
 
             case NERR_UserExists:
+                // La de la vez anterior, si sigue valiendo: así no se pierden las claves DPAPI.
+                if (TryGetSecret(username) is { } kept && PasswordWorks(username, kept))
+                {
+                    password = kept;
+                    Logger.Log(BackendText.Get("isolatedUser.passwordKept", username));
+                    break;
+                }
                 var reset = new USER_INFO_1003 { usri1003_password = password };
                 int rcSet = NetUserSetInfo(null, username, 1003, ref reset, out _);
                 if (rcSet != NERR_Success)
                     throw new InvalidOperationException(
                         BackendText.Get("isolatedUser.passwordRotationFailed", username, rcSet));
                 Logger.Log(BackendText.Get("isolatedUser.passwordRotated", username));
+                KeepPassword(username, password);
                 break;
 
             default:
@@ -178,6 +200,37 @@ internal static class IsolatedUserManager
         RemoveLegacySteamDeny(username);
 
         return new IsolatedCredentials(username, password);
+    }
+
+    static string? TryGetSecret(string username)
+    {
+        try { return IsolatedUserSecret.TryGet(username); }
+        catch (Exception ex)
+        {
+            Logger.Warning(BackendText.Get("isolatedUser.passwordStoreFailed", username, ex.Message));
+            return null;
+        }
+    }
+
+    static void KeepPassword(string username, string password)
+    {
+        try { IsolatedUserSecret.Store(username, password); }
+        catch (Exception ex) { Logger.Warning(BackendText.Get("isolatedUser.passwordStoreFailed", username, ex.Message)); }
+    }
+
+    /// <summary>
+    /// La contraseña sigue siendo la de la cuenta. Inicio de sesión de red: no crea perfil ni
+    /// sesión. Solo "usuario o contraseña incorrectos" cuenta como no válida; otro error (por
+    /// ejemplo, que la directiva no permita ese tipo de inicio) ya implica que era correcta.
+    /// </summary>
+    static bool PasswordWorks(string username, string password)
+    {
+        if (LogonUser(username, ".", password, LOGON32_LOGON_NETWORK, LOGON32_PROVIDER_DEFAULT, out var token))
+        {
+            CloseHandle(token);
+            return true;
+        }
+        return Marshal.GetLastWin32Error() != ERROR_LOGON_FAILURE;
     }
 
     /// <summary>
@@ -280,6 +333,8 @@ internal static class IsolatedUserManager
             Logger.Warning(BackendText.Get("isolatedUser.netUserDelFailed", username, rc));
 
         UnhideFromLoginScreen(username);
+        try { IsolatedUserSecret.Delete(username); }
+        catch (Exception ex) { Logger.Warning(BackendText.Get("isolatedUser.passwordStoreFailed", username, ex.Message)); }
 
         // Justo tras el logoff profsvc aún tiene el perfil cargado y DeleteProfile falla:
         // antes eso dejaba la carpeta C:\Users\osms-... para siempre. Se reintenta por SID,

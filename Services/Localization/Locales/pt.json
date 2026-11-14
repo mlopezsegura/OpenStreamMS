@@ -82,5 +82,7 @@
   "isolatedUser.profileDeleteError": "Não foi possível apagar o perfil '{0}': {1}.",
   "isolatedUser.orphanFolderDeleted": "Pasta órfã '{0}' eliminada.",
   "isolatedUser.errorAddingToGroup": "Não foi possível adicionar '{0}' ao grupo '{1}': erro {2}.",
-  "isolatedUser.errorRemovingRights": "Não foi possível remover os direitos de '{0}': {1}."
+  "isolatedUser.errorRemovingRights": "Não foi possível remover os direitos de '{0}': {1}.",
+  "isolatedUser.passwordKept": "O utilizador '{0}' já existia; a sua palavra-passe é mantida (o Steam e outros inícios de sessão guardados continuam válidos).",
+  "isolatedUser.passwordStoreFailed": "Não foi possível guardar ou ler a palavra-passe de '{0}' no LSA: {1}. Será reposta no próximo arranque."
 }

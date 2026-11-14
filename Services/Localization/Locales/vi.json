@@ -82,5 +82,7 @@
   "isolatedUser.profileDeleteError": "Không thể xóa hồ sơ '{0}': {1}.",
   "isolatedUser.orphanFolderDeleted": "Thư mục mồ côi '{0}' đã bị xóa.",
   "isolatedUser.errorAddingToGroup": "Không thể thêm '{0}' vào nhóm '{1}': lỗi {2}.",
-  "isolatedUser.errorRemovingRights": "Không thể xóa quyền của '{0}': {1}."
+  "isolatedUser.errorRemovingRights": "Không thể xóa quyền của '{0}': {1}.",
+  "isolatedUser.passwordKept": "Người dùng '{0}' đã tồn tại; mật khẩu được giữ nguyên (Steam và các thông tin đăng nhập đã lưu khác vẫn hợp lệ).",
+  "isolatedUser.passwordStoreFailed": "Không thể lưu hoặc đọc mật khẩu của '{0}' trong LSA: {1}. Mật khẩu sẽ được đặt lại ở lần khởi động tiếp theo."
 }

@@ -82,5 +82,7 @@
   "isolatedUser.profileDeleteError": "Profil '{0}' konnte nicht gelöscht werden: {1}.",
   "isolatedUser.orphanFolderDeleted": "Verwaistes Verzeichnis '{0}' gelöscht.",
   "isolatedUser.errorAddingToGroup": "'{0}' konnte nicht zur Gruppe '{1}' hinzugefügt werden: Fehler {2}.",
-  "isolatedUser.errorRemovingRights": "Rechte für '{0}' konnten nicht entfernt werden: {1}."
+  "isolatedUser.errorRemovingRights": "Rechte für '{0}' konnten nicht entfernt werden: {1}.",
+  "isolatedUser.passwordKept": "Benutzer '{0}' war bereits vorhanden; sein Kennwort bleibt erhalten (Steam und andere gespeicherte Anmeldungen bleiben gültig).",
+  "isolatedUser.passwordStoreFailed": "Das Kennwort von '{0}' konnte in LSA nicht gespeichert oder gelesen werden: {1}. Es wird beim nächsten Start zurückgesetzt."
 }

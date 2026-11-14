@@ -82,5 +82,7 @@
   "isolatedUser.profileDeleteError": "Nie można usunąć profilu '{0}': {1}.",
   "isolatedUser.orphanFolderDeleted": "Pozostali folder '{0}' usunięty.",
   "isolatedUser.errorAddingToGroup": "Nie można dodać '{0}' do grupy '{1}': błąd {2}.",
-  "isolatedUser.errorRemovingRights": "Nie można usunąć uprawnień dla '{0}': {1}."
+  "isolatedUser.errorRemovingRights": "Nie można usunąć uprawnień dla '{0}': {1}.",
+  "isolatedUser.passwordKept": "Użytkownik '{0}' już istniał; jego hasło zostaje zachowane (Steam i inne zapisane logowania pozostają ważne).",
+  "isolatedUser.passwordStoreFailed": "Nie udało się zapisać ani odczytać hasła '{0}' w LSA: {1}. Zostanie zresetowane przy następnym uruchomieniu."
 }

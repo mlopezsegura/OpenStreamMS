@@ -82,5 +82,7 @@
   "isolatedUser.profileDeleteError": "无法删除配置文件 '{0}': {1}。",
   "isolatedUser.orphanFolderDeleted": "孤立文件夹 '{0}' 已删除。",
   "isolatedUser.errorAddingToGroup": "无法将 '{0}' 添加到组 '{1}': 错误 {2}。",
-  "isolatedUser.errorRemovingRights": "无法移除 '{0}' 的权限: {1}。"
+  "isolatedUser.errorRemovingRights": "无法移除 '{0}' 的权限: {1}。",
+  "isolatedUser.passwordKept": "用户 '{0}' 已存在；保留其密码（Steam 和其他已保存的登录仍然有效）。",
+  "isolatedUser.passwordStoreFailed": "无法在 LSA 中保存或读取 '{0}' 的密码：{1}。下次启动时将重置。"
 }
