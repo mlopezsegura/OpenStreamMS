@@ -82,5 +82,7 @@
   "isolatedUser.profileDeleteError": "Profil '{0}' silinemedi: {1}.",
   "isolatedUser.orphanFolderDeleted": "Kalıntı klasör '{0}' silindi.",
   "isolatedUser.errorAddingToGroup": "'{0}' '{1}' grubuna eklenemedi: hata {2}.",
-  "isolatedUser.errorRemovingRights": "'{0}' hakları kaldırılamadı: {1}."
+  "isolatedUser.errorRemovingRights": "'{0}' hakları kaldırılamadı: {1}.",
+  "isolatedUser.passwordKept": "'{0}' kullanıcısı zaten vardı; parolası korunuyor (Steam ve diğer kayıtlı oturum açmalar geçerli kalır).",
+  "isolatedUser.passwordStoreFailed": "'{0}' parolası LSA'ya kaydedilemedi veya okunamadı: {1}. Bir sonraki başlatmada sıfırlanacak."
 }

@@ -82,5 +82,7 @@
   "isolatedUser.profileDeleteError": "프로필 '{0}'을(를) 삭제할 수 없습니다: {1}.",
   "isolatedUser.orphanFolderDeleted": "고아 폴더 '{0}'이(가) 삭제되었습니다.",
   "isolatedUser.errorAddingToGroup": "'{0}'을(를) 그룹 '{1}'에 추가할 수 없습니다: 오류 {2}.",
-  "isolatedUser.errorRemovingRights": "'{0}'의 권한을 제거할 수 없습니다: {1}."
+  "isolatedUser.errorRemovingRights": "'{0}'의 권한을 제거할 수 없습니다: {1}.",
+  "isolatedUser.passwordKept": "사용자 '{0}'이(가) 이미 있습니다. 암호가 유지됩니다(Steam 및 기타 저장된 로그인은 계속 유효합니다).",
+  "isolatedUser.passwordStoreFailed": "LSA에서 '{0}'의 암호를 저장하거나 읽을 수 없습니다: {1}. 다음 시작 시 재설정됩니다."
 }

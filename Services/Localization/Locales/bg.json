@@ -82,5 +82,7 @@
   "isolatedUser.profileDeleteError": "Не може да се изтрие профилът '{0}': {1}.",
   "isolatedUser.orphanFolderDeleted": "Останала папка '{0}' изтрита.",
   "isolatedUser.errorAddingToGroup": "Не може да се добави '{0}' към група '{1}': грешка {2}.",
-  "isolatedUser.errorRemovingRights": "Не може да се премахнат правата за '{0}': {1}."
+  "isolatedUser.errorRemovingRights": "Не може да се премахнат правата за '{0}': {1}.",
+  "isolatedUser.passwordKept": "Потребителят '{0}' вече съществуваше; паролата му се запазва (Steam и другите запазени влизания остават валидни).",
+  "isolatedUser.passwordStoreFailed": "Паролата на '{0}' не можа да бъде запазена или прочетена в LSA: {1}. Тя ще бъде нулирана при следващото стартиране."
 }

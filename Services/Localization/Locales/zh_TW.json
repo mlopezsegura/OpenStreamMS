@@ -82,5 +82,7 @@
   "isolatedUser.profileDeleteError": "無法刪除設定檔 '{0}': {1}。",
   "isolatedUser.orphanFolderDeleted": "孤立資料夾 '{0}' 已刪除。",
   "isolatedUser.errorAddingToGroup": "無法將 '{0}' 新增到群組 '{1}': 錯誤 {2}。",
-  "isolatedUser.errorRemovingRights": "無法移除 '{0}' 的權限: {1}。"
+  "isolatedUser.errorRemovingRights": "無法移除 '{0}' 的權限: {1}。",
+  "isolatedUser.passwordKept": "使用者 '{0}' 已存在；保留其密碼（Steam 和其他已儲存的登入仍然有效）。",
+  "isolatedUser.passwordStoreFailed": "無法在 LSA 中儲存或讀取 '{0}' 的密碼：{1}。下次啟動時將重設。"
 }

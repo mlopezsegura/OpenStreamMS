@@ -82,5 +82,7 @@
   "isolatedUser.profileDeleteError": "Kunde inte ta bort profil '{0}': {1}.",
   "isolatedUser.orphanFolderDeleted": "Överbliven mapp '{0}' borttagen.",
   "isolatedUser.errorAddingToGroup": "Kunde inte lägga till '{0}' i grupp '{1}': fel {2}.",
-  "isolatedUser.errorRemovingRights": "Kunde inte ta bort rättigheter för '{0}': {1}."
+  "isolatedUser.errorRemovingRights": "Kunde inte ta bort rättigheter för '{0}': {1}.",
+  "isolatedUser.passwordKept": "Användaren '{0}' fanns redan; lösenordet behålls (Steam och andra sparade inloggningar fortsätter att gälla).",
+  "isolatedUser.passwordStoreFailed": "Det gick inte att spara eller läsa lösenordet för '{0}' i LSA: {1}. Det återställs vid nästa start."
 }

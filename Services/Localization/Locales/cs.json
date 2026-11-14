@@ -82,5 +82,7 @@
   "isolatedUser.profileDeleteError": "Nelze smazat profil '{0}': {1}.",
   "isolatedUser.orphanFolderDeleted": "Zbylá složka '{0}' smazána.",
   "isolatedUser.errorAddingToGroup": "Nepodařilo se přidat '{0}' do skupiny '{1}': chyba {2}.",
-  "isolatedUser.errorRemovingRights": "Nepodařilo se odebrat práva pro '{0}': {1}."
+  "isolatedUser.errorRemovingRights": "Nepodařilo se odebrat práva pro '{0}': {1}.",
+  "isolatedUser.passwordKept": "Uživatel '{0}' již existoval; jeho heslo se zachovává (Steam a další uložená přihlášení zůstávají platná).",
+  "isolatedUser.passwordStoreFailed": "Heslo uživatele '{0}' nelze uložit ani přečíst v LSA: {1}. Při příštím spuštění bude obnoveno."
 }

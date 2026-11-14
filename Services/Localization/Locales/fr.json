@@ -82,5 +82,7 @@
   "isolatedUser.profileDeleteError": "No se pudo borrar el perfil '{0}': {1}.",
   "isolatedUser.orphanFolderDeleted": "Carpeta huérfana '{0}' eliminada.",
   "isolatedUser.errorAddingToGroup": "No se pudo añadir '{0}' al grupo '{1}': error {2}.",
-  "isolatedUser.errorRemovingRights": "No se pudieron quitar los derechos de '{0}': {1}."
+  "isolatedUser.errorRemovingRights": "No se pudieron quitar los derechos de '{0}': {1}.",
+  "isolatedUser.passwordKept": "L'utilisateur '{0}' existait déjà ; son mot de passe est conservé (Steam et les autres connexions enregistrées restent valides).",
+  "isolatedUser.passwordStoreFailed": "Impossible d'enregistrer ou de lire le mot de passe de '{0}' dans LSA : {1}. Il sera réinitialisé au prochain démarrage."
 }

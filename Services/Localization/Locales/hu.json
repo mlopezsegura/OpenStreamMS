@@ -82,5 +82,7 @@
   "isolatedUser.profileDeleteError": "A '{0}' profil nem törölhető: {1}.",
   "isolatedUser.orphanFolderDeleted": "Ártatlan mappa '{0}' törölve.",
   "isolatedUser.errorAddingToGroup": "A '{0}' nem adható hozzá a '{1}' csoporthoz: hiba {2}.",
-  "isolatedUser.errorRemovingRights": "A '{0}' jogai nem vonhatók ki: {1}."
+  "isolatedUser.errorRemovingRights": "A '{0}' jogai nem vonhatók ki: {1}.",
+  "isolatedUser.passwordKept": "A(z) '{0}' felhasználó már létezett; a jelszava megmarad (a Steam és más mentett bejelentkezések érvényesek maradnak).",
+  "isolatedUser.passwordStoreFailed": "Nem sikerült menteni vagy olvasni a(z) '{0}' jelszavát az LSA-ban: {1}. A következő indításkor alaphelyzetbe áll."
 }

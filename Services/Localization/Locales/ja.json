@@ -82,5 +82,7 @@
   "isolatedUser.profileDeleteError": "プロファイル '{0}' を削除できません: {1}。",
   "isolatedUser.orphanFolderDeleted": "孤立フォルダー '{0}' を削除しました。",
   "isolatedUser.errorAddingToGroup": "'{0}' をグループ '{1}' に追加できません: エラー {2}。",
-  "isolatedUser.errorRemovingRights": "'{0}' の権利を削除できません: {1}。"
+  "isolatedUser.errorRemovingRights": "'{0}' の権利を削除できません: {1}。",
+  "isolatedUser.passwordKept": "ユーザー '{0}' は既に存在していました。パスワードはそのまま保持されます (Steam などの保存済みログインは引き続き有効です)。",
+  "isolatedUser.passwordStoreFailed": "'{0}' のパスワードを LSA に保存または読み取りできませんでした: {1}。次回の起動時にリセットされます。"
 }
