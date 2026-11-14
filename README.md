@@ -4,16 +4,18 @@
 
 ### One Windows PC. Many players. Each with their own desktop.
 
+<sub><b>OpenStreamMS</b> = OpenStream <b>M</b>ulti-<b>S</b>eat</sub>
+
 Isolated streaming sessions for **Moonlight** and **WebRTC TVs**, and **local seats** that turn one PC into several —
 managed from a web dashboard, a tray icon or a REST API.
 
-[![Latest release](https://img.shields.io/github/v/release/mlopezsegura/OpenStreamMS?style=flat-square&color=7c5cff)](https://github.com/mlopezsegura/OpenStreamMS/releases/latest)
-[![Downloads](https://img.shields.io/github/downloads/mlopezsegura/OpenStreamMS/total?style=flat-square&color=2dd4bf)](https://github.com/mlopezsegura/OpenStreamMS/releases)
+[![Latest release](https://img.shields.io/github/v/release/OpenstreamCo/OpenStreamMultiSeat?style=flat-square&color=7c5cff)](https://github.com/OpenstreamCo/OpenStreamMultiSeat/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/OpenstreamCo/OpenStreamMultiSeat/total?style=flat-square&color=2dd4bf)](https://github.com/OpenstreamCo/OpenStreamMultiSeat/releases)
 [![Windows 10/11](https://img.shields.io/badge/Windows-10%20%7C%2011-0078d4?style=flat-square&logo=windows)](#installation)
 [![.NET 10](https://img.shields.io/badge/.NET-10-512bd4?style=flat-square&logo=dotnet)](https://dotnet.microsoft.com/download)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 
-**[⬇ Download](https://github.com/mlopezsegura/OpenStreamMS/releases/latest)** ·
+**[⬇ Download](https://github.com/OpenstreamCo/OpenStreamMultiSeat/releases/latest)** ·
 [Quick start](#-quick-start) ·
 [Features](#-features) ·
 [Local seats](#local-seats) ·
@@ -65,7 +67,7 @@ Each session serves Moonlight apps, Samsung TVs running Moonlight WebRTC, or bot
 
 ## 🚀 Quick start
 
-1. **Download** `OpenStreamMS-Setup-x.x.x.exe` from [Releases](https://github.com/mlopezsegura/OpenStreamMS/releases/latest).
+1. **Download** `OpenStreamMS-Setup-x.x.x.exe` from [Releases](https://github.com/OpenstreamCo/OpenStreamMultiSeat/releases/latest).
 2. **Install** it as Administrator. It sets up the service, the tray icon and everything it needs (TermWrap, ViGEmBus, HidHide).
 3. **Open OpenStreamMS** from the Start menu, create your admin account and follow the built-in guide to your first session.
 
@@ -115,7 +117,7 @@ Then add the PC in Moonlight (or on your TV) — **Connect** in the dashboard sh
 
 ### Option A — Installer (recommended)
 
-1. Download `OpenStreamMS-Setup-x.x.x.exe` from [Releases](https://github.com/mlopezsegura/OpenStreamMS/releases)
+1. Download `OpenStreamMS-Setup-x.x.x.exe` from [Releases](https://github.com/OpenstreamCo/OpenStreamMultiSeat/releases)
 2. Run it as Administrator and follow the wizard
 3. The installer registers the Windows service, adds the tray icon to Windows startup, and optionally starts everything immediately
 
@@ -226,7 +228,7 @@ shows what is missing (components, first session, how to connect). After that, t
 <summary><b>Streaming protocols and ports</b> — Moonlight, WebRTC, firewall</summary>
 
 Sessions run the Sunshine in `Sunshine\` (or the one set in `SunshineExePath`). With the
-[sunshine-webrtc](https://github.com/mlopezsegura/Sunshine-Web-RTC) build, a session can serve:
+[sunshine-webrtc](https://github.com/OpenstreamCo/Sunshine-Web-RTC) build, a session can serve:
 
 | Protocol | Clients | Ports opened in the firewall |
 |---|---|---|
@@ -415,3 +417,8 @@ OpenStreamMS.exe  (Windows Service, SYSTEM)
 
 OpenStreamMS is released under the [MIT License](LICENSE).
 The bundled Sunshine (GPL-3.0) and FreeRDP (Apache-2.0) binaries keep their own licenses — see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+"MS" stands for *Multi-Seat*. OpenStreamMS is an independent project, not affiliated with or endorsed by Microsoft. Windows is a trademark of Microsoft Corporation.
+
+> [!IMPORTANT]
+> On Windows client editions (Home/Pro), concurrent sessions and local seats rely on [TermWrap](https://github.com/llccd/TermWrap), which patches `termsrv`. This is not permitted by the Windows license terms; using it is each user's decision and responsibility. The supported way to run multiple concurrent sessions is Windows Server with RDS CALs.
