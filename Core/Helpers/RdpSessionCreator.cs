@@ -86,6 +86,22 @@ namespace OpenStreamMS.Core.Helpers
             Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "FreeRDP", "wfreerdp.exe");
 
         /// <summary>
+        /// True si el PID es el wfreerdp incluido. Ese cliente descarta el audio redirigido
+        /// (<c>/sound:sys:fake</c>), así que, a diferencia de mstsc, no hay que silenciarlo.
+        /// </summary>
+        public static bool IsFreeRdpProcess(int pid)
+        {
+            try
+            {
+                using var process = Process.GetProcessById(pid);
+                return string.Equals(process.ProcessName, Path.GetFileNameWithoutExtension(FreeRdpExe),
+                                     StringComparison.OrdinalIgnoreCase);
+            }
+            catch (ArgumentException) { return false; }      // ya terminó
+            catch (InvalidOperationException) { return false; }
+        }
+
+        /// <summary>
         /// Loopback alternativo: permite que el RDP local no choque con conexiones
         /// RDP reales a 127.0.0.1 y que cmdkey guarde credenciales para un target
         /// que no afecta a otros usos de TERMSRV.
@@ -496,8 +512,11 @@ namespace OpenStreamMS.Core.Helpers
             psi.ArgumentList.Add("/network:lan");
 
             // ── Audio ─────────────────────────────────────────────────────────────
+            // redirect: el audio de la sesión sale por "Remote Audio", donde lo captura Sunshine.
+            // El backend fake confirma cada bloque al servidor y lo descarta: el host no lo oye
+            // y no hace falta silenciar wfreerdp (mstsc sí, ver AudioSessionMuter).
             psi.ArgumentList.Add("/audio-mode:redirect");
-            psi.ArgumentList.Add("/sound:sys:winmm");
+            psi.ArgumentList.Add("/sound:sys:fake");
             if (microphone is not null)
                 psi.ArgumentList.Add($"/microphone:sys:winmm,dev:{microphone}");
 

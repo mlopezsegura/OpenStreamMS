@@ -486,14 +486,25 @@ bool active = session.State is SessionState.Starting or SessionState.Running;
                                                 display: DisplayOptions(session));
         session.RdpSessionId = rdpId;
         session.FreeRdpPid   = clientPid;
-        // El audio sale por el cliente RDP del host: el nuevo cliente también se silencia.
-        if (clientPid > 0) AudioSessionMuter.StartPersistentMute((uint)clientPid);
+        if (clientPid > 0) MuteRdpClientOnHost(session, clientPid);
         RdpSessionCreator.ApplyDisplayFrequency(rdpId, frameRate);
         Logger.Log($"[{session.Name}] Pantalla RDP: {width}x{height} @ {frameRate} fps" +
                    (microphone is null ? "." : $", micrófono '{microphone}'."), id);
     }
 
     /// <summary>Usuario de Windows de la sesión (el dedicado si está aislada).</summary>
+    /// <summary>
+    /// Evita que el host oiga el audio de la sesión. mstsc reproduce el audio redirigido, así
+    /// que se silencia su sesión de audio (por proceso, no toca el volumen global). wfreerdp
+    /// ya lo descarta con <c>/sound:sys:fake</c> y no necesita nada.
+    /// </summary>
+    private static void MuteRdpClientOnHost(StreamSession session, int clientPid)
+    {
+        if (RdpSessionCreator.IsFreeRdpProcess(clientPid)) return;
+        Logger.Log($"[{session.Name}] Silenciando el cliente RDP (PID={clientPid}) en el host...", session.Id);
+        AudioSessionMuter.StartPersistentMute((uint)clientPid);
+    }
+
     private static StreamUserConfig ResolveUser(StreamSession session)
     {
         if (session.Isolated)
@@ -942,28 +953,21 @@ bool active = session.State is SessionState.Starting or SessionState.Running;
             session.RdpSessionId = rdpId;
             session.FreeRdpPid   = freeRdpPid;
 
-            // ── Audio: aislamiento via mute per-process de wfreerdp ───────────
-            // FreeRDP /audio-mode:redirect + /sound: RDP server intercepta el audio
-            // del juego dentro de la sesión RDP y lo redirige por canal a wfreerdp.exe,
-            // que lo reproduce en el host (típicamente en el endpoint físico).
-            // Sunshine, dentro de la sesión RDP, hace WASAPI loopback en "Remote Audio"
-            // (endpoint virtual que crea Windows automáticamente cuando hay redirect),
-            // capturando el SOURCE del audio antes del transporte RDP. Moonlight oye.
-            // Para que el host NO oiga: mute persistente de la audio session de
-            // wfreerdp.exe via ISimpleAudioVolume.SetMute. Mute es per-process por
-            // endpoint, no toca volumen global ni el de otros procesos. Sunshine no
-            // se ve afectado porque captura el source, no el output de wfreerdp.
+            // ── Audio: que el host no oiga la sesión ──────────────────────────
+            // Con audio redirigido, el servidor RDP saca el audio de la sesión por
+            // "Remote Audio" (donde Sunshine hace loopback: Moonlight oye) y además lo
+            // manda por el canal al cliente RDP del host. wfreerdp lo descarta
+            // (/sound:sys:fake); mstsc lo reproduciría, así que se silencia su sesión
+            // de audio (ver MuteRdpClientOnHost).
             if (freeRdpPid > 0)
             {
-                Logger.Log($"[{session.Name}] Silenciando wfreerdp.exe (PID={freeRdpPid}) en host para evitar fuga de audio...", session.Id);
-                AudioSessionMuter.StartPersistentMute((uint)freeRdpPid);
+                MuteRdpClientOnHost(session, freeRdpPid);
             }
             else
             {
-                // Sesión RDP reutilizada (no se lanzó FreeRDP). Sin PID de wfreerdp no
-                // hay nada que silenciar en el host; el audio debería seguir confinado
-                // al wfreerdp.exe original (si sigue vivo y muteado por su thread).
-                Logger.Warning($"[{session.Name}] Sin PID de FreeRDP, no se puede aplicar mute en host esta vez.", session.Id);
+                // Sesión RDP reutilizada: el cliente original sigue conectado y, si era
+                // mstsc, su hilo de silenciado sigue activo.
+                Logger.Log($"[{session.Name}] Sesión RDP reutilizada: no se lanzó cliente RDP nuevo.", session.Id);
             }
 
             session.StartPhase = "profile";
@@ -1194,7 +1198,7 @@ bool active = session.State is SessionState.Starting or SessionState.Running;
             OutputName:               s.OutputName,
             OriginWebUiAllowed:       s.OriginWebUiAllowed,
             // Sin audio_sink → Sunshine usa el default de la sesión RDP donde corre.
-            // Con FreeRDP /audio-mode:redirect + /sound, ese default es "Remote Audio"
+            // Con el audio redirigido (mstsc, o FreeRDP /audio-mode:redirect), es "Remote Audio"
             // (endpoint que crea Windows para el redirect). Loopback ahí captura el
             // source del juego.
             AudioSink: null,
