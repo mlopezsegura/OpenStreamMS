@@ -83,6 +83,16 @@
   "isolatedUser.orphanFolderDeleted": "Thư mục mồ côi '{0}' đã bị xóa.",
   "isolatedUser.errorAddingToGroup": "Không thể thêm '{0}' vào nhóm '{1}': lỗi {2}.",
   "isolatedUser.errorRemovingRights": "Không thể xóa quyền của '{0}': {1}.",
+  "error.mosaicSelf": "Một phiên không thể tham gia luồng của chính nó.",
+  "error.mosaicHostStopped": "Phiên chủ phải đang chạy.",
+  "error.mosaicCapture": "'{0}' không dùng chế độ chụp RemoteIdd mà khảm cần.",
+  "error.mosaicSeat": "'{0}' đang được một chỗ ngồi cục bộ sử dụng.",
+  "error.mosaicNoClient": "Hiện không có ai xem '{0}'. Hãy kết nối một máy khách trước.",
+  "error.mosaicGuestStreaming": "'{0}' đang có máy khách kết nối. Hãy ngắt kết nối trước.",
+  "error.mosaicBusy": "'{0}' đã ở trong một khảm.",
+  "error.mosaicFull": "Khảm đã có 4 phiên.",
+  "error.mosaicGuestStart": "'{0}' không khởi động kịp thời.",
+  "error.mosaicApply": "Không thể sắp xếp lại các phiên: {0}"
   "isolatedUser.passwordKept": "Người dùng '{0}' đã tồn tại; mật khẩu được giữ nguyên (Steam và các thông tin đăng nhập đã lưu khác vẫn hợp lệ).",
   "isolatedUser.passwordStoreFailed": "Không thể lưu hoặc đọc mật khẩu của '{0}' trong LSA: {1}. Mật khẩu sẽ được đặt lại ở lần khởi động tiếp theo."
 }

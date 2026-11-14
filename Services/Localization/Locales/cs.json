@@ -83,6 +83,16 @@
   "isolatedUser.orphanFolderDeleted": "Zbylá složka '{0}' smazána.",
   "isolatedUser.errorAddingToGroup": "Nepodařilo se přidat '{0}' do skupiny '{1}': chyba {2}.",
   "isolatedUser.errorRemovingRights": "Nepodařilo se odebrat práva pro '{0}': {1}.",
+  "error.mosaicSelf": "Relace se nemůže připojit ke svému vlastnímu streamu.",
+  "error.mosaicHostStopped": "Hostitelská relace musí běžet.",
+  "error.mosaicCapture": "'{0}' nepoužívá zachytávání RemoteIdd, které mozaika potřebuje.",
+  "error.mosaicSeat": "'{0}' používá místní pracovní stanice.",
+  "error.mosaicNoClient": "Relaci '{0}' teď nikdo nesleduje. Nejdřív připojte klienta.",
+  "error.mosaicGuestStreaming": "'{0}' má připojeného klienta. Nejdřív ho odpojte.",
+  "error.mosaicBusy": "'{0}' už je v mozaice.",
+  "error.mosaicFull": "Mozaika už má 4 relace.",
+  "error.mosaicGuestStart": "'{0}' se nespustila včas.",
+  "error.mosaicApply": "Relace se nepodařilo přeskládat: {0}"
   "isolatedUser.passwordKept": "Uživatel '{0}' již existoval; jeho heslo se zachovává (Steam a další uložená přihlášení zůstávají platná).",
   "isolatedUser.passwordStoreFailed": "Heslo uživatele '{0}' nelze uložit ani přečíst v LSA: {1}. Při příštím spuštění bude obnoveno."
 }

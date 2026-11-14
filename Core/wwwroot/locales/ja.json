@@ -710,5 +710,22 @@
   "log.noMatches": "フィルターに一致する行はありません。",
   "view.toggle": "セッションの表示",
   "view.cards": "カード",
-  "view.list": "リスト"
+  "view.list": "リスト",
+  "mosaic.join": "別のセッションのストリームに参加…",
+  "mosaic.join_disabled": "ローカルセッション、または起動中・停止中のセッションでは使用できません。",
+  "mosaic.joinTo": "{name} に参加（4 分割の {n} 番目）",
+  "mosaic.leave": "モザイクから外れる",
+  "mosaic.dissolve": "モザイクを終了",
+  "mosaic.noHosts": "現在、クライアントに配信している他のセッションはありません。",
+  "mosaic.joining": "{name} を {host} のストリームに参加させています… 各セッションは担当部分のサイズで再接続されます。",
+  "mosaic.joined": "{name} は {host} のストリームに参加しました。",
+  "mosaic.left": "{name} はモザイクから外れました。",
+  "mosaic.dissolved": "モザイクを終了しました。{name} は全画面に戻ります。",
+  "mosaic.hostChip": "モザイク {n}/4",
+  "mosaic.guestChip": "{name} のモザイク内",
+  "mosaic.member": "コントローラー {n} → {name}",
+  "mosaic.chip_title": "このストリームは最大 4 セッションで共有されます。各コントローラーは接続順に 1 つのセッションに割り当てられます: {list}",
+  "mosaic.stack": "上下に並べる",
+  "mosaic.sideBySide": "左右に並べる",
+  "mosaic.relayout": "配置を変更しています… 2 つのセッションが新しい半分のサイズで再接続されます。"
 }

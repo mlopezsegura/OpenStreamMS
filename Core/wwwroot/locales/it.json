@@ -710,5 +710,22 @@
   "log.noMatches": "Nessuna riga corrisponde al filtro.",
   "view.toggle": "Vista sessioni",
   "view.cards": "Schede",
-  "view.list": "Elenco"
+  "view.list": "Elenco",
+  "mosaic.join": "Unisciti allo stream di un'altra sessione…",
+  "mosaic.join_disabled": "Non disponibile per una sessione locale o mentre si avvia o si arresta.",
+  "mosaic.joinTo": "Unisciti a {name} (parte {n} di 4)",
+  "mosaic.leave": "Esci dal mosaico",
+  "mosaic.dissolve": "Termina il mosaico",
+  "mosaic.noHosts": "Al momento nessun'altra sessione sta trasmettendo a un client.",
+  "mosaic.joining": "{name} si unisce allo stream di {host}… Le sessioni si riconnettono alla dimensione della loro parte.",
+  "mosaic.joined": "{name} ora è nello stream di {host}.",
+  "mosaic.left": "{name} è uscita dal mosaico.",
+  "mosaic.dissolved": "Mosaico terminato: {name} torna a schermo intero.",
+  "mosaic.hostChip": "Mosaico {n}/4",
+  "mosaic.guestChip": "Nel mosaico di {name}",
+  "mosaic.member": "Controller {n} → {name}",
+  "mosaic.chip_title": "Fino a 4 sessioni condividono questo stream. Ogni controller va a una sessione in ordine di arrivo: {list}",
+  "mosaic.stack": "Una sopra l'altra",
+  "mosaic.sideBySide": "Una accanto all'altra",
+  "mosaic.relayout": "Riorganizzazione… entrambe le sessioni si riconnettono alla loro nuova metà."
 }

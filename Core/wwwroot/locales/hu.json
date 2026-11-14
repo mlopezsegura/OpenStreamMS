@@ -710,5 +710,22 @@
   "log.noMatches": "Egy sor sem felel meg a szűrőnek.",
   "view.toggle": "Munkamenetek nézete",
   "view.cards": "Kártyák",
-  "view.list": "Lista"
+  "view.list": "Lista",
+  "mosaic.join": "Csatlakozás egy másik munkamenet streamjéhez…",
+  "mosaic.join_disabled": "Helyi munkamenetnél, illetve indítás vagy leállítás közben nem érhető el.",
+  "mosaic.joinTo": "Csatlakozás ehhez: {name} ({n}. rész a 4-ből)",
+  "mosaic.leave": "Kilépés a mozaikból",
+  "mosaic.dissolve": "Mozaik megszüntetése",
+  "mosaic.noHosts": "Jelenleg egyetlen másik munkamenet sem streamel klienshez.",
+  "mosaic.joining": "{name} csatlakozik {host} streamjéhez… A munkamenetek a saját részük méretével csatlakoznak újra.",
+  "mosaic.joined": "{name} most már {host} streamjében van.",
+  "mosaic.left": "{name} kilépett a mozaikból.",
+  "mosaic.dissolved": "A mozaik megszűnt: {name} újra teljes képernyős.",
+  "mosaic.hostChip": "Mozaik {n}/4",
+  "mosaic.guestChip": "{name} mozaikjában",
+  "mosaic.member": "{n}. kontroller → {name}",
+  "mosaic.chip_title": "Legfeljebb 4 munkamenet osztozik ezen a streamen. Minden kontroller érkezési sorrendben egy munkamenethez kerül: {list}",
+  "mosaic.stack": "Egymás fölé",
+  "mosaic.sideBySide": "Egymás mellé",
+  "mosaic.relayout": "Átrendezés… mindkét munkamenet újracsatlakozik az új felével."
 }

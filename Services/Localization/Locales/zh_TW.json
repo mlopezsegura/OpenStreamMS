@@ -83,6 +83,16 @@
   "isolatedUser.orphanFolderDeleted": "孤立資料夾 '{0}' 已刪除。",
   "isolatedUser.errorAddingToGroup": "無法將 '{0}' 新增到群組 '{1}': 錯誤 {2}。",
   "isolatedUser.errorRemovingRights": "無法移除 '{0}' 的權限: {1}。",
+  "error.mosaicSelf": "工作階段無法加入自己的串流。",
+  "error.mosaicHostStopped": "主工作階段必須正在執行。",
+  "error.mosaicCapture": "'{0}' 未使用拼接畫面所需的 RemoteIdd 擷取。",
+  "error.mosaicSeat": "'{0}' 正由本機座位使用。",
+  "error.mosaicNoClient": "目前沒有人在觀看 '{0}'。請先連線一個用戶端。",
+  "error.mosaicGuestStreaming": "'{0}' 已連線用戶端。請先中斷連線。",
+  "error.mosaicBusy": "'{0}' 已在拼接畫面中。",
+  "error.mosaicFull": "拼接畫面已有 4 個工作階段。",
+  "error.mosaicGuestStart": "'{0}' 未能及時啟動。",
+  "error.mosaicApply": "無法重新排列工作階段：{0}"
   "isolatedUser.passwordKept": "使用者 '{0}' 已存在；保留其密碼（Steam 和其他已儲存的登入仍然有效）。",
   "isolatedUser.passwordStoreFailed": "無法在 LSA 中儲存或讀取 '{0}' 的密碼：{1}。下次啟動時將重設。"
 }

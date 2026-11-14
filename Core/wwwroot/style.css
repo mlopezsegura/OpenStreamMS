@@ -1146,6 +1146,12 @@ section#view-sessions, section#view-seats { animation: viewIn .35s var(--ease); 
 .chip-webrtc .ui-icon    { color: var(--accent-2); }
 .chip-seat .ui-icon      { color: var(--amber); }
 .chip-seat.active { color: var(--text); border-color: rgba(var(--c-amber),.4); background: rgba(var(--c-amber),.08); }
+/* Mosaico: mapa 2×2 con la parte de la sesión resaltada. */
+.chip-mosaic.active { color: var(--text); border-color: rgba(var(--c-accent),.4); background: rgba(var(--c-accent),.08); }
+.mosaic-map { display: inline-grid; grid-template-columns: repeat(2, 5px); gap: 1px; }
+.mosaic-map i { width: 5px; height: 4px; border-radius: 1px; background: rgba(var(--c-ink),.14); }
+.mosaic-map i.used { background: rgba(var(--c-accent),.35); }
+.mosaic-map i.own  { background: var(--accent); }
 
 .card-footer { margin-top: 1rem; padding-top: .8rem; border-top: 1px solid rgba(var(--c-ink),.06); align-items: center; }
 .more-btn { margin-left: auto; }

@@ -710,5 +710,22 @@
   "log.noMatches": "Aucune ligne ne correspond au filtre.",
   "view.toggle": "Vue des sessions",
   "view.cards": "Cartes",
-  "view.list": "Liste"
+  "view.list": "Liste",
+  "mosaic.join": "Rejoindre le stream d'une autre session…",
+  "mosaic.join_disabled": "Indisponible pour une session locale ou pendant son démarrage ou son arrêt.",
+  "mosaic.joinTo": "Rejoindre {name} (partie {n} sur 4)",
+  "mosaic.leave": "Quitter la mosaïque",
+  "mosaic.dissolve": "Terminer la mosaïque",
+  "mosaic.noHosts": "Aucune autre session ne diffuse vers un client pour le moment.",
+  "mosaic.joining": "{name} rejoint le stream de {host}… Les sessions se reconnectent à la taille de leur partie.",
+  "mosaic.joined": "{name} est maintenant dans le stream de {host}.",
+  "mosaic.left": "{name} a quitté la mosaïque.",
+  "mosaic.dissolved": "Mosaïque terminée : {name} repasse en plein écran.",
+  "mosaic.hostChip": "Mosaïque {n}/4",
+  "mosaic.guestChip": "Dans la mosaïque de {name}",
+  "mosaic.member": "Manette {n} → {name}",
+  "mosaic.chip_title": "Jusqu'à 4 sessions partagent ce stream. Chaque manette va à une session par ordre d'arrivée : {list}",
+  "mosaic.stack": "Mettre l'une au-dessus de l'autre",
+  "mosaic.sideBySide": "Mettre côte à côte",
+  "mosaic.relayout": "Réorganisation… les deux sessions se reconnectent à leur nouvelle moitié."
 }

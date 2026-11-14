@@ -83,6 +83,16 @@
   "isolatedUser.orphanFolderDeleted": "Оставшаяся папка '{0}' удалена.",
   "isolatedUser.errorAddingToGroup": "Не удалось добавить '{0}' в группу '{1}': ошибка {2}.",
   "isolatedUser.errorRemovingRights": "Не удалось удалить права для '{0}': {1}.",
+  "error.mosaicSelf": "Сеанс не может присоединиться к собственной трансляции.",
+  "error.mosaicHostStopped": "Сеанс-хост должен быть запущен.",
+  "error.mosaicCapture": "'{0}' не использует захват RemoteIdd, который нужен мозаике.",
+  "error.mosaicSeat": "'{0}' используется локальным рабочим местом.",
+  "error.mosaicNoClient": "Сейчас '{0}' никто не смотрит. Сначала подключите клиент.",
+  "error.mosaicGuestStreaming": "К '{0}' подключён клиент. Сначала отключите его.",
+  "error.mosaicBusy": "'{0}' уже в мозаике.",
+  "error.mosaicFull": "В мозаике уже 4 сеанса.",
+  "error.mosaicGuestStart": "'{0}' не запустился вовремя.",
+  "error.mosaicApply": "Не удалось переставить сеансы: {0}"
   "isolatedUser.passwordKept": "Пользователь '{0}' уже существовал; его пароль сохраняется (Steam и другие сохранённые входы остаются действительными).",
   "isolatedUser.passwordStoreFailed": "Не удалось сохранить или прочитать пароль '{0}' в LSA: {1}. Он будет сброшен при следующем запуске."
 }

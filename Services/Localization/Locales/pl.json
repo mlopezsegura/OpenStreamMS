@@ -83,6 +83,16 @@
   "isolatedUser.orphanFolderDeleted": "Pozostali folder '{0}' usunięty.",
   "isolatedUser.errorAddingToGroup": "Nie można dodać '{0}' do grupy '{1}': błąd {2}.",
   "isolatedUser.errorRemovingRights": "Nie można usunąć uprawnień dla '{0}': {1}.",
+  "error.mosaicSelf": "Sesja nie może dołączyć do własnego streamu.",
+  "error.mosaicHostStopped": "Sesja gospodarza musi być uruchomiona.",
+  "error.mosaicCapture": "'{0}' nie używa przechwytywania RemoteIdd, którego wymaga mozaika.",
+  "error.mosaicSeat": "'{0}' jest używana przez stanowisko lokalne.",
+  "error.mosaicNoClient": "Nikt teraz nie ogląda '{0}'. Najpierw podłącz klienta.",
+  "error.mosaicGuestStreaming": "'{0}' ma podłączonego klienta. Najpierw go rozłącz.",
+  "error.mosaicBusy": "'{0}' jest już w mozaice.",
+  "error.mosaicFull": "Mozaika ma już 4 sesje.",
+  "error.mosaicGuestStart": "'{0}' nie uruchomiła się na czas.",
+  "error.mosaicApply": "Nie udało się przestawić sesji: {0}"
   "isolatedUser.passwordKept": "Użytkownik '{0}' już istniał; jego hasło zostaje zachowane (Steam i inne zapisane logowania pozostają ważne).",
   "isolatedUser.passwordStoreFailed": "Nie udało się zapisać ani odczytać hasła '{0}' w LSA: {1}. Zostanie zresetowane przy następnym uruchomieniu."
 }

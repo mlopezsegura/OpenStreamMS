@@ -256,7 +256,15 @@ public record SessionResponse(
     /// <summary>Ritmo de composición de la sesión RDP.</summary>
     RdpCompositionMode RdpComposition = RdpCompositionMode.Smooth,
     /// <summary>Paso del arranque en el que falló (user, rdp, profile, unlock, sunshine); null si no hay error.</summary>
-    string?      FailedPhase = null
+    string?      FailedPhase = null,
+    /// <summary>Anfitriona del mosaico en el que está la sesión (la propia si es la anfitriona); null fuera de un mosaico.</summary>
+    Guid?        MosaicHost = null,
+    /// <summary>Posición en el mosaico por orden de llegada (0 = anfitriona; el mando N va a la N).</summary>
+    int?         MosaicIndex = null,
+    /// <summary>Sesiones en el mosaico de la anfitriona (solo en la anfitriona).</summary>
+    int?         MosaicCount = null,
+    /// <summary>Solo en la anfitriona: con dos sesiones, una encima de otra en vez de una al lado de otra.</summary>
+    bool         MosaicStacked = false
 );
 
 /// <summary>Usuario dedicado o perfil osms-* que ya no usa ninguna sesión.</summary>
@@ -963,5 +971,6 @@ public static class SessionEndpoints
         s.Isolated ? s.GetIsolatedUser() : null,
         StreamSessionService.SteamLoginState(s),
         s.RdpDisplayScale, s.RdpComposition,
-        s.ErrorMessage is null ? null : s.FailedPhase);
+        s.ErrorMessage is null ? null : s.FailedPhase,
+        s.MosaicHost, s.MosaicIndex, s.MosaicCount, s.MosaicStacked);
 }

@@ -1307,6 +1307,13 @@ bool active = session.State is SessionState.Starting or SessionState.Running;
     private static bool UsesRemoteIdd(StreamSession session) =>
         WantsRemoteIdd(session) && RdpWrapperManager.IsRemoteIddUsable();
 
+    /// <summary>La sesión se captura con RemoteIdd (requisito del mosaico).</summary>
+    public static bool CapturesWithRemoteIdd(StreamSession session) => UsesRemoteIdd(session);
+
+    /// <summary>Carpeta <c>config</c> del Sunshine de la sesión (la de <c>sunshine.conf</c>).</summary>
+    public static string SunshineConfigDir(Guid sessionId) =>
+        Path.Combine(GetSunshineInstanceDir(sessionId), "config");
+
     private static bool WantsRemoteIdd(StreamSession session) =>
         !session.Local &&
         (string.IsNullOrWhiteSpace(session.Capture) || IsRemoteIddCapture(session));

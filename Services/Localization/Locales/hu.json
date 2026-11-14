@@ -83,6 +83,16 @@
   "isolatedUser.orphanFolderDeleted": "Ártatlan mappa '{0}' törölve.",
   "isolatedUser.errorAddingToGroup": "A '{0}' nem adható hozzá a '{1}' csoporthoz: hiba {2}.",
   "isolatedUser.errorRemovingRights": "A '{0}' jogai nem vonhatók ki: {1}.",
+  "error.mosaicSelf": "Egy munkamenet nem csatlakozhat a saját streamjéhez.",
+  "error.mosaicHostStopped": "A gazda munkamenetnek futnia kell.",
+  "error.mosaicCapture": "'{0}' nem RemoteIdd rögzítést használ, pedig a mozaikhoz az kell.",
+  "error.mosaicSeat": "'{0}' munkamenetet egy helyi munkaállomás használja.",
+  "error.mosaicNoClient": "Jelenleg senki sem nézi ezt: '{0}'. Előbb csatlakoztasson egy klienst.",
+  "error.mosaicGuestStreaming": "'{0}' munkamenethez kliens csatlakozik. Előbb bontsa a kapcsolatot.",
+  "error.mosaicBusy": "'{0}' már egy mozaikban van.",
+  "error.mosaicFull": "A mozaikban már 4 munkamenet van.",
+  "error.mosaicGuestStart": "'{0}' nem indult el időben.",
+  "error.mosaicApply": "Nem sikerült átrendezni a munkameneteket: {0}"
   "isolatedUser.passwordKept": "A(z) '{0}' felhasználó már létezett; a jelszava megmarad (a Steam és más mentett bejelentkezések érvényesek maradnak).",
   "isolatedUser.passwordStoreFailed": "Nem sikerült menteni vagy olvasni a(z) '{0}' jelszavát az LSA-ban: {1}. A következő indításkor alaphelyzetbe áll."
 }

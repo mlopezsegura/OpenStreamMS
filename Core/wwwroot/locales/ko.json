@@ -710,5 +710,22 @@
   "log.noMatches": "필터와 일치하는 줄이 없습니다.",
   "view.toggle": "세션 보기",
   "view.cards": "카드",
-  "view.list": "목록"
+  "view.list": "목록",
+  "mosaic.join": "다른 세션의 스트림에 참여…",
+  "mosaic.join_disabled": "로컬 세션이거나 시작 또는 중지 중에는 사용할 수 없습니다.",
+  "mosaic.joinTo": "{name}에 참여 (4개 중 {n}번째 부분)",
+  "mosaic.leave": "모자이크에서 나가기",
+  "mosaic.dissolve": "모자이크 종료",
+  "mosaic.noHosts": "지금 클라이언트로 스트리밍 중인 다른 세션이 없습니다.",
+  "mosaic.joining": "{name}을(를) {host}의 스트림에 참여시키는 중… 세션이 각 부분 크기로 다시 연결됩니다.",
+  "mosaic.joined": "{name}이(가) 이제 {host}의 스트림에 있습니다.",
+  "mosaic.left": "{name}이(가) 모자이크에서 나갔습니다.",
+  "mosaic.dissolved": "모자이크 종료: {name}이(가) 전체 화면으로 돌아갑니다.",
+  "mosaic.hostChip": "모자이크 {n}/4",
+  "mosaic.guestChip": "{name}의 모자이크에 있음",
+  "mosaic.member": "컨트롤러 {n} → {name}",
+  "mosaic.chip_title": "최대 4개 세션이 이 스트림을 공유합니다. 각 컨트롤러는 연결 순서대로 하나의 세션에 배정됩니다: {list}",
+  "mosaic.stack": "위아래로 배치",
+  "mosaic.sideBySide": "나란히 배치",
+  "mosaic.relayout": "다시 배치하는 중… 두 세션이 새 절반 크기로 다시 연결됩니다."
 }

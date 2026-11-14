@@ -83,6 +83,16 @@
   "isolatedUser.orphanFolderDeleted": "Pasta órfã '{0}' eliminada.",
   "isolatedUser.errorAddingToGroup": "Não foi possível adicionar '{0}' ao grupo '{1}': erro {2}.",
   "isolatedUser.errorRemovingRights": "Não foi possível remover os direitos de '{0}': {1}.",
+  "error.mosaicSelf": "Uma sessão não se pode juntar ao seu próprio stream.",
+  "error.mosaicHostStopped": "A sessão anfitriã tem de estar em execução.",
+  "error.mosaicCapture": "'{0}' não usa a captura RemoteIdd, de que o mosaico precisa.",
+  "error.mosaicSeat": "'{0}' está a ser usada por um posto local.",
+  "error.mosaicNoClient": "Neste momento ninguém está a ver '{0}'. Ligue primeiro um cliente.",
+  "error.mosaicGuestStreaming": "'{0}' tem um cliente ligado. Desligue-o primeiro.",
+  "error.mosaicBusy": "'{0}' já está num mosaico.",
+  "error.mosaicFull": "O mosaico já tem 4 sessões.",
+  "error.mosaicGuestStart": "'{0}' não iniciou a tempo.",
+  "error.mosaicApply": "Não foi possível reorganizar as sessões: {0}"
   "isolatedUser.passwordKept": "O utilizador '{0}' já existia; a sua palavra-passe é mantida (o Steam e outros inícios de sessão guardados continuam válidos).",
   "isolatedUser.passwordStoreFailed": "Não foi possível guardar ou ler a palavra-passe de '{0}' no LSA: {1}. Será reposta no próximo arranque."
 }

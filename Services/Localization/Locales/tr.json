@@ -83,6 +83,16 @@
   "isolatedUser.orphanFolderDeleted": "Kalıntı klasör '{0}' silindi.",
   "isolatedUser.errorAddingToGroup": "'{0}' '{1}' grubuna eklenemedi: hata {2}.",
   "isolatedUser.errorRemovingRights": "'{0}' hakları kaldırılamadı: {1}.",
+  "error.mosaicSelf": "Bir oturum kendi yayınına katılamaz.",
+  "error.mosaicHostStopped": "Ana oturumun çalışıyor olması gerekir.",
+  "error.mosaicCapture": "'{0}', mozaiğin ihtiyaç duyduğu RemoteIdd yakalamayı kullanmıyor.",
+  "error.mosaicSeat": "'{0}' yerel bir istasyon tarafından kullanılıyor.",
+  "error.mosaicNoClient": "Şu anda kimse '{0}' oturumunu izlemiyor. Önce bir istemci bağlayın.",
+  "error.mosaicGuestStreaming": "'{0}' oturumuna bağlı bir istemci var. Önce bağlantısını kesin.",
+  "error.mosaicBusy": "'{0}' zaten bir mozaikte.",
+  "error.mosaicFull": "Mozaikte zaten 4 oturum var.",
+  "error.mosaicGuestStart": "'{0}' zamanında başlamadı.",
+  "error.mosaicApply": "Oturumlar yeniden yerleştirilemedi: {0}"
   "isolatedUser.passwordKept": "'{0}' kullanıcısı zaten vardı; parolası korunuyor (Steam ve diğer kayıtlı oturum açmalar geçerli kalır).",
   "isolatedUser.passwordStoreFailed": "'{0}' parolası LSA'ya kaydedilemedi veya okunamadı: {1}. Bir sonraki başlatmada sıfırlanacak."
 }
