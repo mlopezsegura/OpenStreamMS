@@ -92,7 +92,7 @@ Sesión del puesto
 | `Services/Seats/HandleBroker.cs` | Duplica handles NT de texturas compartidas entre procesos de distintas sesiones |
 | `Services/Seats/DisplayTopology.cs` | Enumerar monitores, activarlos, colocación en esquina y sacarlos del escritorio |
 | `Services/Seats/SeatAudio.cs` | Salidas de audio y micrófonos disponibles |
-| `FreeRDP/patches/0001-audin-winmm-choose-microphone.patch` | Parche de FreeRDP 3.32.0: `/microphone:sys:winmm,dev:<id de endpoint>` abre ese micrófono |
+| `FreeRDP/patches/0001-audin-winmm-choose-microphone.patch` | Parche de FreeRDP 3.33.0: `/microphone:sys:winmm,dev:<id de endpoint>` abre ese micrófono |
 | `Services/Seats/SeatUsbCapture.cs` | Cambio de driver a WinUSB y vuelta (con registro en `%ProgramData%\OpenStreamMS\usb-capture.json`) y lectura de los informes USB |
 | `Services/Seats/SeatHid.cs` | Descriptor de informe HID → eventos de ratón y scancodes de teclado |
 | `Services/Seats/SeatInput.cs` | Respaldo: Raw Input en la consola y escudo del cursor |
@@ -152,8 +152,13 @@ restauran en su siguiente arranque.
   la directiva «Permitir la redirección de grabación de audio» no esté deshabilitada
   (`fDisableAudioCapture`). Un micrófono desconectado al encender el puesto se omite
   (el puesto arranca sin él y queda un aviso en el log).
-- **Recompilar FreeRDP**: aplicar el parche sobre FreeRDP 3.32.0 y compilar con el
-  script estático (`wfreerdp` sin dependencias); copiar `wfreerdp.exe` a `FreeRDP/`.
+- **Recompilar FreeRDP**: `wfreerdp.exe` sale de [SlimFreeRDP](https://github.com/mlopezsegura/SlimFreeRDP)
+  (FreeRDP 3.33.0 + OpenSSL 3.6.5, estático, solo los canales que se usan y con el parche
+  del micrófono). Compilar con su `build.cmd` y copiar `wfreerdp.exe` a `FreeRDP/`. No trae
+  `/gfx` ni `/rfx`, ni portapapeles ni unidades.
+- **Audio del cliente RDP en el host**: `wfreerdp` va con `/sound:sys:fake` (descarta el
+  audio redirigido; Sunshine lo captura antes, en «Remote Audio»). mstsc sí lo reproduce y
+  se silencia su sesión de audio (`AudioSessionMuter`).
 - **Consola anfitriona**: recomendable un usuario técnico con autologon, sin
   bloqueo, sin UAC en escritorio seguro y sin apagado de pantalla.
 

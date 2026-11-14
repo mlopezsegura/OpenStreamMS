@@ -65,3 +65,5 @@
 # cmd interpreta mal los .bat/.cmd con LF
 *.bat text eol=crlf
 *.cmd text eol=crlf
+# git apply necesita los parches en LF, como el codigo de FreeRDP
+*.patch text eol=lf
